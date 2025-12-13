@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Toaster } from "sonner";
 import { Outfit } from "next/font/google"; // Import Outfit
 import "./globals.css";
 
@@ -11,7 +12,7 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "PCP Starter Kit",
+  title: "SAAS PCP",
   description: "Starter Kit for PCP Support",
 };
 
@@ -26,6 +27,7 @@ export default function RootLayout({
         className={`${outfit.variable} font-sans antialiased`}
       >
         {children}
+        <Toaster position="top-right" richColors />
       </body>
     </html>
   );

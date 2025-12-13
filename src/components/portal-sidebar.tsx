@@ -1,0 +1,79 @@
+import Link from "next/link";
+import { LayoutGrid, LogOut, Settings, Box, Home } from "lucide-react";
+import { SignOutButton } from "./sign-out-button";
+import { cn } from "@/lib/utils";
+
+export interface SidebarLink {
+    label: string;
+    href: string;
+    icon?: string; // 'grid', 'settings', 'box', 'home'
+}
+
+interface PortalSidebarProps {
+    userEmail?: string | null;
+    userName?: string | null;
+    className?: string;
+    onClose?: () => void;
+    links?: SidebarLink[];
+}
+
+const getIcon = (name?: string) => {
+    switch (name) {
+        case 'grid': return LayoutGrid;
+        case 'settings': return Settings;
+        case 'box': return Box;
+        case 'home': return Home;
+        default: return Box;
+    }
+}
+
+export function PortalSidebar({ userEmail, userName, className, onClose, links }: PortalSidebarProps) {
+    // Default links if none provided
+    const navLinks = links || [
+        { label: "Seus Aplicativos", href: "/portal", icon: "grid" }
+    ];
+
+    return (
+        <aside className={cn("w-64 bg-white border-r border-grey-light flex flex-col h-full", className)}>
+            {/* Logo Area - Clickable to Home */}
+            <div className="p-6 border-b border-grey-light">
+                <Link href="/portal" onClick={onClose} className="block">
+                    <h2 className="text-xl font-bold text-[#2B4964] tracking-wide uppercase hover:text-primary transition-colors">
+                        SaaS PCP
+                    </h2>
+                </Link>
+            </div>
+
+            {/* Navigation */}
+            <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+                {navLinks.map((link) => {
+                    const Icon = getIcon(link.icon);
+                    return (
+                        <Link
+                            key={link.href}
+                            href={link.href}
+                            onClick={onClose}
+                            className="flex items-center gap-3 px-4 py-3 text-[#2B4964] bg-grey-lighter rounded-md hover:bg-gray-100 transition-colors font-medium min-h-[60px]"
+                        >
+                            <Icon size={20} className="shrink-0" />
+                            <span className="leading-tight">{link.label}</span>
+                        </Link>
+                    );
+                })}
+            </nav>
+
+            {/* Footer / User Profile */}
+            <div className="p-4 border-t border-grey-light bg-zinc-50">
+                <div className="mb-4 px-2">
+                    <p className="text-sm font-semibold text-[#2B4964] truncate">
+                        {userName || "Usuário"}
+                    </p>
+                    <p className="text-xs text-grey-darker truncate" title={userEmail || ""}>
+                        {userEmail}
+                    </p>
+                </div>
+                <SignOutButton fullWidth />
+            </div>
+        </aside>
+    );
+}
