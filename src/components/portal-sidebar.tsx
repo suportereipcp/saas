@@ -36,11 +36,18 @@ export function PortalSidebar({ userEmail, userName, className, onClose, links }
     return (
         <aside className={cn("w-64 bg-white border-r border-grey-light flex flex-col h-full", className)}>
             {/* Logo Area - Clickable to Home */}
-            <div className="p-6 border-b border-grey-light">
-                <Link href="/portal" onClick={onClose} className="block">
-                    <h2 className="text-xl font-bold text-[#2B4964] tracking-wide uppercase hover:text-primary transition-colors">
-                        SaaS PCP
-                    </h2>
+            {/* Logo Area */}
+            <div className="p-6 border-b border-grey-light flex items-center justify-between">
+                <h2 className="text-xl font-bold text-[#2B4964] tracking-wide uppercase select-none">
+                    SaaS PCP
+                </h2>
+                <Link
+                    href="/portal"
+                    onClick={onClose}
+                    className="p-2 text-grey-darker hover:text-primary hover:bg-grey-lighter rounded-md transition-colors"
+                    title="Início"
+                >
+                    <Home size={20} />
                 </Link>
             </div>
 
