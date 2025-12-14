@@ -38,21 +38,33 @@ export default async function PortalPage() {
         return redirect("/login");
     }
 
-    // Fetch profile and apps in parallel
-    const [profileResult, appsResult] = await Promise.all([
+    // Fetch profile, apps, and permissions in parallel
+    const [profileResult, appsResult, permissionsResult] = await Promise.all([
         supabase.from("profiles").select("full_name, is_super_admin").eq("id", user.id).single(),
-        supabase.from("apps").select("*").eq("active", true),
+        supabase.from("apps").select("*"),
+        supabase.from("permissions").select("app_code").eq("user_id", user.id),
     ]);
 
     const profile = profileResult.data;
     const allApps = appsResult.data || [];
+    const userPermissions = new Set((permissionsResult.data || []).map(p => p.app_code));
 
-    // Filter apps: 'admin' code only visible to super admins
+    // Filter apps
     const appsList = allApps.filter(app => {
-        if (app.code === 'admin') {
-            return profile?.is_super_admin;
+        // Super Admin sees ALL active apps (and admin app)
+        if (profile?.is_super_admin) {
+            return true;
         }
-        return true;
+
+        // Regular users:
+        // 1. App must be active
+        if (!app.active) return false;
+
+        // 2. 'admin' app is hidden
+        if (app.code === 'admin') return false;
+
+        // 3. Must have permission
+        return userPermissions.has(app.code);
     });
 
     return (
