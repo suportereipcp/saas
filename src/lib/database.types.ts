@@ -131,6 +131,27 @@ export interface Database {
                 }
                 Relationships: []
             }
+            webhook_logs: {
+                Row: {
+                    id: number
+                    created_at: string
+                    source: string | null
+                    payload: Json | null
+                }
+                Insert: {
+                    id?: number
+                    created_at?: string
+                    source?: string | null
+                    payload?: Json | null
+                }
+                Update: {
+                    id?: number
+                    created_at?: string
+                    source?: string | null
+                    payload?: Json | null
+                }
+                Relationships: []
+            }
         }
         Views: {
             [_ in never]: never
