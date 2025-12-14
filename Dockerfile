@@ -47,7 +47,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Define permissões e usuário
 USER nextjs
 
-# Expõe a porta e configura Host
+# Expõe a porta e configura Host.
 EXPOSE 3000
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
