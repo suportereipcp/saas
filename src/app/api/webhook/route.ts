@@ -6,7 +6,12 @@ export async function POST(request: Request) {
         // 1. Verifica se a chave mestra existe (segurança do servidor)
         // Nota: O supabaseAdmin já lida parcialmente com isso, mas uma verificação explícita é boa.
         if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-            console.error('ERRO: Service Role Key não configurada no servidor.');
+            console.error('ERRO CRÍTICO: Service Role Key indefinida.');
+            console.error('Debug Infos:', {
+                hasKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+                envKeys: Object.keys(process.env).filter(k => k.startsWith('SUPABASE')),
+                nodeEnv: process.env.NODE_ENV,
+            });
             return NextResponse.json({ error: 'Configuração de servidor pendente' }, { status: 500 });
         }
 
