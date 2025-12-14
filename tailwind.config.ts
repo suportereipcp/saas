@@ -77,7 +77,7 @@ const config: Config = {
                 widest: '0.1em',
             },
             fontFamily: {
-                sans: ['var(--font-outfit)', 'sans-serif'],
+                sans: ['var(--font-inter)', 'sans-serif'],
             },
         }
     },

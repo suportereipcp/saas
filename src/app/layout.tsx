@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { Toaster } from "sonner";
-import { Outfit } from "next/font/google"; // Import Outfit
+import { Inter } from "next/font/google"; // Import Inter
 import "./globals.css";
 
-// Configure Outfit font
-const outfit = Outfit({
+// Configure Inter font
+const inter = Inter({
   subsets: ['latin'],
-  weight: ['400'], // User requested 400
-  variable: '--font-outfit',
+  weight: ['400'],
+  variable: '--font-inter',
   display: 'swap',
 });
 
@@ -24,7 +24,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${outfit.variable} font-sans antialiased`}
+        className={`${inter.variable} font-sans antialiased`}
       >
         {children}
         <Toaster position="top-right" richColors />
