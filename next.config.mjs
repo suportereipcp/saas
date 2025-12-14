@@ -6,3 +6,5 @@ const nextConfig = {
   },
 };
 export default nextConfig;
+
+// UPDATE: Forçando rebuild para injetar chaves do Supabase
