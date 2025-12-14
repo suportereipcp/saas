@@ -56,14 +56,14 @@ export default function LoginPage() {
                         <form action={handleLogin}>
                             <div className="mb-6">
                                 <label className="block text-grey-darker text-sm font-bold mb-2 sr-only" htmlFor="email">
-                                    Usuário
+                                    E-mail
                                 </label>
                                 <input
                                     className="appearance-none border border-grey-light rounded-sm w-full py-3 px-4 text-grey-darker leading-tight focus:outline-none focus:border-grey"
                                     id="email"
                                     name="email"
                                     type="text"
-                                    placeholder="Usuário"
+                                    placeholder="E-mail"
                                     required
                                 />
                             </div>

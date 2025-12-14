@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase-server";
+
+export const dynamic = "force-dynamic";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { Settings } from "lucide-react";
 import { UserList } from "@/components/admin/user-list";
