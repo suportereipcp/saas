@@ -4,9 +4,12 @@ export const dynamic = "force-dynamic";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { Settings } from "lucide-react";
 import { UserList } from "@/components/admin/user-list";
+import { fetchSettings } from "@/actions/settings";
+import { SettingsForm } from "@/components/admin/settings-form";
 
 export default async function AdminGlobalSettings() {
     const supabase = await createClient();
+    const settings = await fetchSettings();
 
     // In a real app, we would fetch system settings from a 'settings' table here
     const {
@@ -64,11 +67,10 @@ export default async function AdminGlobalSettings() {
 
             <UserList users={users} currentUserId={user?.id} allApps={appsData || []} />
 
+            <SettingsForm initialSettings={settings} />
+
             <div className="bg-white rounded-lg border border-grey-light shadow-sm p-6 text-grey-darker mt-8">
-                <h4 className="font-semibold mb-2">Outras Configurações</h4>
-                <p className="text-sm mb-4">
-                    Opções globais adicionais (Manutenção, SMTP, etc.) serão implementadas futuramente.
-                </p>
+                <h4 className="font-semibold mb-2">Sobre o Sistema</h4>
                 <div className="text-xs opacity-50">v0.1.0</div>
             </div>
         </div>

@@ -1,7 +1,10 @@
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { LayoutGrid, LogOut, Settings, Box, Home } from "lucide-react";
 import { SignOutButton } from "./sign-out-button";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
+import iconParams from "../app/icon.png"; // Next.js imports images as objects
 
 export interface SidebarLink {
     label: string;
@@ -28,6 +31,8 @@ const getIcon = (name?: string) => {
 }
 
 export function PortalSidebar({ userEmail, userName, className, onClose, links }: PortalSidebarProps) {
+    const pathname = usePathname();
+
     // Default links if none provided
     const navLinks = links || [
         { label: "Seus Aplicativos", href: "/portal", icon: "grid" }
@@ -35,12 +40,20 @@ export function PortalSidebar({ userEmail, userName, className, onClose, links }
 
     return (
         <aside className={cn("w-64 bg-white border-r border-grey-light flex flex-col h-full", className)}>
-            {/* Logo Area - Clickable to Home */}
             {/* Logo Area */}
             <div className="p-6 border-b border-grey-light flex items-center justify-between">
-                <h2 className="text-xl font-bold text-[#2B4964] tracking-wide uppercase select-none">
-                    SaaS PCP
-                </h2>
+                <div className="flex items-center gap-3 text-[#2B4964]">
+                    <Image
+                        src={iconParams}
+                        alt="SaaS Logo"
+                        width={32}
+                        height={32}
+                        className="rounded-lg shadow-sm"
+                    />
+                    <h2 className="text-xl font-bold tracking-wide uppercase select-none">
+                        SaaS PCP
+                    </h2>
+                </div>
                 <Link
                     href="/portal"
                     onClick={onClose}
@@ -55,12 +68,19 @@ export function PortalSidebar({ userEmail, userName, className, onClose, links }
             <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
                 {navLinks.map((link) => {
                     const Icon = getIcon(link.icon);
+                    const isActive = pathname === link.href;
+
                     return (
                         <Link
                             key={link.href}
                             href={link.href}
                             onClick={onClose}
-                            className="flex items-center gap-3 px-4 py-3 text-[#2B4964] bg-grey-lighter rounded-md hover:bg-gray-100 transition-colors font-medium min-h-[60px]"
+                            className={cn(
+                                "flex items-center gap-3 px-4 py-3 rounded-md transition-all font-medium min-h-[60px]",
+                                isActive
+                                    ? "bg-primary text-white shadow-md scale-[1.02]"
+                                    : "text-[#2B4964] bg-grey-lighter hover:bg-gray-100"
+                            )}
                         >
                             <Icon size={20} className="shrink-0" />
                             <span className="leading-tight">{link.label}</span>
