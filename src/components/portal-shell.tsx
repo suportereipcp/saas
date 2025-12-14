@@ -13,6 +13,7 @@ interface PortalShellProps {
 
 export function PortalShell({ children, userEmail, userName, links }: PortalShellProps) {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [isCollapsed, setIsCollapsed] = useState(false);
 
     return (
         <div className="flex min-h-screen bg-grey-lighter font-sans">
@@ -34,6 +35,8 @@ export function PortalShell({ children, userEmail, userName, links }: PortalShel
                     userName={userName}
                     onClose={() => setIsMobileMenuOpen(false)}
                     links={links}
+                    isCollapsed={isCollapsed}
+                    onToggle={() => setIsCollapsed(!isCollapsed)}
                 />
             </div>
 
