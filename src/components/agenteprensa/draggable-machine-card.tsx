@@ -73,24 +73,22 @@ export function DraggableMachineCard({
 
                 {/* Slots Container */}
                 <div className="p-2 space-y-2 bg-white min-h-[80px] flex flex-col justify-center flex-1">
-                    {machine.slots.map((slot, idx) => (
-                        <div key={idx}>
-                            {slot ? (
-                                <div className="bg-[#D1FADF] text-[#027A48] border border-[#A6F4C5] rounded py-1 px-2 text-center text-sm font-bold shadow-sm">
-                                    {slot}
-                                </div>
-                            ) : (
-                                <div className="border border-dashed border-gray-300 rounded py-1 px-2 text-center h-[30px] flex items-center justify-center">
-                                    <span className="text-gray-300 text-xs">-</span>
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                    {machine.slots.length === 0 && (
-                        <div className="border border-dashed border-gray-300 rounded py-1 px-2 text-center h-[60px] flex items-center justify-center">
-                            <span className="text-gray-300 text-xs">Vazio</span>
-                        </div>
-                    )}
+                    {[...Array(3)].map((_, idx) => {
+                        const slot = machine.slots[idx] || null;
+                        return (
+                            <div key={idx}>
+                                {slot ? (
+                                    <div className="bg-[#D1FADF] text-[#027A48] border border-[#A6F4C5] rounded py-1 px-2 text-center text-sm font-bold shadow-sm">
+                                        {slot}
+                                    </div>
+                                ) : (
+                                    <div className="border border-dashed border-gray-300 rounded py-1 px-2 text-center h-[30px] flex items-center justify-center">
+                                        <span className="text-gray-300 text-xs">-</span>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
             </Card>
         </div>
