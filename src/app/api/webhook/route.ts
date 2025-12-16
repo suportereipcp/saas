@@ -31,15 +31,21 @@ export async function POST(request: Request) {
             });
 
         if (error) {
-            console.error('Erro Supabase:', error);
-            return NextResponse.json({ error: 'Erro ao salvar dados' }, { status: 500 });
+            console.error('Erro Supabase Full:', JSON.stringify(error, null, 2));
+            return NextResponse.json({
+                error: 'Erro ao salvar dados',
+                details: error
+            }, { status: 500 });
         }
 
         // 5. Retorna sucesso (200 OK)
         return NextResponse.json({ message: 'Recebido com sucesso' }, { status: 200 });
 
-    } catch (err) {
-        console.error('Erro Webhook:', err);
-        return NextResponse.json({ error: 'JSON inválido ou erro interno' }, { status: 400 });
+    } catch (err: any) {
+        console.error('Erro Webhook:', JSON.stringify(err, null, 2));
+        return NextResponse.json({
+            error: 'Bug no Webhook',
+            details: err?.message || String(err)
+        }, { status: 400 });
     }
 }
