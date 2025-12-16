@@ -1,8 +1,10 @@
+
 "use client";
 
-import { useState } from "react";
-import { Menu } from "lucide-react";
 import { PortalSidebar, SidebarLink } from "@/components/portal-sidebar";
+import { DynamicBreadcrumb } from "@/components/dynamic-breadcrumb";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { Separator } from "@/components/ui/separator";
 
 interface PortalShellProps {
     children: React.ReactNode;
@@ -11,54 +13,30 @@ interface PortalShellProps {
     links?: SidebarLink[];
 }
 
+import { UserNav } from "@/components/user-nav";
+
 export function PortalShell({ children, userEmail, userName, links }: PortalShellProps) {
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-    const [isCollapsed, setIsCollapsed] = useState(false);
-
     return (
-        <div className="flex min-h-screen bg-grey-lighter font-sans">
-            {/* Mobile Overlay */}
-            {isMobileMenuOpen && (
-                <div
-                    className="fixed inset-0 z-40 bg-black/50 lg:hidden"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                />
-            )}
-
-            {/* Sidebar - Desktop & Mobile */}
-            <div
-                className={`fixed inset-y-0 left-0 z-50 transform transition-transform duration-200 lg:static lg:translate-x-0 ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
-                    }`}
-            >
-                <PortalSidebar
-                    userEmail={userEmail}
-                    userName={userName}
-                    onClose={() => setIsMobileMenuOpen(false)}
-                    links={links}
-                    isCollapsed={isCollapsed}
-                    onToggle={() => setIsCollapsed(!isCollapsed)}
-                />
-            </div>
-
-            {/* Main Content Content */}
-            <div className="flex-1 flex flex-col min-w-0">
-                {/* Mobile Header */}
-                <header className="lg:hidden flex items-center h-16 px-4 bg-white border-b border-grey-light shadow-sm">
-                    <button
-                        onClick={() => setIsMobileMenuOpen(true)}
-                        className="p-2 -ml-2 text-grey-darker hover:text-primary rounded-md"
-                    >
-                        <Menu size={24} />
-                    </button>
-                    <span className="ml-4 font-bold text-[#2B4964] uppercase tracking-wide">
-                        SaaS PCP
-                    </span>
+        <SidebarProvider>
+            <PortalSidebar
+                userEmail={userEmail}
+                userName={userName}
+                links={links}
+            />
+            <SidebarInset>
+                <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-transparent px-4">
+                    <div className="ml-auto flex items-center gap-2">
+                        <button className="text-xs font-medium px-2 py-1 rounded-full bg-orange-100 text-orange-600 border border-orange-200">
+                            Beta
+                        </button>
+                        <UserNav userEmail={userEmail} userName={userName} />
+                    </div>
                 </header>
-
-                <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+                <main className="flex-1 p-4 md:p-8 overflow-y-auto bg-muted/20">
                     {children}
                 </main>
-            </div>
-        </div>
+            </SidebarInset>
+        </SidebarProvider>
     );
 }
+

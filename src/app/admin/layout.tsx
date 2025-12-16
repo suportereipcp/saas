@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase-server";
 import { PortalShell } from "@/components/portal-shell";
 import { redirect } from "next/navigation";
+import { Separator } from "@/components/ui/separator";
 
 export default async function AdminLayout({
     children,
@@ -32,20 +33,24 @@ export default async function AdminLayout({
     const { data: apps } = await supabase.from("apps").select("*").order("name");
 
     const systemLinks = [
-        { label: "Geral do Sistema", href: "/admin", icon: "settings" }
+        { label: "Usuários", href: "/admin/users", icon: "users" },
+        { label: "Configurações", href: "/admin/settings", icon: "settings" },
     ];
 
+    // Combine with dynamic app links
     const appLinks = apps?.filter(app => app.code !== 'admin').map(app => ({
         label: app.name,
         href: `/admin/${app.code}`,
         icon: "box"
     })) || [];
 
-    const adminLinks = [...systemLinks, ...appLinks];
+    const sidebarLinks = [...systemLinks, ...appLinks];
 
     return (
-        <PortalShell userEmail={user.email} userName={profile.full_name} links={adminLinks}>
-            {children}
+        <PortalShell userEmail={user.email} userName={profile.full_name} links={sidebarLinks}>
+            <div className="flex-1 space-y-2">
+                {children}
+            </div>
         </PortalShell>
     );
 }

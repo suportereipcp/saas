@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase-server";
 import { Bot, Package, Shield } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 
 // Helper to map app codes to icons
 const getAppIcon = (code: string) => {
@@ -68,11 +69,12 @@ export default async function PortalPage() {
     });
 
     return (
-        <div className="h-full relative max-w-5xl">
+        <div className="h-full relative w-full">
+
             {/* Grid of Apps */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-6">
                 {appsList.length === 0 ? (
-                    <div className="col-span-full py-12 text-grey-darker">
+                    <div className="col-span-full py-12 text-muted-foreground text-center">
                         Nenhum aplicativo disponível no momento.
                     </div>
                 ) : (
@@ -84,26 +86,27 @@ export default async function PortalPage() {
                             <Link
                                 key={app.code}
                                 href={href}
-                                className="bg-white rounded-lg shadow-sm border border-grey-light hover:shadow-md hover:border-primary transition-all duration-200 p-4 flex flex-col items-center justify-center group h-36 no-underline"
+                                className="block group h-full no-underline"
                             >
-                                <div className="mb-3 text-primary group-hover:scale-110 transition-transform duration-200">
-                                    <Icon size={36} strokeWidth={1.5} />
-                                </div>
-                                <span className="text-[#2B4964] font-bold text-sm tracking-wide uppercase group-hover:text-primary transition-colors text-center leading-tight">
-                                    {app.name}
-                                </span>
-                                {app.description && (
-                                    <span className="text-[10px] text-grey-darker mt-1 text-center opacity-80 leading-tight">
-                                        {app.description}
-                                    </span>
-                                )}
+                                <Card className="h-full aspect-square flex flex-col hover:shadow-lg transition-all duration-200 hover:border-primary/50 group-hover:-translate-y-1">
+                                    <div className="flex-1 flex items-center justify-center pt-2">
+                                        <div className="p-3 bg-muted/50 rounded-full group-hover:bg-primary/10 transition-colors">
+                                            <Icon size={36} strokeWidth={1.5} className="text-primary group-hover:text-primary transition-colors" />
+                                        </div>
+                                    </div>
+                                    <div className="h-10 flex items-center justify-center px-2 pb-2">
+                                        <span className="text-sm font-bold tracking-wide uppercase text-center leading-tight line-clamp-2">
+                                            {app.name}
+                                        </span>
+                                    </div>
+                                </Card>
                             </Link>
                         );
                     })
                 )}
             </div>
 
-            <div className="absolute bottom-0 right-0 text-xs text-grey-darker opacity-60 font-medium">
+            <div className="absolute -bottom-12 right-0 text-xs text-muted-foreground opacity-60 font-medium">
                 Powered by PCP
             </div>
         </div>

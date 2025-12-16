@@ -36,7 +36,7 @@ export function SortableMachineCard({ machine, id }: SortableMachineCardProps) {
             <Card className="p-0 overflow-hidden border border-gray-200 shadow-sm flex flex-col items-stretch h-full hover:shadow-md transition-shadow">
                 {/* Machine Header */}
                 <div className="bg-white p-2 border-b border-gray-100 text-center select-none">
-                    <span className="text-sm font-bold text-[#2B4964]">{machine.id}</span>
+                    <span className="text-sm font-bold text-foreground">{machine.id}</span>
                 </div>
 
                 {/* Slots Container */}

@@ -65,10 +65,10 @@ export function DraggableMachineCard({
             onClick={onClick}
             className="cursor-pointer hover:z-50"
         >
-            <Card className={`p-0 overflow-hidden border shadow-sm flex flex-col items-stretch h-full transition-shadow bg-white select-none ${isSelected ? 'ring-2 ring-blue-500 border-blue-500 shadow-md' : 'border-gray-200 hover:shadow-md'}`}>
+            <Card className={`p-0 overflow-hidden border shadow-sm flex flex-col items-stretch h-full transition-shadow bg-white select-none ${isSelected ? 'ring-2 ring-primary border-primary shadow-md' : 'border-gray-200 hover:shadow-md'}`}>
                 {/* Machine Header */}
-                <div className={`p-2 border-b text-center ${isSelected ? 'bg-blue-50 border-blue-100' : 'bg-white border-gray-100'}`}>
-                    <span className={`text-sm font-bold ${isSelected ? 'text-blue-700' : 'text-[#2B4964]'}`}>{machine.id}</span>
+                <div className={`p-2 border-b text-center ${isSelected ? 'bg-primary/10 border-primary/20' : 'bg-white border-gray-100'}`}>
+                    <span className={`text-sm font-bold ${isSelected ? 'text-primary' : 'text-foreground'}`}>{machine.id}</span>
                 </div>
 
                 {/* Slots Container */}

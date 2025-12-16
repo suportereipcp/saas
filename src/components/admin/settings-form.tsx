@@ -61,7 +61,7 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
                         <Key size={20} />
                     </div>
                     <div>
-                        <h4 className="font-semibold text-[#2B4964]">Configurações Gerais</h4>
+                        <h4 className="font-semibold">Configurações Gerais</h4>
                         <p className="text-xs text-grey-darker">Chaves de API e URLs do sistema.</p>
                     </div>
                 </div>
@@ -123,7 +123,7 @@ export function SettingsForm({ initialSettings }: SettingsFormProps) {
                         <ExternalLink size={20} />
                     </div>
                     <div>
-                        <h4 className="font-semibold text-[#2B4964]">Integração Webhook</h4>
+                        <h4 className="font-semibold">Integração Webhook</h4>
                         <p className="text-xs text-grey-darker">Gere URLs para receber dados externos.</p>
                     </div>
                 </div>

@@ -1,10 +1,42 @@
+"use client";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, LogOut, Settings, Box, Home, PanelLeftClose, PanelLeft, ChevronRight } from "lucide-react";
+import {
+    LayoutGrid,
+    Settings,
+    Box,
+    Home,
+    Table,
+    Database,
+    Key,
+    Server,
+    FileText,
+    Activity,
+    Building2,
+    Users,
+    Info
+} from "lucide-react";
 import { SignOutButton } from "./sign-out-button";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import iconParams from "../app/icon.png";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+    Sidebar,
+    SidebarContent,
+    SidebarFooter,
+    SidebarHeader,
+    SidebarMenu,
+    SidebarMenuItem,
+    SidebarMenuButton,
+    SidebarRail,
+    useSidebar,
+    SidebarGroup,
+    SidebarGroupLabel,
+    SidebarSeparator,
+    SidebarTrigger,
+} from "@/components/ui/sidebar"
 
 export interface SidebarLink {
     label: string;
@@ -12,14 +44,11 @@ export interface SidebarLink {
     icon?: string;
 }
 
-interface PortalSidebarProps {
+interface PortalSidebarProps extends React.ComponentProps<typeof Sidebar> {
     userEmail?: string | null;
     userName?: string | null;
-    className?: string;
-    onClose?: () => void;
     links?: SidebarLink[];
-    isCollapsed?: boolean;
-    onToggle?: () => void;
+    onClose?: () => void;
 }
 
 const getIcon = (name?: string) => {
@@ -28,123 +57,104 @@ const getIcon = (name?: string) => {
         case 'settings': return Settings;
         case 'box': return Box;
         case 'home': return Home;
+        case 'table': return Table;
+        case 'database': return Database;
+        case 'key': return Key;
+        case 'server': return Server;
+        case 'file': return FileText;
+        case 'activity': return Activity;
+        case 'users': return Users;
+        case 'info': return Info;
         default: return Box;
     }
 }
 
-export function PortalSidebar({ userEmail, userName, className, onClose, links, isCollapsed = false, onToggle }: PortalSidebarProps) {
+export function PortalSidebar({ userEmail, userName, links, ...props }: PortalSidebarProps) {
     const pathname = usePathname();
+    const { toggleSidebar } = useSidebar();
 
     const navLinks = links || [
-        { label: "Seus Aplicativos", href: "/portal", icon: "grid" }
+        { label: "Todos Aplicativos", href: "/portal", icon: "home" },
     ];
 
+    // Helper for initials
+    const getInitials = (name?: string | null) => {
+        if (!name) return "U";
+        return name.substring(0, 2).toUpperCase();
+    }
+
     return (
-        <aside className={cn(
-            "bg-white border-r border-grey-light flex flex-col h-full transition-all duration-300 ease-in-out relative",
-            isCollapsed ? "w-20" : "w-64",
-            className
-        )}>
-            {/* Header / Toggle */}
-            <div className={cn("p-4 border-b border-grey-light flex items-center h-[73px]", isCollapsed ? "justify-center" : "justify-between")}>
-                {!isCollapsed && (
-                    <div className="flex items-center gap-3 text-[#2B4964] overflow-hidden">
-                        <Image
-                            src={iconParams}
-                            alt="SaaS Logo"
-                            width={32}
-                            height={32}
-                            className="rounded-lg shadow-sm shrink-0"
-                        />
-                        <h2 className="text-xl font-bold tracking-wide uppercase select-none whitespace-nowrap">
-                            SaaS PCP
-                        </h2>
-                    </div>
-                )}
-
-                {/* When collapsed, maybe just show the icon? Or the toggle? */}
-                {isCollapsed && (
-                    <Image
-                        src={iconParams}
-                        alt="SaaS Logo"
-                        width={32}
-                        height={32}
-                        className="rounded-lg shadow-sm shrink-0 cursor-pointer"
-                        onClick={onToggle}
-                    />
-                )}
-
-                {/* Desktop Toggle Button */}
-                {!isCollapsed && onToggle && (
-                    <button
-                        onClick={onToggle}
-                        className="p-1.5 text-grey-darker hover:text-primary hover:bg-grey-lighter rounded-md transition-colors hidden lg:block"
-                        title="Recolher Menu"
+        <Sidebar collapsible="icon" {...props}>
+            <SidebarHeader className="h-14 border-b p-0 group-data-[collapsible=icon]:h-auto">
+                <div className="flex w-full h-full items-center gap-2 px-4 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-2">
+                    {/* Logo and Title Group */}
+                    <div
+                        onClick={toggleSidebar}
+                        className="flex flex-1 items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+                        title="Alternar Menu"
                     >
-                        <PanelLeftClose size={20} />
-                    </button>
-                )}
-            </div>
-
-            {/* Close Mobile Button - Only on mobile overlay mode */}
-            <div className="lg:hidden absolute top-4 right-4">
-                {/* This handles the 'onClose' for mobile overlay, relying on parent passing correct onClose */}
-            </div>
-
-            {/* Navigation */}
-            <nav className="flex-1 p-2 space-y-2 overflow-y-auto overflow-x-hidden">
-                {navLinks.map((link) => {
-                    const Icon = getIcon(link.icon);
-                    const isActive = pathname === link.href;
-
-                    return (
-                        <Link
-                            key={link.href}
-                            href={link.href}
-                            onClick={onClose}
-                            title={isCollapsed ? link.label : undefined}
-                            className={cn(
-                                "flex items-center gap-3 px-3 py-3 rounded-md transition-all font-medium min-h-[50px]",
-                                isActive
-                                    ? "bg-primary text-white shadow-md"
-                                    : "text-[#2B4964] bg-grey-lighter hover:bg-gray-100",
-                                isCollapsed && "justify-center"
-                            )}
-                        >
-                            <Icon size={22} className="shrink-0" />
-                            {!isCollapsed && <span className="leading-tight whitespace-nowrap">{link.label}</span>}
-                        </Link>
-                    );
-                })}
-            </nav>
-
-            {/* Footer */}
-            <div className={cn("p-4 border-t border-grey-light bg-zinc-50 flex items-center", isCollapsed ? "justify-center" : "justify-between gap-3")}>
-                {!isCollapsed && (
-                    <div className="overflow-hidden">
-                        <p className="text-sm font-semibold text-[#2B4964] truncate">
-                            {userName || "Usuário"}
-                        </p>
-                        <p className="text-xs text-grey-darker truncate">
-                            {userEmail}
-                        </p>
+                        <div className="h-6 w-6 relative shrink-0 group-data-[collapsible=icon]:hidden">
+                            <Image
+                                src={iconParams}
+                                alt="SaaS Logo"
+                                fill
+                                className="object-contain"
+                            />
+                        </div>
+                        <span className="font-semibold text-sm whitespace-nowrap group-data-[collapsible=icon]:hidden">
+                            SaaS PCP
+                        </span>
                     </div>
-                )}
-                <div className={cn(isCollapsed && "flex-1 flex justify-center")}>
-                    <SignOutButton fullWidth={!isCollapsed} />
-                </div>
-            </div>
 
-            {/* Toggle Button for Collapsed state (Optional: could be at bottom or handled differently) */}
-            {isCollapsed && onToggle && (
-                <button
-                    onClick={onToggle}
-                    className="absolute bottom-20 left-1/2 -translate-x-1/2 p-2 bg-white border border-gray-200 shadow-md rounded-full text-gray-500 hover:text-primary hover:bg-gray-50 hidden lg:flex"
-                    title="Expandir"
-                >
-                    <ChevronRight size={16} />
-                </button>
-            )}
-        </aside>
+                    {/* Portal Icon / Action Button */}
+                    <Link href="/portal" title="Portal">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted transition-colors cursor-pointer">
+                            <Building2 className="w-5 h-5 text-muted-foreground" />
+                        </div>
+                    </Link>
+                </div>
+            </SidebarHeader>
+            <SidebarContent>
+                <SidebarMenu className="gap-2 mt-2">
+                    {navLinks.map((link) => {
+                        const Icon = getIcon(link.icon);
+                        // Check for exact match for root portal, startsWith for others to handle sub-pages
+                        const isActive = link.href === "/portal"
+                            ? pathname === link.href
+                            : pathname?.startsWith(link.href);
+
+                        return (
+                            <SidebarMenuItem key={link.href}>
+                                <SidebarMenuButton
+                                    asChild
+                                    isActive={isActive}
+                                    tooltip={link.label}
+                                    className="group-data-[collapsible=icon]:mx-auto relative overflow-hidden"
+                                >
+                                    <Link
+                                        href={link.href}
+                                        className={cn(
+                                            "flex items-center gap-2 select-none",
+                                            isActive && "font-bold"
+                                        )}
+                                    >
+                                        {isActive && (
+                                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-primary rounded-r-full" />
+                                        )}
+                                        <Icon />
+                                        <span>{link.label}</span>
+                                    </Link>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                        );
+                    })}
+                </SidebarMenu>
+            </SidebarContent>
+
+            <SidebarTrigger
+                className="absolute -right-3 bottom-0 w-6 h-6 p-0 rounded-full border bg-sidebar border-sidebar-border shadow-sm hover:bg-sidebar-accent hover:text-sidebar-accent-foreground z-20 [&>svg]:w-3 [&>svg]:h-3"
+            />
+            <SidebarRail />
+        </Sidebar >
     );
 }

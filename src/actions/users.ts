@@ -13,6 +13,7 @@ export async function createUser(prevState: ActionState, formData: FormData): Pr
     const password = formData.get("password") as string;
     const fullName = formData.get("fullName") as string;
     const isSuperAdmin = formData.get("isSuperAdmin") === "on";
+    const sector = formData.get("sector") as string | null;
     const appCodesJson = formData.get("appCodes") as string;
     const appCodes = appCodesJson ? JSON.parse(appCodesJson) : [];
 
@@ -33,7 +34,6 @@ export async function createUser(prevState: ActionState, formData: FormData): Pr
 
         if (authData.user) {
             // 2. Explicitly Create/Update Profile to ensure it exists immediately
-            // (We don't rely on triggers since they might be missing or slow)
             const { error: profileError } = await supabaseAdmin
                 .from("profiles")
                 .upsert({
@@ -41,15 +41,13 @@ export async function createUser(prevState: ActionState, formData: FormData): Pr
                     email: email,
                     full_name: fullName,
                     is_super_admin: isSuperAdmin,
-                    // created_at will be handled by default or we can set it
+                    sector: sector, // Add sector
                 })
                 .select()
                 .single();
 
             if (profileError) {
                 console.error("Error creating profile:", profileError);
-                // We don't throw here to avoid rolling back the auth user, but we technically should clean up if strict transaction.
-                // For now, we warn.
             }
 
             // 3. Insert Permissions (Apps)
@@ -82,17 +80,17 @@ export async function updateUser(prevState: ActionState, formData: FormData): Pr
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
     const fullName = formData.get("fullName") as string;
+    const sector = formData.get("sector") as string | null;
     const isSuperAdmin = formData.get("isSuperAdmin") === "on";
 
     // appCodes logic
     const appCodesJson = formData.get("appCodes") as string;
-    console.log("updateUser payload:", { userId, email, fullName, isSuperAdmin, appCodesJson });
+    console.log("updateUser payload:", { userId, email, fullName, sector, isSuperAdmin, appCodesJson });
 
     let appCodes: string[] | null = null;
     if (appCodesJson) {
         try {
             appCodes = JSON.parse(appCodesJson);
-            console.log("Parsed appCodes:", appCodes);
         } catch (e) {
             console.error("Error parsing appCodes:", e);
         }
@@ -105,8 +103,7 @@ export async function updateUser(prevState: ActionState, formData: FormData): Pr
         if (email) updates.email = email;
         if (password) updates.password = password;
 
-        // 1. Update Auth data (Email, Password)
-        // Only call auth.admin if there are sensitive updates (email which triggers reconfirm or password)
+        // 1. Update Auth data
         if (Object.keys(updates).length > 0) {
             const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
                 userId,
@@ -118,18 +115,10 @@ export async function updateUser(prevState: ActionState, formData: FormData): Pr
         // 2. Update Public Profile data
         const profileUpdates: any = {};
         if (fullName) profileUpdates.full_name = fullName;
-        // isSuperAdmin: explicit check for boolean since it's a checkbox
-        // If the checkbox is present in the form (even if unchecked), we might want to update it.
-        // However, standard HTML forms don't send anything for unchecked.
-        // We'll trust the intent: if present 'on' -> true. If we want to allow uncheck, we verify existence.
-        // For simplicity let's say we only update if it changed.
-        // But for now, let's just update `is_super_admin`.
-        // CAUTION: Determining "unchecked" in FormData:
-        // If `isSuperAdmin` key is missing, it implies false IF user had the checkbox visible.
-        // We'll update it to match the form state.
+        // Check filtering for null/undef if sector wasn't passed, but formData.get returns string or null.
+        // If it's empty string we might want to save it as null or empty string.
+        if (sector !== undefined) profileUpdates.sector = sector;
 
-        // Let's rely on a hidden input or just assume missing = false?
-        // Safer: isSuperAdmin is derived from presence.
         profileUpdates.is_super_admin = isSuperAdmin;
 
         if (Object.keys(profileUpdates).length > 0) {

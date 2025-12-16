@@ -34,7 +34,7 @@ export default async function AppSettingsPage({ params }: AppSettingsPageProps) 
                     <ArrowLeft size={20} />
                 </Link>
                 <div>
-                    <h2 className="text-xl font-bold text-[#2B4964]">Configurações: {app.name}</h2>
+                    <h2 className="text-xl font-bold">Configurações: {app.name}</h2>
                     <p className="text-xs text-grey-darker font-mono">ID: {app.code}</p>
                 </div>
             </div>
