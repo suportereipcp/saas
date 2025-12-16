@@ -72,7 +72,7 @@ export default async function PortalPage() {
         <div className="h-full relative w-full">
 
             {/* Grid of Apps */}
-            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-4 sm:gap-6">
                 {appsList.length === 0 ? (
                     <div className="col-span-full py-12 text-muted-foreground text-center">
                         Nenhum aplicativo disponível no momento.

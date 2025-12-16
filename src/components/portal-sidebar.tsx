@@ -71,8 +71,6 @@ const getIcon = (name?: string) => {
 
 export function PortalSidebar({ userEmail, userName, links, ...props }: PortalSidebarProps) {
     const pathname = usePathname();
-    const { toggleSidebar } = useSidebar();
-
     const navLinks = links || [
         { label: "Todos Aplicativos", href: "/portal", icon: "home" },
     ];
@@ -89,9 +87,7 @@ export function PortalSidebar({ userEmail, userName, links, ...props }: PortalSi
                 <div className="flex w-full h-full items-center gap-2 px-4 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-2">
                     {/* Logo and Title Group */}
                     <div
-                        onClick={toggleSidebar}
-                        className="flex flex-1 items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
-                        title="Alternar Menu"
+                        className="flex flex-1 items-center gap-2"
                     >
                         <div className="h-6 w-6 relative shrink-0 group-data-[collapsible=icon]:hidden">
                             <Image

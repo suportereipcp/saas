@@ -33,8 +33,7 @@ export default async function AdminLayout({
     const { data: apps } = await supabase.from("apps").select("*").order("name");
 
     const systemLinks = [
-        { label: "Usuários", href: "/admin/users", icon: "users" },
-        { label: "Configurações", href: "/admin/settings", icon: "settings" },
+        { label: "Sistema", href: "/admin/settings", icon: "settings" },
     ];
 
     // Combine with dynamic app links

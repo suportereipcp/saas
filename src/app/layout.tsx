@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SAAS PCP",
+  title: "SaaS PCP",
   description: "Starter Kit for PCP Support",
 };
 

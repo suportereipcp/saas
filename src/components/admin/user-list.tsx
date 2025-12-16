@@ -47,11 +47,8 @@ export function UserList({ users, currentUserId, allApps }: { users: User[], cur
     const [sectorFilter, setSectorFilter] = useState("all");
 
     // Compute Stats
-    const totalUsers = users.length;
-    const adminCount = users.filter(u => u.is_super_admin).length;
     // Get unique non-null sectors
     const uniqueSectors = Array.from(new Set(users.map(u => u.sector).filter(Boolean))) as string[];
-    const sectorCount = uniqueSectors.length;
 
     // Filter Logic
     const filteredUsers = users.filter(user => {
@@ -63,46 +60,6 @@ export function UserList({ users, currentUserId, allApps }: { users: User[], cur
 
     return (
         <div className="space-y-4">
-            {/* Stats Cards Row */}
-            {/* Stats Cards Row */}
-            <div className="grid gap-4 md:grid-cols-3">
-                <Card className="border-t-4 border-t-blue-500 shadow-sm">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Total de Usuários</CardTitle>
-                        <Users className="h-4 w-4 text-blue-500" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-center mt-2">{totalUsers}</div>
-                        <p className="text-xs text-muted-foreground text-center mt-1">
-                            Cadastrados no sistema
-                        </p>
-                    </CardContent>
-                </Card>
-                <Card className="border-t-4 border-t-emerald-500 shadow-sm">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Administradores</CardTitle>
-                        <Key className="h-4 w-4 text-emerald-500" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-center mt-2">{adminCount}</div>
-                        <p className="text-xs text-muted-foreground text-center mt-1">
-                            Acesso total
-                        </p>
-                    </CardContent>
-                </Card>
-                <Card className="border-t-4 border-t-orange-500 shadow-sm">
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">Setores</CardTitle>
-                        <LayoutGrid className="h-4 w-4 text-orange-500" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-center mt-2">{sectorCount}</div>
-                        <p className="text-xs text-muted-foreground text-center mt-1">
-                            Departamentos ativos
-                        </p>
-                    </CardContent>
-                </Card>
-            </div>
 
             <Card>
                 <CardHeader className="flex flex-row items-center justify-end space-y-0 pb-4">
@@ -191,7 +148,7 @@ export function UserList({ users, currentUserId, allApps }: { users: User[], cur
                     </div>
                 </CardContent>
             </Card>
-        </div>
+        </div >
     );
 }
 
