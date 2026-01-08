@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
     LayoutGrid,
     Settings,
@@ -15,7 +15,14 @@ import {
     Activity,
     Building2,
     Users,
-    Info
+    Info,
+    MonitorPlay,
+    Droplets,
+    Sticker,
+    History,
+    Hammer,
+    Truck,
+    LayoutDashboard
 } from "lucide-react";
 import { SignOutButton } from "./sign-out-button";
 import { cn } from "@/lib/utils";
@@ -65,6 +72,13 @@ const getIcon = (name?: string) => {
         case 'activity': return Activity;
         case 'users': return Users;
         case 'info': return Info;
+        case 'monitor-play': return MonitorPlay;
+        case 'droplets': return Droplets;
+        case 'sticker': return Sticker;
+        case 'history': return History;
+        case 'hammer': return Hammer;
+        case 'truck': return Truck;
+        case 'layout-dashboard': return LayoutDashboard;
         default: return Box;
     }
 }
@@ -114,10 +128,38 @@ export function PortalSidebar({ userEmail, userName, links, ...props }: PortalSi
                 <SidebarMenu className="gap-2 mt-2">
                     {navLinks.map((link) => {
                         const Icon = getIcon(link.icon);
-                        // Check for exact match for root portal, startsWith for others to handle sub-pages
-                        const isActive = link.href === "/portal"
-                            ? pathname === link.href
-                            : pathname?.startsWith(link.href);
+                        const searchParams = useSearchParams();
+
+                        // Enhanced active state detection
+                        let isActive = false;
+                        if (link.href.includes('?')) {
+                            const [linkPath, linkQuery] = link.href.split('?');
+                            const linkParams = new URLSearchParams(linkQuery);
+
+                            if (pathname === linkPath) {
+                                // Check if all params in link match current params
+                                isActive = true;
+                                linkParams.forEach((value, key) => {
+                                    if (searchParams.get(key) !== value) {
+                                        isActive = false;
+                                    }
+                                });
+                            }
+                        } else {
+                            // Default behavior for path-only links
+                            isActive = link.href === "/portal"
+                                ? pathname === link.href
+                                : pathname?.startsWith(link.href);
+
+                            // Special case: If we are in the module but have a 'view' param, 
+                            // the root module link (Dashboard) should NOT be active unless explicitly handled.
+                            // But usually base links shouldn't be active if a more specific "view" is active using query params.
+                            // We'll check if any search params exist when the link has none, BUT this might affect other apps.
+                            // For this specific module, let's keep it safe:
+                            if (isActive && pathname?.includes('controle-prazo-qualidade') && searchParams.toString().length > 0 && link.href === '/controle-prazo-qualidade') {
+                                isActive = false;
+                            }
+                        }
 
                         return (
                             <SidebarMenuItem key={link.href}>

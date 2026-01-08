@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase-server";
-import { Bot, Package, Shield } from "lucide-react";
+import { Bot, Package, Shield, Activity } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -11,6 +11,8 @@ const getAppIcon = (code: string) => {
             return Bot;
         case "admin":
             return Shield;
+        case "controle_prazo_qualidade":
+            return Activity;
         default:
             return Package; // Default icon
     }
@@ -23,6 +25,8 @@ const getAppHref = (code: string) => {
             return "/agenteprensa";
         case "admin":
             return "/admin";
+        case "controle_prazo_qualidade":
+            return "/controle-prazo-qualidade";
         default:
             return `/${code}`;
     }
