@@ -1,0 +1,40 @@
+
+> starterkit@0.1.0 build
+> next build
+
+   ▲ Next.js 16.0.9 (Turbopack)
+   - Environments: .env.local
+   - Experiments (use with caution):
+     ✓ turbopackUseSystemTlsCerts
+
+ ⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 14.6s
+   Skipping validation of types
+   Collecting page data using 23 workers ...
+   Generating static pages using 23 workers (0/10) ...
+   Generating static pages using 23 workers (2/10) 
+   Generating static pages using 23 workers (4/10) 
+   Generating static pages using 23 workers (7/10) 
+ ✓ Generating static pages using 23 workers (10/10) in 2.7s
+   Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /admin
+├ ƒ /admin/[appCode]
+├ ƒ /admin/info
+├ ƒ /admin/settings
+├ ƒ /agenteprensa
+├ ƒ /api/webhook
+├ ○ /icon.png
+├ ○ /login
+└ ƒ /portal
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
