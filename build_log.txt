@@ -1,0 +1,9 @@
+
+> starterkit@0.1.0 build
+> next build
+
+'\\servidor-fs\homefolder$\mateushp\Desktop\Projetos PCP\saas-main'
+CMD.EXE foi iniciado tendo o caminho acima como pasta atual.
+Não há suporte para caminhos UNC. Padronizando para pasta do Windows.
+'next' não é reconhecido como um comando interno
+ou externo, um programa operável ou um arquivo em lotes.

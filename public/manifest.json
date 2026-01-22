@@ -1,0 +1,21 @@
+{
+    "name": "PCP Quality Control",
+    "short_name": "PCP Dashboard",
+    "description": "Dashboard de Controle de Prazo e Qualidade para PCP",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#0f172a",
+    "icons": [
+        {
+            "src": "/file.svg",
+            "sizes": "192x192",
+            "type": "image/svg+xml"
+        },
+        {
+            "src": "/file.svg",
+            "sizes": "512x512",
+            "type": "image/svg+xml"
+        }
+    ]
+}
