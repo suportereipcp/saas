@@ -29,7 +29,7 @@ export function UserNav({ userEmail, userName }: UserNavProps) {
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <button className="relative h-8 w-8 rounded-full ring-offset-background transition-opacity hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+                <button id="user-nav-trigger" suppressHydrationWarning className="relative h-8 w-8 rounded-full ring-offset-background transition-opacity hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
                     <Avatar className="h-8 w-8">
                         <AvatarImage src="/avatars/01.png" alt={userName || "User"} />
                         <AvatarFallback>{initials}</AvatarFallback>

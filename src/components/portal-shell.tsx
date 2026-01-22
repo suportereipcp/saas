@@ -25,7 +25,7 @@ export function PortalShell({ children, userEmail, userName, links }: PortalShel
             />
             <SidebarInset>
                 <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-transparent px-4">
-                    <SidebarTrigger className="md:hidden" />
+                    <SidebarTrigger className="lg:hidden" />
                     <div className="ml-auto flex items-center gap-2">
 
                         <UserNav userEmail={userEmail} userName={userName} />
