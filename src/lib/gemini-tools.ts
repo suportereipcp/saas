@@ -144,3 +144,78 @@ export async function performInternetSearch(query: string) {
         };
     }
 }
+
+// --- NEW TOOL: NOTES SEARCH ---
+
+export const searchNotesToolDefinition: FunctionDeclaration = {
+    name: "search_notes",
+    description: "Busca nas anotações e memórias do usuário. Use para listar anotações, buscar por marcadores (tags) ou conteúdo transcrito. Ex: 'Liste anotações do Rafael', 'O que anotei sobre o projeto X?'.",
+    parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+            query: {
+                type: SchemaType.STRING,
+                description: "Termo de busca textual para encontrar em títulos, transcrições ou tags."
+            },
+            tag: {
+                type: SchemaType.STRING,
+                description: "Nome de uma tag/marcador específico para filtrar (ex: 'Rafael', 'PCP', 'Urgente'). Opcional."
+            }
+        },
+        required: ["query"]
+    }
+};
+
+import { supabaseAdmin } from "@/lib/supabase-admin";
+
+export async function performNotesSearch(query: string, tag?: string) {
+    console.log(`[Tool] Searching notes for: "${query}" tag: "${tag}"`);
+
+    try {
+        let dbQuery = supabaseAdmin
+            .schema('app_anotacoes')
+            .from('notes')
+            .select('id, title, transcription, tags, created_at')
+            .order('created_at', { ascending: false })
+            .limit(10); // Limit to recent/relevant
+
+        if (tag) {
+            // Filter by specific tag if provided
+            dbQuery = dbQuery.contains('tags', [tag]);
+        } else if (query) {
+            // If no specific tag, try to match text in title, transcription OR tags
+            // Note: 'or' syntax in Supabase for text search
+            dbQuery = dbQuery.or(`title.ilike.%${query}%,transcription.ilike.%${query}%`);
+        }
+
+        const { data, error } = await dbQuery;
+
+        if (error) {
+            throw error;
+        }
+
+        if (!data || data.length === 0) {
+            return {
+                found: false,
+                message: "Nenhuma anotação encontrada com esses critérios."
+            };
+        }
+
+        return {
+            found: true,
+            count: data.length,
+            notes: data.map(n => ({
+                title: n.title,
+                date: new Date(n.created_at).toLocaleDateString('pt-BR'),
+                tags: n.tags,
+                preview: n.transcription ? n.transcription.substring(0, 200) + "..." : "(Sem transcrição)"
+            }))
+        };
+
+    } catch (error: any) {
+        console.error('[Tool] Notes search error:', error);
+        return {
+            error: `Erro ao buscar anotações: ${error.message}`
+        };
+    }
+}

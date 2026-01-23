@@ -8,9 +8,11 @@ import { cn } from "@/lib/utils";
 interface NoteDetailModalProps {
     note: {
         id: string;
-        date: string;
-        content: string;
+        created_at: string;
+        title: string;
         tags: string[];
+        content?: string;
+        transcription?: string; // Add transcription support
     } | null;
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -21,8 +23,11 @@ export function NoteDetailModal({ note, open, onOpenChange }: NoteDetailModalPro
 
     if (!note) return null;
 
+    const displayDate = new Date(note.created_at).toLocaleString('pt-BR');
+    const displayContent = note.transcription || note.content || note.title;
+
     const handleCopy = () => {
-        navigator.clipboard.writeText(note.content);
+        navigator.clipboard.writeText(displayContent);
         setCopied(true);
         toast.success("Conteúdo copiado!");
         setTimeout(() => setCopied(false), 2000);
@@ -34,16 +39,16 @@ export function NoteDetailModal({ note, open, onOpenChange }: NoteDetailModalPro
                 <DialogHeader>
                     <div className="flex items-center gap-2 text-slate-400 text-sm font-bold uppercase tracking-widest mb-1">
                         <Calendar size={14} />
-                        {note.date}
+                        {displayDate}
                     </div>
-                    <DialogTitle className="text-xl font-bold text-slate-800">
-                        Detalhes da Anotação
-                    </DialogTitle>
+                    <div className="hidden">
+                        <DialogTitle>{note.title}</DialogTitle>
+                    </div>
                 </DialogHeader>
 
-                <div className="py-6 overflow-y-auto max-h-[60vh]">
-                    <div className="bg-slate-50 p-6 rounded-xl border border-slate-100 text-slate-800 text-lg leading-relaxed whitespace-pre-wrap font-medium">
-                        {note.content}
+                <div className="py-6 overflow-y-auto max-h-[70vh]">
+                    <div className="bg-slate-50 p-8 rounded-xl border border-slate-100 text-slate-800 text-xl leading-relaxed whitespace-pre-wrap font-medium min-h-[400px]">
+                        {displayContent}
                     </div>
 
                     <div className="mt-6 flex flex-wrap gap-2">

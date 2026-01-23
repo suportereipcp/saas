@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { AGENT_SYSTEM_INSTRUCTION } from '@/lib/agent-config';
-import { catalogToolDefinition, performCatalogSearch, internetSearchToolDefinition, performInternetSearch } from '@/lib/gemini-tools';
+import { catalogToolDefinition, performCatalogSearch, internetSearchToolDefinition, performInternetSearch, searchNotesToolDefinition, performNotesSearch } from '@/lib/gemini-tools';
 
 export async function POST(req: Request) {
     let apiKey = '';
@@ -36,9 +36,9 @@ export async function POST(req: Request) {
         // 2. Initialize Gemini with Tools
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-2.0-flash',
             systemInstruction: AGENT_SYSTEM_INSTRUCTION,
-            tools: [{ functionDeclarations: [catalogToolDefinition, internetSearchToolDefinition] }]
+            tools: [{ functionDeclarations: [catalogToolDefinition, internetSearchToolDefinition, searchNotesToolDefinition] }]
         });
 
         // 3. Start chat and send message
@@ -76,16 +76,29 @@ export async function POST(req: Request) {
                 }]);
                 response = result.response;
             }
+        } else if (call.name === 'search_notes') {
+            const args = call.args as any;
+            const toolResult = await performNotesSearch(args.query, args.tag);
+
+            // Send function result back to model
+            result = await chat.sendMessage([{
+                functionResponse: {
+                    name: 'search_notes',
+                    response: toolResult
+                }
+            }]);
+            response = result.response;
         }
+    }
 
         const text = response.text();
-        return NextResponse.json({ reply: text });
+    return NextResponse.json({ reply: text });
 
-    } catch (error: any) {
-        console.error('Gemini API Error:', error);
-        return NextResponse.json({
-            error: 'Internal Server Error',
-            details: error.message || 'Unknown error'
-        }, { status: 500 });
-    }
+} catch (error: any) {
+    console.error('Gemini API Error:', error);
+    return NextResponse.json({
+        error: 'Internal Server Error',
+        details: error.message || 'Unknown error'
+    }, { status: 500 });
+}
 }

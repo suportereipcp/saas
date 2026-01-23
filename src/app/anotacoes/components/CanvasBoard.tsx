@@ -1,16 +1,17 @@
 'use client';
 
-import { Tldraw, Editor, DefaultSizeStyle, DefaultDashStyle } from 'tldraw';
+import { Tldraw, Editor, DefaultSizeStyle, DefaultDashStyle, getSnapshot } from 'tldraw';
 import 'tldraw/tldraw.css';
 import { Button } from '@/components/ui/button';
-import { Save, File, NotebookText, Palette, Pencil } from 'lucide-react';
+import { Save, File, NotebookText, Palette, Pencil, Loader2 } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { TaggingModal } from './TaggingModal';
 import { cn } from '@/lib/utils';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 
-
-import { MOCK_CHAT_HISTORY } from '../mock-data';
+// Mock removed, using real DB
 
 const TLDRAW_COMPONENTS = {
     PageMenu: null,
@@ -67,17 +68,64 @@ function ScrollIndicator({ editor }: ScrollIndicatorProps) {
 
 export default function CanvasBoard() {
     const searchParams = useSearchParams();
+    const router = useRouter();
     const noteId = searchParams.get('noteId');
     const isEditing = !!noteId;
 
-    // Find existing note data to pre-fill tags
-    const existingNote = noteId ? MOCK_CHAT_HISTORY.find(n => n.id === noteId) : null;
-    const initialTags = existingNote ? existingNote.tags : [];
 
+
+    // State
     const [taggingOpen, setTaggingOpen] = useState(false);
     const [bgPattern, setBgPattern] = useState<'blank' | 'lines'>('lines');
     const [showPalette, setShowPalette] = useState(false);
     const [editor, setEditor] = useState<Editor | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [currentTags, setCurrentTags] = useState<string[]>([]);
+    const [currentTranscription, setCurrentTranscription] = useState("");
+    const [userId, setUserId] = useState<string | null>(null);
+
+    // Fetch User on Mount
+    useEffect(() => {
+        const getUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) setUserId(user.id);
+        };
+        getUser();
+    }, [supabase]);
+
+    // Load Note Data if Editing
+    useEffect(() => {
+        if (!editor || !noteId) return;
+
+        const loadNote = async () => {
+            setIsLoading(true);
+            const { data, error } = await supabase
+                .schema('app_anotacoes')
+                .from('notes')
+                .select('*')
+                .eq('id', noteId)
+                .single();
+
+            if (error) {
+                console.error("Error loading note:", error);
+                toast.error("Erro ao carregar anotação.");
+            } else if (data) {
+                if (data.canvas_data) {
+                    editor.loadSnapshot(data.canvas_data as any);
+                }
+                if (data.tags) {
+                    setCurrentTags(data.tags);
+                }
+                if (data.transcription) {
+                    setCurrentTranscription(data.transcription);
+                }
+            }
+            setIsLoading(false);
+        };
+
+        loadNote();
+    }, [editor, noteId, supabase]);
+
 
     // Initial Editor Config (Styles)
     useEffect(() => {
@@ -92,9 +140,109 @@ export default function CanvasBoard() {
 
     }, [editor]);
 
+    const handleSave = async (selectedTags: string[], transcription: string) => {
+        if (!editor || !userId) {
+            toast.error("Erro: Editor não carregado ou usuário não logado.");
+            return;
+        }
 
-    // Camera constraint effect removed to prevent stability issues in production
+        const snapshot = getSnapshot(editor.store);
 
+        // Generate a Title (First text or Default)
+        // Simple logic: "Anotação de [Data]"
+        const title = `Anotação ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+
+        try {
+            const payload = {
+                user_id: userId,
+                title: title,
+                canvas_data: snapshot as any, // Cast specific Tldraw type to Json
+                tags: selectedTags,
+                transcription: transcription, // Save transcription!
+                updated_at: new Date().toISOString()
+            };
+
+            let result;
+            if (isEditing && noteId) {
+                // Update
+                result = await supabase
+                    .schema('app_anotacoes')
+                    .from('notes')
+                    .update(payload)
+                    .eq('id', noteId);
+            } else {
+                // Insert
+                result = await supabase
+                    .schema('app_anotacoes')
+                    .from('notes')
+                    .insert(payload)
+                    .select()
+                    .single();
+            }
+
+            if (result.error) throw result.error;
+
+            toast.success("Anotação salva com sucesso!");
+
+            // Redirect to My Notes
+            router.push('/anotacoes/memory');
+
+        } catch (error: any) {
+            console.error("Save error:", error);
+            toast.error(`Erro ao salvar: ${error.message}`);
+        }
+    };
+
+
+    const handleAutoTranscribe = async (): Promise<string> => {
+        if (!editor) return "";
+
+        try {
+            const ids = Array.from(editor.getCurrentPageShapeIds());
+            if (ids.length === 0) return "";
+
+            // Use editor.toImage to get a PNG Blob directly
+            // @ts-ignore
+            const result = await (editor as any).toImage(ids, { format: 'png', background: true, padding: 32 });
+
+            if (!result || !result.blob) {
+                throw new Error("Falha ao gerar imagem da anotação");
+            }
+
+            const blob = result.blob;
+
+            // Convert to Base64
+            const reader = new FileReader();
+            const base64Promise = new Promise<string>((resolve, reject) => {
+                reader.onloadend = () => {
+                    if (typeof reader.result === 'string') resolve(reader.result);
+                    else reject(new Error("Failed to read blob"));
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+            const base64 = await base64Promise;
+
+            // Call API
+            const response = await fetch('/api/transcribe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: base64 })
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || "Failed to transcribe");
+            }
+
+            const data = await response.json();
+            return data.text || "";
+
+        } catch (error: any) {
+            console.error("Transcribe Error:", error);
+            throw error;
+        }
+    };
 
     return (
         <div
@@ -139,6 +287,13 @@ export default function CanvasBoard() {
                     components={TLDRAW_COMPONENTS}
                 />
             </div>
+
+            {/* Loading Overlay */}
+            {isLoading && (
+                <div className="absolute inset-0 z-50 bg-white/80 backdrop-blur-sm flex items-center justify-center">
+                    <Loader2 className="w-10 h-10 text-emerald-600 animate-spin" />
+                </div>
+            )}
 
             {/* Top Center Background Toggle & Tools */}
             <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2">
@@ -211,7 +366,10 @@ export default function CanvasBoard() {
             <TaggingModal
                 open={taggingOpen}
                 onOpenChange={setTaggingOpen}
-                initialSelectedTags={initialTags}
+                initialSelectedTags={currentTags}
+                initialTranscription={currentTranscription}
+                onConfirm={handleSave}
+                onAutoTranscribe={handleAutoTranscribe}
             />
         </div>
     );

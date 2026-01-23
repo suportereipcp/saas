@@ -1,42 +1,105 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { COLLABORATORS, TOPICS } from "../mock-data";
 import { useState, useEffect } from "react";
-import { Check, Loader2, Tag } from "lucide-react";
+import { Check, Loader2, Tag, FileText, User, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 interface TaggingModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    initialSelectedTags?: string[]; // Names of tags
+    initialSelectedTags?: string[];
+    initialTranscription?: string;
+    onConfirm: (tags: string[], transcription: string) => Promise<void>;
+    onAutoTranscribe: () => Promise<string>;
 }
 
-export function TaggingModal({ open, onOpenChange, initialSelectedTags = [] }: TaggingModalProps) {
+interface Marker {
+    id: string;
+    name: string;
+    type: "PERSON" | "TOPIC";
+    avatar_url?: string | null;
+}
+
+export function TaggingModal({ open, onOpenChange, initialSelectedTags = [], initialTranscription = "", onConfirm, onAutoTranscribe }: TaggingModalProps) {
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [transcription, setTranscription] = useState(initialTranscription);
     const [isSaving, setIsSaving] = useState(false);
-    const router = useRouter();
+    const [markers, setMarkers] = useState<Marker[]>([]);
+    const [isLoadingMarkers, setIsLoadingMarkers] = useState(false);
 
-    // Map initial tag names to IDs when opening
+    // New Loading State (Starts true if we need to transcribe)
+    const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
+
+    // Fetch Markers on Mount (or when Open)
     useEffect(() => {
-        if (open && initialSelectedTags.length > 0) {
+        if (open && markers.length === 0) {
+            const fetchMarkers = async () => {
+                setIsLoadingMarkers(true);
+                const { data, error } = await supabase
+                    .schema('app_anotacoes')
+                    .from('markers')
+                    .select('*')
+                    .eq('is_active', true)
+                    .order('name');
+
+                if (error) {
+                    console.error("Error fetching markers:", error);
+                    toast.error("Erro ao carregar marcadores.");
+                } else {
+                    setMarkers(data || []);
+                }
+                setIsLoadingMarkers(false);
+            };
+            fetchMarkers();
+        }
+    }, [open, markers.length]);
+
+    // Map initial tag names to IDs
+    useEffect(() => {
+        if (open && initialSelectedTags.length > 0 && markers.length > 0) {
             const ids: string[] = [];
-
             initialSelectedTags.forEach(tagName => {
-                const collab = COLLABORATORS.find(c => c.name === tagName);
-                if (collab) ids.push(collab.id);
-
-                const topic = TOPICS.find(t => t.name === tagName);
-                if (topic) ids.push(topic.id);
+                const marker = markers.find(m => m.name === tagName);
+                if (marker) ids.push(marker.id);
             });
-
             setSelectedIds(ids);
         } else if (open && initialSelectedTags.length === 0) {
             setSelectedIds([]);
         }
-    }, [open, initialSelectedTags]);
 
+        // Reset or Set transcription on open
+        if (open) {
+            setTranscription(initialTranscription);
+        }
+    }, [open, initialSelectedTags, markers, initialTranscription]);
+
+    // AUTO JOBS - NEW FLOW
+    useEffect(() => {
+        // Only run if open, we have an auto-transcriber, and no existing transcription
+        if (open && onAutoTranscribe && !initialTranscription && !transcription && !isAnalysisLoading) {
+            const run = async () => {
+                setIsAnalysisLoading(true);
+                // toast.info("Jarvis: Lendo anotação..."); // Removido para limpeza visual
+                try {
+                    const text = await onAutoTranscribe();
+                    if (text) {
+                        setTranscription(text);
+                        // toast.success("Transcrição concluída!"); // Removido para limpeza visual
+                    }
+                } catch (error) {
+                    console.error(error);
+                    toast.error("Erro na leitura automática. Tente manualmente.");
+                } finally {
+                    setIsAnalysisLoading(false);
+                }
+            };
+            run();
+        }
+    }, [open, initialTranscription]);
 
     const toggleSelection = (id: string) => {
         setSelectedIds(prev =>
@@ -45,146 +108,231 @@ export function TaggingModal({ open, onOpenChange, initialSelectedTags = [] }: T
     };
 
     const handleConfirm = async () => {
-        if (selectedIds.length === 0) {
-            toast.error("Por favor, selecione pelo menos uma pessoa ou tópico.");
+        // Validation: At least one tag OR some text content
+        if (selectedIds.length === 0 && !transcription.trim()) {
+            toast.error("Adicione marcadores ou uma transcrição para salvar.");
             return;
         }
 
         setIsSaving(true);
+        try {
+            // Convert IDs back to Names for storage
+            const tagsToSave: string[] = [];
+            selectedIds.forEach(id => {
+                const marker = markers.find(m => m.id === id);
+                if (marker) tagsToSave.push(marker.name);
+            });
 
-        // Simulating AI Processing
-        await new Promise(resolve => setTimeout(resolve, 1500));
-
-        toast.success("Nota arquivada e indexada pela IA!");
-        setIsSaving(false);
-        onOpenChange(false);
-        setSelectedIds([]);
-        router.push('/anotacoes/memory'); // Redirect to chat to see the "result"
+            await onConfirm(tagsToSave, transcription);
+            onOpenChange(false);
+            setSelectedIds([]);
+            setTranscription("");
+        } catch (error) {
+            console.error(error);
+            toast.error("Erro ao salvar nota.");
+        } finally {
+            setIsSaving(false);
+        }
     };
+
+    const people = markers.filter(m => m.type === 'PERSON');
+    const topics = markers.filter(m => m.type === 'TOPIC');
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-4xl bg-slate-50 border-none shadow-2xl p-0 overflow-hidden">
-                <div className="p-8 pb-0">
-                    <DialogHeader className="mb-6">
-                        <DialogTitle className="text-3xl font-bold text-slate-800 text-center">
-                            Identificar Contexto
-                        </DialogTitle>
-                        <p className="text-center text-slate-500 text-lg">
-                            Quem participou e qual o assunto?
-                        </p>
-                    </DialogHeader>
+            <DialogContent className={cn(
+                "bg-slate-50 border-none shadow-2xl p-0 overflow-hidden flex flex-col transition-all duration-500",
+                isAnalysisLoading ? "max-w-sm h-[300px] rounded-3xl" : "max-w-4xl max-h-[90vh]"
+            )}>
 
-                    <div className="max-h-[50vh] overflow-y-auto p-2 space-y-6">
-
-                        {/* SECTION: PEOPLE */}
-                        <div>
-                            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-3 pl-1">Pessoas</h3>
-                            <div className="grid grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
-                                {COLLABORATORS.map((user) => {
-                                    const isSelected = selectedIds.includes(user.id);
-                                    return (
-                                        <button
-                                            key={user.id}
-                                            onClick={() => toggleSelection(user.id)}
-                                            className={cn(
-                                                "relative flex flex-col items-center p-2 rounded-xl border-2 transition-all duration-200 outline-none",
-                                                isSelected
-                                                    ? "bg-emerald-50 border-emerald-500 scale-[1.02] shadow-md"
-                                                    : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50"
-                                            )}
-                                        >
-                                            <div className="relative mb-1">
-                                                <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-emerald-500">
-                                                    <Tag size={16} />
-                                                </div>
-                                                {isSelected && (
-                                                    <div className="absolute -right-1 -bottom-1 bg-emerald-500 text-white p-0.5 rounded-full shadow-sm">
-                                                        <Check size={10} strokeWidth={4} />
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <span className={cn(
-                                                "text-[10px] font-bold text-center leading-tight w-full truncate",
-                                                isSelected ? "text-emerald-700" : "text-slate-700"
-                                            )}>
-                                                {user.name}
-                                            </span>
-                                        </button>
-                                    );
-                                })}
+                {/* LOADING STATE - FULL OVERLAY */}
+                {isAnalysisLoading ? (
+                    <div className="flex flex-col items-center justify-center w-full h-full p-8 text-center space-y-6 animate-in fade-in zoom-in-95 duration-500">
+                        <div className="relative">
+                            <div className="absolute inset-0 bg-emerald-200 rounded-full blur-xl opacity-50 animate-pulse"></div>
+                            <div className="bg-white p-4 rounded-full shadow-lg relative z-10">
+                                <Sparkles className="w-10 h-10 text-emerald-500 animate-pulse" />
                             </div>
                         </div>
-
-                        {/* SECTION: TOPICS */}
-                        <div>
-                            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-3 pl-1 mt-6">Tópicos e Projetos</h3>
-                            <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                                {TOPICS.map((topic) => {
-                                    const isSelected = selectedIds.includes(topic.id);
-                                    return (
-                                        <button
-                                            key={topic.id}
-                                            onClick={() => toggleSelection(topic.id)}
-                                            className={cn(
-                                                "relative flex items-center gap-3 p-4 rounded-xl border-2 transition-all duration-200 outline-none text-left",
-                                                isSelected
-                                                    ? "bg-emerald-50 border-emerald-500 scale-[1.02] shadow-md"
-                                                    : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50"
-                                            )}
-                                        >
-                                            <div className={cn(
-                                                "w-10 h-10 rounded-lg flex items-center justify-center shrink-0",
-                                                isSelected ? "bg-emerald-200 text-emerald-700" : "bg-slate-100 text-emerald-500"
-                                            )}>
-                                                <Tag size={20} />
-                                            </div>
-
-                                            <span className={cn(
-                                                "text-sm font-bold leading-tight",
-                                                isSelected ? "text-emerald-700" : "text-slate-700"
-                                            )}>
-                                                {topic.name}
-                                            </span>
-                                            {isSelected && (
-                                                <div className="absolute right-2 top-2 text-emerald-500">
-                                                    <Check size={14} strokeWidth={4} />
-                                                </div>
-                                            )}
-                                        </button>
-                                    );
-                                })}
-                            </div>
+                        <div className="space-y-2">
+                            <h3 className="text-xl font-bold text-slate-800">Analisando Anotação...</h3>
+                            <p className="text-sm text-slate-500">O Jarvis está lendo e transcrevendo seu desenho.</p>
                         </div>
-
+                        <Loader2 className="w-6 h-6 text-emerald-500 animate-spin" />
                     </div>
-                </div>
+                ) : (
+                    /* FORM STATE */
+                    <>
+                        <div className="p-8 pb-0 shrink-0 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <DialogHeader className="mb-6">
+                                <DialogTitle className="text-3xl font-bold text-slate-800 text-center">
+                                    Salvar Nota
+                                </DialogTitle>
+                                <p className="text-center text-slate-500 text-lg">
+                                    Revise a transcrição e adicione marcadores.
+                                </p>
+                            </DialogHeader>
+                        </div>
 
-                <div className="p-6 bg-slate-100 mt-6 flex justify-end gap-3">
-                    <Button
-                        variant="ghost"
-                        size="lg"
-                        onClick={() => onOpenChange(false)}
-                        className="text-slate-500 hover:text-slate-700 text-lg"
-                    >
-                        Cancelar
-                    </Button>
-                    <Button
-                        size="lg"
-                        onClick={handleConfirm}
-                        disabled={isSaving}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 text-lg font-bold shadow-lg shadow-emerald-600/20 disabled:opacity-70"
-                    >
-                        {isSaving ? (
-                            <>
-                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                Processando...
-                            </>
-                        ) : (
-                            "Finalizar e Arquivar"
-                        )}
-                    </Button>
-                </div>
+                        <div className="flex-1 overflow-y-auto px-8 min-h-0 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
+                            {/* Transcription Section */}
+                            <div className="mb-8">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2 text-emerald-700 font-bold uppercase tracking-wider text-xs">
+                                        <FileText size={14} />
+                                        Resumo / Transcrição
+                                    </div>
+                                </div>
+
+                                <Textarea
+                                    placeholder="O que foi anotado? Digite um resumo ou a transcrição aqui..."
+                                    className="min-h-[120px] bg-white border-slate-200 focus:border-emerald-500 text-base shadow-sm p-4 leading-relaxed"
+                                    value={transcription}
+                                    onChange={(e) => setTranscription(e.target.value)}
+                                />
+                                <p className="text-xs text-slate-400 mt-2 text-right">
+                                    *Gerado automaticamente pelo Jarvis. Edite se necessário.
+                                </p>
+                            </div>
+
+                            <div className="w-full h-px bg-slate-200 mb-8" />
+
+                            {/* Markers Section */}
+                            <div className="space-y-6 pb-6">
+                                <div className="flex items-center gap-2 mb-1 text-emerald-700 font-bold uppercase tracking-wider text-xs">
+                                    <Tag size={14} />
+                                    Marcadores
+                                </div>
+
+                                {isLoadingMarkers && (
+                                    <div className="flex justify-center py-10">
+                                        <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+                                    </div>
+                                )}
+
+                                {!isLoadingMarkers && markers.length === 0 && (
+                                    <div className="text-center py-10 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
+                                        Nenhum marcador disponível.
+                                    </div>
+                                )}
+
+                                {/* SECTION: PEOPLE */}
+                                {!isLoadingMarkers && people.length > 0 && (
+                                    <div>
+                                        <h3 className="text-xs font-semibold text-slate-400 mb-3 pl-1">Pessoas Envolvidas</h3>
+                                        <div className="grid grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+                                            {people.map((user) => {
+                                                const isSelected = selectedIds.includes(user.id);
+                                                return (
+                                                    <button
+                                                        key={user.id}
+                                                        onClick={() => toggleSelection(user.id)}
+                                                        className={cn(
+                                                            "relative flex flex-col items-center p-2 rounded-xl border-2 transition-all duration-200 outline-none",
+                                                            isSelected
+                                                                ? "bg-emerald-50 border-emerald-500 scale-[1.02] shadow-md"
+                                                                : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                                                        )}
+                                                    >
+                                                        <div className="relative mb-1">
+                                                            <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-emerald-500 overflow-hidden">
+                                                                {user.avatar_url ? (
+                                                                    <img src={user.avatar_url} alt={user.name} className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    <Tag size={16} />
+                                                                )}
+                                                            </div>
+                                                            {isSelected && (
+                                                                <div className="absolute -right-1 -bottom-1 bg-emerald-500 text-white p-0.5 rounded-full shadow-sm">
+                                                                    <Check size={10} strokeWidth={4} />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <span className={cn(
+                                                            "text-[10px] font-bold text-center leading-tight w-full truncate px-1",
+                                                            isSelected ? "text-emerald-700" : "text-slate-700"
+                                                        )}>
+                                                            {user.name}
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* SECTION: TOPICS */}
+                                {!isLoadingMarkers && topics.length > 0 && (
+                                    <div>
+                                        <h3 className="text-xs font-semibold text-slate-400 mb-3 pl-1 mt-4">Tópicos e Projetos</h3>
+                                        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                                            {topics.map((topic) => {
+                                                const isSelected = selectedIds.includes(topic.id);
+                                                return (
+                                                    <button
+                                                        key={topic.id}
+                                                        onClick={() => toggleSelection(topic.id)}
+                                                        className={cn(
+                                                            "relative flex items-center gap-3 p-4 rounded-xl border-2 transition-all duration-200 outline-none text-left",
+                                                            isSelected
+                                                                ? "bg-emerald-50 border-emerald-500 scale-[1.02] shadow-md"
+                                                                : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                                                        )}
+                                                    >
+                                                        <div className={cn(
+                                                            "w-10 h-10 rounded-lg flex items-center justify-center shrink-0",
+                                                            isSelected ? "bg-emerald-200 text-emerald-700" : "bg-slate-100 text-emerald-500"
+                                                        )}>
+                                                            <Tag size={20} />
+                                                        </div>
+
+                                                        <span className={cn(
+                                                            "text-sm font-bold leading-tight",
+                                                            isSelected ? "text-emerald-700" : "text-slate-700"
+                                                        )}>
+                                                            {topic.name}
+                                                        </span>
+                                                        {isSelected && (
+                                                            <div className="absolute right-2 top-2 text-emerald-500">
+                                                                <Check size={14} strokeWidth={4} />
+                                                            </div>
+                                                        )}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="p-6 bg-slate-100 mt-auto flex justify-end gap-3 shrink-0 animate-in slide-in-from-bottom-2">
+                            <Button
+                                variant="ghost"
+                                size="lg"
+                                onClick={() => onOpenChange(false)}
+                                className="text-slate-500 hover:text-slate-700 text-lg"
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                size="lg"
+                                onClick={handleConfirm}
+                                disabled={isSaving}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 text-lg font-bold shadow-lg shadow-emerald-600/20 disabled:opacity-70"
+                            >
+                                {isSaving ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                        Processando...
+                                    </>
+                                ) : (
+                                    "Salvar Nota"
+                                )}
+                            </Button>
+                        </div>
+                    </>
+                )}
             </DialogContent>
         </Dialog >
     );
