@@ -169,4 +169,124 @@ export interface Database {
             [_ in never]: never
         }
     }
+    app_anotacoes: {
+        Tables: {
+            notes: {
+                Row: {
+                    id: string
+                    user_id: string
+                    title: string
+                    canvas_data: Json | null
+                    preview_image: string | null
+                    is_favorite: boolean | null
+                    tags: string[] | null
+                    transcription: string | null
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    user_id?: string
+                    title?: string
+                    canvas_data?: Json | null
+                    preview_image?: string | null
+                    is_favorite?: boolean | null
+                    tags?: string[] | null
+                    transcription?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    user_id?: string
+                    title?: string
+                    canvas_data?: Json | null
+                    preview_image?: string | null
+                    is_favorite?: boolean | null
+                    tags?: string[] | null
+                    transcription?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "notes_user_id_fkey"
+                        columns: ["user_id"]
+                        isOneToOne: false
+                        referencedRelation: "users"
+                        referencedColumns: ["id"]
+                    }
+                ]
+            }
+            markers: {
+                Row: {
+                    id: string
+                    name: string
+                    type: "PERSON" | "TOPIC"
+                    avatar_url: string | null
+                    metadata: Json | null
+                    is_active: boolean | null
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    name: string
+                    type: "PERSON" | "TOPIC"
+                    avatar_url?: string | null
+                    metadata?: Json | null
+                    is_active?: boolean | null
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    name?: string
+                    type?: "PERSON" | "TOPIC"
+                    avatar_url?: string | null
+                    metadata?: Json | null
+                    is_active?: boolean | null
+                    created_at?: string
+                }
+                Relationships: []
+            }
+            reminders: {
+                Row: {
+                    id: string
+                    date: string
+                    title: string
+                    description: string | null
+                    is_completed: boolean | null
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    date: string
+                    title: string
+                    description?: string | null
+                    is_completed?: boolean | null
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    date?: string
+                    title?: string
+                    description?: string | null
+                    is_completed?: boolean | null
+                    created_at?: string
+                }
+                Relationships: []
+            }
+        }
+        Views: {
+            [_ in never]: never
+        }
+        Functions: {
+            [_ in never]: never
+        }
+        Enums: {
+            [_ in never]: never
+        }
+        CompositeTypes: {
+            [_ in never]: never
+        }
+    }
 }

@@ -1,30 +1,27 @@
 'use client';
 
-import { useState } from "react";
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, AlertCircle, Clock } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, AlertCircle, Clock, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
 
-// Mock Data
 interface Reminder {
     id: string;
-    date: Date;
+    date: string; // ISO string from DB
     title: string;
-    description: string;
+    description: string | null;
 }
-
-const INITIAL_REMINDERS: Reminder[] = [
-    { id: '1', date: new Date(), title: "Reunião de Diretoria", description: "Apresentar resultados do trimestre e alinhar metas para o próximo período." },
-    { id: '2', date: new Date(new Date().setDate(new Date().getDate() + 2)), title: "Entrega do Projeto", description: "Finalizar documentação e enviar para o cliente." },
-];
 
 export default function CalendarPage() {
     const [currentDate, setCurrentDate] = useState(new Date());
-    const [reminders, setReminders] = useState<Reminder[]>(INITIAL_REMINDERS);
+    const [reminders, setReminders] = useState<Reminder[]>([]);
     const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+    const [isLoading, setIsLoading] = useState(true);
 
     // Add Reminder Dialog State
     const [isAddOpen, setIsAddOpen] = useState(false);
@@ -33,6 +30,28 @@ export default function CalendarPage() {
 
     // View Reminder Dialog State
     const [viewReminder, setViewReminder] = useState<Reminder | null>(null);
+
+    const fetchReminders = async () => {
+        setIsLoading(true);
+        // Simple strategy: Fetch all reminders. 
+        // For a real prod app, fetch only current month range.
+        const { data, error } = await supabase
+            .schema('app_anotacoes')
+            .from('reminders')
+            .select('*');
+
+        if (error) {
+            console.error("Fetch Error Details:", JSON.stringify(error, null, 2));
+            toast.error("Erro ao carregar lembretes.");
+        } else {
+            setReminders(data || []);
+        }
+        setIsLoading(false);
+    };
+
+    useEffect(() => {
+        fetchReminders();
+    }, []);
 
     // Helpers
     const getDaysInMonth = (date: Date) => {
@@ -53,24 +72,37 @@ export default function CalendarPage() {
         setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
     };
 
-    const isSameDay = (d1: Date, d2: Date) => {
+    const isSameDay = (d1: Date, dateString: string) => {
+        const d2 = new Date(dateString);
         return d1.getDate() === d2.getDate() &&
             d1.getMonth() === d2.getMonth() &&
             d1.getFullYear() === d2.getFullYear();
     };
 
-    const handleAddReminder = () => {
+    const handleAddReminder = async () => {
         if (!newTitle.trim()) return;
-        const newReminder: Reminder = {
-            id: Math.random().toString(36).substr(2, 9),
-            date: selectedDate,
-            title: newTitle,
-            description: newDesc
-        };
-        setReminders([...reminders, newReminder]);
-        setNewTitle("");
-        setNewDesc("");
-        setIsAddOpen(false);
+
+        const { data, error } = await supabase
+            .schema('app_anotacoes')
+            .from('reminders')
+            .insert({
+                title: newTitle,
+                description: newDesc,
+                date: selectedDate.toISOString(),
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error("Create Error Details:", JSON.stringify(error, null, 2));
+            toast.error("Erro ao criar lembrete.");
+        } else {
+            setReminders(prev => [...prev, data]);
+            setNewTitle("");
+            setNewDesc("");
+            setIsAddOpen(false);
+            toast.success("Lembrete criado.");
+        }
     };
 
     const daysInMonth = getDaysInMonth(currentDate);
@@ -78,7 +110,33 @@ export default function CalendarPage() {
     const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
     const blanks = Array.from({ length: firstDay }, (_, i) => i);
 
-    const remindersForSelectedDate = reminders.filter(r => isSameDay(r.date, selectedDate));
+    const remindersForSelectedDate = reminders.filter(r => isSameDay(selectedDate, r.date));
+
+    // Client-side visual matching helpers
+    const checkIsSameDate = (d1: Date, d2: Date) => {
+        return d1.getDate() === d2.getDate() &&
+            d1.getMonth() === d2.getMonth() &&
+            d1.getFullYear() === d2.getFullYear();
+    }
+
+    const handleDeleteReminder = async (id: string) => {
+        try {
+            const { error } = await supabase
+                .schema('app_anotacoes')
+                .from('reminders')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+
+            toast.success("Lembrete removido.");
+            setReminders(prev => prev.filter(r => r.id !== id));
+            setViewReminder(null);
+        } catch (error) {
+            console.error("Delete error:", error);
+            toast.error("Erro ao remover lembrete.");
+        }
+    };
 
     return (
         <div className="flex flex-col h-full bg-slate-50">
@@ -122,9 +180,9 @@ export default function CalendarPage() {
                             {blanks.map(i => <div key={`blank-${i}`} />)}
                             {days.map(day => {
                                 const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-                                const isSelected = isSameDay(date, selectedDate);
-                                const isToday = isSameDay(date, new Date());
-                                const hasReminder = reminders.some(r => isSameDay(r.date, date));
+                                const isSelected = checkIsSameDate(date, selectedDate);
+                                const isToday = checkIsSameDate(date, new Date());
+                                const hasReminder = reminders.some(r => isSameDay(date, r.date));
 
                                 return (
                                     <button
@@ -165,7 +223,7 @@ export default function CalendarPage() {
                                             <Plus size={20} />
                                         </Button>
                                     </DialogTrigger>
-                                    <DialogContent>
+                                    <DialogContent className="bg-white">
                                         <DialogHeader>
                                             <DialogTitle>Novo Lembrete</DialogTitle>
                                             <DialogDescription>
@@ -191,7 +249,11 @@ export default function CalendarPage() {
                             </div>
 
                             <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-                                {remindersForSelectedDate.length === 0 ? (
+                                {isLoading ? (
+                                    <div className="flex justify-center py-4">
+                                        <Loader2 className="w-6 h-6 text-emerald-500 animate-spin" />
+                                    </div>
+                                ) : remindersForSelectedDate.length === 0 ? (
                                     <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-2 min-h-[150px]">
                                         <Clock size={40} strokeWidth={1.5} />
                                         <p className="text-sm font-medium">Sem lembretes</p>
@@ -216,14 +278,14 @@ export default function CalendarPage() {
 
             {/* View Reminder Details Dialog */}
             <Dialog open={!!viewReminder} onOpenChange={(open) => !open && setViewReminder(null)}>
-                <DialogContent>
+                <DialogContent className="bg-white">
                     <DialogHeader>
                         <DialogTitle className="text-xl flex items-center gap-2">
                             <Clock className="text-emerald-500 w-5 h-5" />
                             {viewReminder?.title}
                         </DialogTitle>
                         <DialogDescription>
-                            {viewReminder?.date.toLocaleDateString('pt-BR', { dateStyle: 'full' })}
+                            {viewReminder && new Date(viewReminder.date).toLocaleDateString('pt-BR', { dateStyle: 'full' })}
                         </DialogDescription>
                     </DialogHeader>
                     <div className="py-4">
@@ -231,8 +293,16 @@ export default function CalendarPage() {
                             {viewReminder?.description || <span className="text-slate-400 italic">Sem descrição.</span>}
                         </div>
                     </div>
-                    <DialogFooter>
-                        <Button onClick={() => setViewReminder(null)}>Fechar</Button>
+                    <DialogFooter className="flex justify-between sm:justify-between w-full">
+                        <Button
+                            variant="destructive"
+                            onClick={() => viewReminder && handleDeleteReminder(viewReminder.id)}
+                            className="bg-red-50 text-red-600 hover:bg-red-100 border-none shadow-none"
+                        >
+                            <Trash2 size={16} className="mr-2" />
+                            Excluir
+                        </Button>
+                        <Button variant="outline" onClick={() => setViewReminder(null)}>Fechar</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

@@ -1,37 +1,59 @@
 'use client';
 
-import { useState } from "react";
-import { Tag, Plus, User as UserIcon, Users, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Tag, Plus, User as UserIcon, Users, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { COLLABORATORS } from "../mock-data";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
-type MarkerType = 'person' | 'topic';
+type MarkerType = 'PERSON' | 'TOPIC';
 
 interface Marker {
     id: string;
     name: string;
     type: MarkerType;
-    avatar: string | null;
+    avatar_url: string | null;
+    created_at: string;
 }
 
 export default function TagsPage() {
-    // Mocking initial tags
-    const [markers, setMarkers] = useState<Marker[]>([
-        ...COLLABORATORS.map(c => ({ id: c.id, name: c.name, type: 'person' as MarkerType, avatar: c.avatar })),
-        { id: 't1', name: 'Reunião Diretoria', type: 'topic', avatar: null },
-        { id: 't2', name: 'Equipe de Projetos', type: 'topic', avatar: null },
-        { id: 't3', name: 'Projeto Molde X', type: 'topic', avatar: null },
-        { id: 't4', name: 'Manutenção Geral', type: 'topic', avatar: null },
-    ]);
+    const [markers, setMarkers] = useState<Marker[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
 
+    // Form State
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [newName, setNewName] = useState("");
-    const [newType, setNewType] = useState<MarkerType>('topic');
+    const [newType, setNewType] = useState<MarkerType>('TOPIC');
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+
+    const fetchMarkers = async () => {
+        setIsLoading(true);
+        const { data, error } = await supabase
+            .schema('app_anotacoes')
+            .from('markers')
+            .select('*')
+            .eq('is_active', true)
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error(error);
+            toast.error("Erro ao carregar marcadores.");
+        } else {
+            // Safe cast assuming DB types match roughly
+            setMarkers(data as any[] || []);
+        }
+        setIsLoading(false);
+    };
+
+    useEffect(() => {
+        fetchMarkers();
+    }, []);
 
     const handleCreateMarker = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -39,23 +61,52 @@ export default function TagsPage() {
 
         setIsSubmitting(true);
 
-        // Simulate network delay for better UX feeling
-        await new Promise(resolve => setTimeout(resolve, 600));
+        const avatarUrl = null;
 
-        const newMarker: Marker = {
-            id: Math.random().toString(36).substr(2, 9),
-            name: newName,
-            type: newType,
-            avatar: newType === 'person'
-                ? `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(newName)}` // Matching mock data style
-                : null
-        };
+        const { data, error } = await supabase
+            .schema('app_anotacoes')
+            .from('markers')
+            .insert({
+                name: newName,
+                type: newType,
+                avatar_url: avatarUrl,
+                metadata: {}
+            })
+            .select() // Return the created row to add to UI
+            .single();
 
-        setMarkers(prev => [newMarker, ...prev]);
-        setNewName("");
-        setNewType('topic'); // Reset to default
-        setIsDialogOpen(false);
+        if (error) {
+            console.error(error);
+            toast.error("Erro ao criar marcador.");
+        } else {
+            toast.success("Marcador criado!");
+            setMarkers(prev => [data as any, ...prev]);
+
+            // Reset Form and Close
+            setNewName("");
+            setNewType('TOPIC');
+            setIsDialogOpen(false);
+        }
+
         setIsSubmitting(false);
+    };
+
+    const handleDelete = async (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!confirm("Tem certeza que deseja remover este marcador?")) return;
+
+        const { error } = await supabase
+            .schema('app_anotacoes')
+            .from('markers')
+            .update({ is_active: false }) // Soft delete
+            .eq('id', id);
+
+        if (error) {
+            toast.error("Erro ao remover.");
+        } else {
+            toast.success("Marcador removido.");
+            setMarkers(prev => prev.filter(m => m.id !== id));
+        }
     };
 
     return (
@@ -79,7 +130,7 @@ export default function TagsPage() {
                             <span className="hidden sm:inline">Novo Marcador</span>
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-md">
+                    <DialogContent className="sm:max-w-md bg-white">
                         <DialogHeader>
                             <DialogTitle>Criar Novo Marcador</DialogTitle>
                             <DialogDescription>
@@ -109,13 +160,13 @@ export default function TagsPage() {
                                         <SelectValue placeholder="Selecione o tipo" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="topic">
+                                        <SelectItem value="TOPIC">
                                             <div className="flex items-center gap-2">
                                                 <Tag className="w-4 h-4 text-emerald-500" />
                                                 <span>Tema / Tópico</span>
                                             </div>
                                         </SelectItem>
-                                        <SelectItem value="person">
+                                        <SelectItem value="PERSON">
                                             <div className="flex items-center gap-2">
                                                 <UserIcon className="w-4 h-4 text-blue-500" />
                                                 <span>Pessoa / Colaborador</span>
@@ -151,19 +202,49 @@ export default function TagsPage() {
 
             {/* List Area */}
             <div className="flex-1 overflow-y-auto p-6">
+
+                {isLoading && (
+                    <div className="flex justify-center py-20">
+                        <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+                    </div>
+                )}
+
+                {!isLoading && markers.length === 0 && (
+                    <div className="text-center py-20 opacity-50">
+                        <p>Nenhum marcador criado ainda.</p>
+                        <p className="text-sm">Clique em "Novo Marcador" para começar.</p>
+                    </div>
+                )}
+
                 <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {markers.map((marker) => (
-                        <div key={marker.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 hover:shadow-md transition-shadow cursor-pointer group">
-                            <div className="h-12 w-12 rounded-xl flex items-center justify-center shrink-0 bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100 transition-colors">
-                                <Tag size={20} />
+                        <div key={marker.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 hover:shadow-md transition-shadow cursor-default group relative">
+                            {/* Avatar / Icon */}
+                            <div className="h-12 w-12 rounded-xl flex items-center justify-center shrink-0 bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100 transition-colors overflow-hidden">
+                                {marker.avatar_url ? (
+                                    <img src={marker.avatar_url} alt={marker.name} className="w-full h-full object-cover" />
+                                ) : (
+                                    <Tag size={20} />
+                                )}
                             </div>
+
+                            {/* Info */}
                             <div className="flex-1 min-w-0">
                                 <h3 className="font-bold text-slate-700 truncate">{marker.name}</h3>
                                 <p className="text-xs text-slate-400 font-medium uppercase tracking-wider flex items-center gap-1">
-                                    {marker.type === 'person' ? <Users size={10} /> : <Tag size={10} />}
-                                    {marker.type === 'person' ? 'Pessoa' : 'Tema'}
+                                    {marker.type === 'PERSON' ? <Users size={10} /> : <Tag size={10} />}
+                                    {marker.type === 'PERSON' ? 'Pessoa' : 'Tema'}
                                 </p>
                             </div>
+
+                            {/* Delete Button (Hover) */}
+                            <button
+                                onClick={(e) => handleDelete(marker.id, e)}
+                                className="absolute top-2 right-2 p-2 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Remover"
+                            >
+                                <Trash2 size={16} />
+                            </button>
                         </div>
                     ))}
                 </div>

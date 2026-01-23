@@ -18,7 +18,27 @@ O sistema é composto por três camadas principais:
 Utilizamos dois schemas principais para separar dados brutos de lógica de negócio:
 
 ### A. Schema `datasul`
-Contém a tabela `solicita-material-jat`, que recebe os dados "crus" do webhook do Datasul. Ela serve como um log de entrada.
+Contém tabelas espelhadas/integradas do ERP Datasul.
+
+#### Tabela `solicita-material-jat`
+Recebe os dados "crus" do webhook do Datasul. Log de entrada para sincronização.
+
+#### Tabela `item`
+Cadastro mestre de itens.
+- `it_codigo` (PK): Código do item.
+- `desc_item`: Descrição completa.
+- `fm_codigo`: Família do item (usado para identificar Fundidos/Alumínio na lógica de prazos).
+
+#### Tabela `estrutura`
+Árvore de produto (BOM - Bill of Materials).
+- `es_codigo`: Item componente (filho).
+- `it_codigo`: Item pai (montagem).
+- Usada na recursividade para encontrar a prioridade de cálculo dos pais.
+
+#### Tabela `prioridade-producao`
+Define a ordem de produção.
+- `it-codigo` (PK): Código do item pai.
+- `nr-calculo`: Número da prioridade (quanto menor, mais urgente).
 
 ### B. Schema `app_controle_prazo_qualidade`
 Onde reside a inteligência da aplicação.
@@ -53,6 +73,32 @@ Armazena as chaves de segurança (tokens) para envio de notificações Push.
 
 #### Tabela `production_items_history` [NOVO]
 Tabela de arquivamento para manter a tabela principal rápida. Armazena itens finalizados há mais de 30 dias.
+
+### C. Schema `app_anotacoes` [NOVO]
+Armazena dados do módulo de notas e quadros (Tldraw).
+
+#### Tabela `notes`
+Tabela principal que armazena os quadros.
+- **id**: UUID único.
+- **user_id**: Dono da nota. Protegido por RLS (só o dono acessa).
+- **canvas_data** (JSONB): O estado completo do quadro Tldraw.
+- **preview_image**: Miniatura para listagem.
+- **is_favorite**: Flag para favoritos.
+- **tags**: Array de tags para categorização.
+
+#### Tabela `markers` [NOVO]
+Armazena as Pessoas e Tópicos usados para taguear as notas.
+- **name**: Nome exibido (Ex: "Carlos (Engenharia)").
+- **type**: `PERSON` ou `TOPIC`.
+- **avatar_url**: URL da imagem (Dicebear ou Upload).
+- **metadata**: JSONB para dados extras (cargos, sub-itens).
+
+#### Tabela `reminders` [NOVO]
+Eventos e lembretes do calendário.
+- **date**: Data e hora do evento.
+- **title**: Título curto.
+- **description**: Detalhes opcionais.
+- **is_completed**: Status de conclusão.
 
 ---
 
