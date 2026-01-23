@@ -74,17 +74,9 @@ export default function CanvasBoard() {
     const [showPalette, setShowPalette] = useState(false);
     const [editor, setEditor] = useState<Editor | null>(null);
 
-    // Camera constraint effect
-    useEffect(() => {
-        if (!editor) return;
-        const cleanup = editor.store.listen(() => {
-            const camera = editor.getCamera();
-            if (camera.y > 0) {
-                editor.setCamera({ ...camera, y: 0 });
-            }
-        });
-        return () => cleanup();
-    }, [editor]);
+
+    // Camera constraint effect removed to prevent stability issues in production
+
 
     return (
         <div
