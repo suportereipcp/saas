@@ -75,30 +75,29 @@ export async function POST(req: Request) {
                     }
                 }]);
                 response = result.response;
-            }
-        } else if (call.name === 'search_notes') {
-            const args = call.args as any;
-            const toolResult = await performNotesSearch(args.query, args.tag);
+            } else if (call.name === 'search_notes') {
+                const args = call.args as any;
+                const toolResult = await performNotesSearch(args.query, args.tag);
 
-            // Send function result back to model
-            result = await chat.sendMessage([{
-                functionResponse: {
-                    name: 'search_notes',
-                    response: toolResult
-                }
-            }]);
-            response = result.response;
+                // Send function result back to model
+                result = await chat.sendMessage([{
+                    functionResponse: {
+                        name: 'search_notes',
+                        response: toolResult
+                    }
+                }]);
+                response = result.response;
+            }
         }
-    }
 
         const text = response.text();
-    return NextResponse.json({ reply: text });
+        return NextResponse.json({ reply: text });
 
-} catch (error: any) {
-    console.error('Gemini API Error:', error);
-    return NextResponse.json({
-        error: 'Internal Server Error',
-        details: error.message || 'Unknown error'
-    }, { status: 500 });
-}
+    } catch (error: any) {
+        console.error('Gemini API Error:', error);
+        return NextResponse.json({
+            error: 'Internal Server Error',
+            details: error.message || 'Unknown error'
+        }, { status: 500 });
+    }
 }
