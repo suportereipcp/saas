@@ -6,11 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 export default function AssistantPage() {
-    const [messages, setMessages] = useState<{ role: 'user' | 'assistant', content: string }[]>([
-        { role: 'assistant', content: 'Olá! Sou sua Inteligência Auxiliar. Posso ajudar a resumir suas anotações, encontrar insights nas reuniões passadas ou rascunhar novos planos. O que vamos fazer hoje?' }
-    ]);
+    const [messages, setMessages] = useState<{ role: 'user' | 'assistant', content: string }[]>([]);
     const [inputValue, setInputValue] = useState("");
     const [isRecording, setIsRecording] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
 
     const handleSend = async () => {
         if (!inputValue.trim()) return;
@@ -18,6 +17,7 @@ export default function AssistantPage() {
         const userMessage = inputValue;
         setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
         setInputValue("");
+        setIsLoading(true);
 
         try {
             const res = await fetch('/api/chat', {
@@ -37,6 +37,8 @@ export default function AssistantPage() {
         } catch (error: any) {
             console.error("Chat Error:", error);
             setMessages(prev => [...prev, { role: 'assistant', content: `Erro: ${error.message || "Tente novamente mais tarde."}` }]);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -82,6 +84,20 @@ export default function AssistantPage() {
                         </div>
                     </div>
                 ))}
+
+                {/* Loading Indicator */}
+                {isLoading && (
+                    <div className="flex gap-4 max-w-3xl mx-auto">
+                        <div className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-emerald-100 text-emerald-600">
+                            <Bot size={20} />
+                        </div>
+                        <div className="p-5 rounded-2xl shadow-sm border bg-white border-slate-200 rounded-tl-none text-slate-700 flex items-center gap-1">
+                            <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                            <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                            <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce"></span>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Input Area */}
@@ -105,7 +121,7 @@ export default function AssistantPage() {
                             onChange={(e) => setInputValue(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                             placeholder={isRecording ? "Ouvindo..." : "Peça um resumo, busque uma anotação..."}
-                            className={`h-12 rounded-full pl-6 pr-12 text-lg border-slate-200 bg-slate-50 focus-visible:ring-emerald-500 transition-all ${isRecording ? "border-red-300 bg-red-50 placeholder:text-red-400" : ""}`}
+                            className={`h-12 rounded-full pl-6 pr-12 text-[18px] placeholder:text-[18px] border-slate-200 bg-slate-50 focus-visible:ring-emerald-500 transition-all ${isRecording ? "border-red-300 bg-red-50 placeholder:text-red-400" : ""}`}
                             disabled={isRecording}
                         />
                         <Button
