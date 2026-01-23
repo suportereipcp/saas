@@ -47,7 +47,7 @@ export default function NotesLayout({
     ];
 
     return (
-        <div className="flex h-[100dvh] w-full bg-slate-50 overflow-hidden">
+        <div className="flex h-screen w-full bg-slate-50 overflow-hidden">
             {/* Minimal Sidebar for Tablet */}
             <aside className="w-20 bg-white border-r border-slate-200 flex flex-col items-center py-6 gap-6 shadow-sm z-50">
                 <Link href="/portal">
