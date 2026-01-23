@@ -114,6 +114,11 @@ export default function CanvasBoard() {
                         right: 60px !important; /* Move palette left to avoid scrollbar overlap */
                         ${!showPalette ? 'display: none !important;' : ''}
                     }
+
+                    /* Ensure Toolbar is visible securely above safe area */
+                    .tlui-layout {
+                         padding-bottom: env(safe-area-inset-bottom, 20px);
+                    }
                 `
             }} />
 
@@ -188,7 +193,7 @@ export default function CanvasBoard() {
             </div>
 
             {/* Floating Action Button */}
-            <div className="absolute bottom-20 right-6 z-50">
+            <div className="absolute bottom-[calc(5rem+env(safe-area-inset-bottom))] right-6 z-50">
                 <Button
                     size="icon"
                     className="h-16 w-16 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-700 hover:from-emerald-400 hover:to-emerald-600 text-white shadow-lg hover:shadow-emerald-500/50 transition-all duration-300 hover:scale-110 group ring-1 ring-white/20 ring-inset"
