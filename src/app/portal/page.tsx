@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase-server";
-import { Bot, Package, Shield, Activity } from "lucide-react";
+import { Bot, Package, Shield, Activity, NotebookPen } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -13,6 +13,8 @@ const getAppIcon = (code: string) => {
             return Shield;
         case "controle_prazo_qualidade":
             return Activity;
+        case "anotacoes":
+            return NotebookPen;
         default:
             return Package; // Default icon
     }
@@ -27,6 +29,8 @@ const getAppHref = (code: string) => {
             return "/admin";
         case "controle_prazo_qualidade":
             return "/controle-prazo-qualidade";
+        case "anotacoes":
+            return "/anotacoes";
         default:
             return `/${code}`;
     }
@@ -71,6 +75,19 @@ export default async function PortalPage() {
         // 3. Must have permission
         return userPermissions.has(app.code);
     });
+
+    // --- MOCK ANOTAÇÕES APP (TEMPORARY) ---
+    // This allows us to access the app without database migration for now.
+    const hasNotesApp = appsList.find(a => a.code === 'anotacoes');
+    if (!hasNotesApp) {
+        appsList.push({
+            code: 'anotacoes',
+            name: 'Caderno Inteligente',
+            description: 'Anotações Manuais com IA',
+            active: true,
+            created_at: new Date().toISOString()
+        });
+    }
 
     return (
         <div className="h-full relative w-full">
