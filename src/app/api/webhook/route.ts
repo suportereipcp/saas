@@ -1,0 +1,51 @@
+import { NextResponse } from 'next/server';
+import { supabaseAdmin } from '@/lib/supabase-admin';
+
+export async function POST(request: Request) {
+    try {
+        // 1. Verifica se a chave mestra existe (segurança do servidor)
+        // Nota: O supabaseAdmin já lida parcialmente com isso, mas uma verificação explícita é boa.
+        if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+            console.error('ERRO CRÍTICO: Service Role Key indefinida.');
+            console.error('Debug Infos:', {
+                hasKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+                envKeys: Object.keys(process.env).filter(k => k.startsWith('SUPABASE')),
+                nodeEnv: process.env.NODE_ENV,
+            });
+            return NextResponse.json({ error: 'Configuração de servidor pendente' }, { status: 500 });
+        }
+
+        // 2. Lê os dados enviados
+        const body = await request.json();
+
+        // 3. Lê o parâmetro ?source=... da URL (ex: .../webhook?source=datasul)
+        const { searchParams } = new URL(request.url);
+        const source = searchParams.get('source') || 'desconhecido';
+
+        // 4. Salva no Banco
+        const { error } = await supabaseAdmin
+            .from('webhook_logs')
+            .insert({
+                source: source,
+                payload: body
+            });
+
+        if (error) {
+            console.error('Erro Supabase Full:', JSON.stringify(error, null, 2));
+            return NextResponse.json({
+                error: 'Erro ao salvar dados',
+                details: error
+            }, { status: 500 });
+        }
+
+        // 5. Retorna sucesso (200 OK)
+        return NextResponse.json({ message: 'Recebido com sucesso' }, { status: 200 });
+
+    } catch (err: any) {
+        console.error('Erro Webhook:', JSON.stringify(err, null, 2));
+        return NextResponse.json({
+            error: 'Bug no Webhook',
+            details: err?.message || String(err)
+        }, { status: 400 });
+    }
+}
