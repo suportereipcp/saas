@@ -92,3 +92,55 @@ export async function performCatalogSearch(query: string) {
         };
     }
 }
+import { tavily } from "@tavily/core";
+
+export const internetSearchToolDefinition: FunctionDeclaration = {
+    name: "search_internet",
+    description: "Realiza buscas na internet para encontrar informações atualizadas, notícias, dados de mercado ou qualquer conteúdo que não esteja no seu conhecimento interno. Use para perguntas sobre atualidades.",
+    parameters: {
+        type: SchemaType.OBJECT,
+        properties: {
+            query: {
+                type: SchemaType.STRING,
+                description: "O termo de busca otimizado para encontrar a melhor resposta."
+            }
+        },
+        required: ["query"]
+    }
+};
+
+export async function performInternetSearch(query: string) {
+    console.log(`[Tool] Searching internet for: ${query}`);
+    const apiKey = process.env.TAVILY_API_KEY;
+
+    if (!apiKey) {
+        return {
+            error: "TAVILY_API_KEY not configured."
+        };
+    }
+
+    try {
+        const client = tavily({ apiKey });
+        const response = await client.search(query, {
+            searchDepth: "basic",
+            maxResults: 5,
+            includeAnswer: true
+        });
+
+        return {
+            query: query,
+            answer: response.answer,
+            results: response.results.map(r => ({
+                title: r.title,
+                url: r.url,
+                snippet: r.content
+            }))
+        };
+
+    } catch (error: any) {
+        console.error('[Tool] Internet search error:', error);
+        return {
+            error: `Failed to search: ${error.message}`
+        };
+    }
+}
