@@ -139,7 +139,7 @@ export default function CanvasBoard() {
             </div>
 
             {/* Top Center Background Toggle & Tools */}
-            <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2">
+            <div className="absolute top-[calc(1.5rem+env(safe-area-inset-top))] left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2">
                 {isEditing && (
                     <div className="bg-emerald-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md animate-in fade-in slide-in-from-top-4 flex items-center gap-2">
                         <Pencil size={12} />
