@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { AGENT_SYSTEM_INSTRUCTION } from '@/lib/agent-config';
-import { catalogToolDefinition, performCatalogSearch } from '@/lib/gemini-tools';
+import { catalogToolDefinition, performCatalogSearch, internetSearchToolDefinition, performInternetSearch } from '@/lib/gemini-tools';
 
 export async function POST(req: Request) {
     let apiKey = '';
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
         const model = genAI.getGenerativeModel({
             model: 'gemini-2.5-flash',
             systemInstruction: AGENT_SYSTEM_INSTRUCTION,
-            tools: [{ functionDeclarations: [catalogToolDefinition] }]
+            tools: [{ functionDeclarations: [catalogToolDefinition, internetSearchToolDefinition] }]
         });
 
         // 3. Start chat and send message
@@ -59,6 +59,18 @@ export async function POST(req: Request) {
                 result = await chat.sendMessage([{
                     functionResponse: {
                         name: 'search_catalog',
+                        response: toolResult
+                    }
+                }]);
+                response = result.response;
+            } else if (call.name === 'search_internet') {
+                const args = call.args as any;
+                const toolResult = await performInternetSearch(args.query);
+
+                // Send function result back to model
+                result = await chat.sendMessage([{
+                    functionResponse: {
+                        name: 'search_internet',
                         response: toolResult
                     }
                 }]);
