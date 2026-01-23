@@ -4,12 +4,21 @@ import { Tldraw, Editor } from 'tldraw';
 import 'tldraw/tldraw.css';
 import { Button } from '@/components/ui/button';
 import { Save, File, NotebookText, Palette, Pencil } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { TaggingModal } from './TaggingModal';
 import { cn } from '@/lib/utils';
 import { useSearchParams } from 'next/navigation';
 
+
 import { MOCK_CHAT_HISTORY } from '../mock-data';
+
+const TLDRAW_COMPONENTS = {
+    PageMenu: null,
+    MainMenu: null,
+    NavigationPanel: null,
+    DebugMenu: null,
+    HelpMenu: null,
+};
 
 export default function CanvasBoard() {
     const searchParams = useSearchParams();
@@ -120,16 +129,10 @@ export default function CanvasBoard() {
             <div className="absolute inset-0 z-0">
                 <Tldraw
                     hideUi={false}
-                    onMount={(editor) => setEditor(editor)}
+                    onMount={setEditor}
                     // We use a constant components object to avoid unmounting/remounting
                     // Visibility is handled by the CSS above
-                    components={{
-                        PageMenu: null,
-                        MainMenu: null,
-                        NavigationPanel: null,
-                        DebugMenu: null,
-                        HelpMenu: null,
-                    }}
+                    components={TLDRAW_COMPONENTS}
                 />
             </div>
 
