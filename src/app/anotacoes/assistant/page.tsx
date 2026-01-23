@@ -78,7 +78,7 @@ export default function AssistantPage() {
                             ? 'bg-white border-slate-200 rounded-tl-none text-slate-700'
                             : 'bg-emerald-600 border-emerald-500 rounded-tr-none text-white'
                             }`}>
-                            <p className="leading-relaxed">{msg.content}</p>
+                            <p className="leading-relaxed text-lg">{msg.content}</p>
                         </div>
                     </div>
                 ))}

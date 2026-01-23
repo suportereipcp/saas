@@ -1,6 +1,6 @@
 'use client';
 
-import { Tldraw, Editor } from 'tldraw';
+import { Tldraw, Editor, DefaultSizeStyle, DefaultDashStyle } from 'tldraw';
 import 'tldraw/tldraw.css';
 import { Button } from '@/components/ui/button';
 import { Save, File, NotebookText, Palette, Pencil } from 'lucide-react';
@@ -78,6 +78,19 @@ export default function CanvasBoard() {
     const [bgPattern, setBgPattern] = useState<'blank' | 'lines'>('lines');
     const [showPalette, setShowPalette] = useState(false);
     const [editor, setEditor] = useState<Editor | null>(null);
+
+    // Initial Editor Config (Styles)
+    useEffect(() => {
+        if (!editor) return;
+
+        // Set defaults: Size S, Dash Solid (Clean/Thin line)
+        editor.run(() => {
+            editor.setStyleForNextShapes(DefaultSizeStyle, 's');
+            editor.setStyleForNextShapes(DefaultDashStyle, 'solid');
+            editor.setCurrentTool('draw'); // Default to Pen
+        });
+
+    }, [editor]);
 
 
     // Camera constraint effect removed to prevent stability issues in production
