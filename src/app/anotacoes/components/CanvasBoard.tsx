@@ -20,6 +20,46 @@ const TLDRAW_COMPONENTS = {
     HelpMenu: null,
 };
 
+
+interface ScrollIndicatorProps {
+    editor: Editor | null;
+}
+
+function ScrollIndicator({ editor }: ScrollIndicatorProps) {
+    const [scrollProgress, setScrollProgress] = useState(0);
+
+    useEffect(() => {
+        if (!editor) return;
+
+        const updateState = () => {
+            const { y } = editor.getCamera();
+            const VIRTUAL_HEIGHT = 5000;
+            const progress = Math.min(Math.max(-y / VIRTUAL_HEIGHT, 0), 1) * 100;
+            setScrollProgress(progress);
+        };
+
+        // Initial update
+        updateState();
+
+        const cleanup = editor.store.listen(() => {
+            updateState();
+        });
+
+        return () => cleanup();
+    }, [editor]);
+
+    if (!editor) return null;
+
+    return (
+        <div className="absolute top-0 bottom-0 right-0 w-3 bg-transparent pointer-events-none z-40 flex flex-col items-start pt-4 pr-0.5">
+            <div
+                className="w-1.5 h-32 bg-gray-300/50 rounded-full backdrop-blur-sm transition-all duration-75"
+                style={{ transform: `translateY(${window.innerHeight * (scrollProgress / 100)}px)` }}
+            />
+        </div>
+    );
+}
+
 export default function CanvasBoard() {
     const searchParams = useSearchParams();
     const noteId = searchParams.get('noteId');
@@ -33,65 +73,18 @@ export default function CanvasBoard() {
     const [bgPattern, setBgPattern] = useState<'blank' | 'lines'>('lines');
     const [showPalette, setShowPalette] = useState(false);
     const [editor, setEditor] = useState<Editor | null>(null);
-    const [scrollProgress, setScrollProgress] = useState(0);
 
+    // Camera constraint effect
     useEffect(() => {
         if (!editor) return;
-
-        const updateState = () => {
+        const cleanup = editor.store.listen(() => {
             const camera = editor.getCamera();
-
-            // 1. Constrain Camera: Prevent panning above y=0 (Top of page)
-            if (camera.y > 0) { // Tldraw camera.y > 0 means looking "up" (content moves down)? 
-                // Wait, Tldraw coordinates:
-                // Camera(0,0) = Top-left at 0,0.
-                // Panning DOWN (to see lower content) -> Camera Y moves NEGATIVE? Or Positive?
-                // Let's re-verify standard logic.
-                // Usually Viewport = Content * Zoom + Camera.
-                // If I pan down, I want to see y=1000. My viewport rect shifts down.
-                // In Tldraw, camera.y increases as you pan down?
-                // Let's test with the scroll indicator logic I verified: 
-                // "const progress = Math.min(Math.max(-y / VIRTUAL_HEIGHT, 0), 1) * 100;"
-                // If I pan down, -y increases? So y is negative?
-                // Yes, typically in 2D engines: Camera Position is inverse of World movement.
-                // Moving Camera DOWN (positive Y) usually means world moves UP.
-                // Wait... if I behave like a scrollable page:
-                // ScrollTop increases. Content moves UP.
-                // Tldraw Camera Y typically represents the point of the world at top-left.
-                // If I scroll down 100px, Camera Y = 100.
-                // If I scroll UP past 0, Camera Y = -100.
-
-                // Let's stick to the visual debugging: 
-                // "progress = -y" in my previous code worked for "descendo a pagina".
-                // If I descend, progress increases. So -y increases. So y decreases (becomes more negative).
-                // So "Top" is y=0. "Down" is y < 0.
-                // Wait, if y < 0 is "Down", then y > 0 is "Up" (Above top).
-                // User wants to block "Up". So block y > 0.
-
+            if (camera.y > 0) {
                 editor.setCamera({ ...camera, y: 0 });
             }
-
-            // Update Scrollbar Progress
-            // Recalculate with constrained y
-            const { y } = editor.getCamera();
-            const VIRTUAL_HEIGHT = 5000;
-            const progress = Math.min(Math.max(-y / VIRTUAL_HEIGHT, 0), 1) * 100;
-            setScrollProgress(progress);
-        };
-
-        const cleanup = editor.store.listen(() => {
-            updateState();
         });
-
         return () => cleanup();
     }, [editor]);
-
-    // Calculate background offset to make lines scroll with canvas
-    // We need current camera Y for this. Storing it in state might cause too many re-renders.
-    // Ideally use a ref or Tldraw's shape for lines. 
-    // BUT for now, user asked about "infinite up". Let's solve that.
-    // If lines are static, they look like a transparent overlay. That's acceptable for "notebook" feel usually.
-    // Let's just fix the infinite up first.
 
     return (
         <div
@@ -201,13 +194,8 @@ export default function CanvasBoard() {
                 </Button>
             </div>
 
-            {/* Visual Right Scrollbar */}
-            <div className="absolute top-0 bottom-0 right-0 w-3 bg-transparent pointer-events-none z-40 flex flex-col items-start pt-4 pr-0.5">
-                <div
-                    className="w-1.5 h-32 bg-gray-300/50 rounded-full backdrop-blur-sm transition-all duration-75"
-                    style={{ transform: `translateY(${window.innerHeight * (scrollProgress / 100)}px)` }}
-                />
-            </div>
+            {/* Visual Right Scrollbar - ISOLATED COMPONENT */}
+            <ScrollIndicator editor={editor} />
 
             <TaggingModal
                 open={taggingOpen}
