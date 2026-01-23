@@ -12,16 +12,32 @@ export default function AssistantPage() {
     const [inputValue, setInputValue] = useState("");
     const [isRecording, setIsRecording] = useState(false);
 
-    const handleSend = () => {
+    const handleSend = async () => {
         if (!inputValue.trim()) return;
 
-        setMessages(prev => [...prev, { role: 'user', content: inputValue }]);
+        const userMessage = inputValue;
+        setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
         setInputValue("");
 
-        // Mock response
-        setTimeout(() => {
-            setMessages(prev => [...prev, { role: 'assistant', content: 'Entendi. Estou processando suas anotações relacionadas a esse tema...' }]);
-        }, 1000);
+        try {
+            const res = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: userMessage })
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.details || errorData.error || 'Failed to fetch response');
+            }
+
+            const data = await res.json();
+            setMessages(prev => [...prev, { role: 'assistant', content: data.reply || "Desculpe, não consegui processar sua resposta." }]);
+
+        } catch (error: any) {
+            console.error("Chat Error:", error);
+            setMessages(prev => [...prev, { role: 'assistant', content: `Erro: ${error.message || "Tente novamente mais tarde."}` }]);
+        }
     };
 
     const toggleRecording = () => {
@@ -46,7 +62,7 @@ export default function AssistantPage() {
                     <Bot size={20} />
                 </div>
                 <div>
-                    <h1 className="text-xl font-bold text-slate-800">Inteligência Artificial</h1>
+                    <h1 className="text-xl font-bold text-slate-800">Jarvis</h1>
                     <p className="text-xs text-slate-500 font-medium">Sr Donizete, qual a sua dúvida?</p>
                 </div>
             </div>
