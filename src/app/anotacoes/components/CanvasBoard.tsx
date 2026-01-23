@@ -113,6 +113,7 @@ export default function CanvasBoard() {
 
             <div className="absolute inset-0 z-0">
                 <Tldraw
+                    licenseKey={process.env.NEXT_PUBLIC_TLDRAW_LICENSE_KEY}
                     hideUi={false}
                     onMount={setEditor}
                     // We use a constant components object to avoid unmounting/remounting
