@@ -25,6 +25,11 @@ interface ScrollIndicatorProps {
     editor: Editor | null;
 }
 
+// DEBUG: Check license key in production
+if (typeof window !== 'undefined') {
+    console.log('Tldraw License Check:', process.env.NEXT_PUBLIC_TLDRAW_LICENSE_KEY ? 'Key Found' : 'Key Missing', process.env.NEXT_PUBLIC_TLDRAW_LICENSE_KEY);
+}
+
 function ScrollIndicator({ editor }: ScrollIndicatorProps) {
     const [scrollProgress, setScrollProgress] = useState(0);
 
@@ -113,6 +118,7 @@ export default function CanvasBoard() {
 
             <div className="absolute inset-0 z-0">
                 <Tldraw
+                    licenseKey={process.env.NEXT_PUBLIC_TLDRAW_LICENSE_KEY}
                     hideUi={false}
                     onMount={setEditor}
                     // We use a constant components object to avoid unmounting/remounting
