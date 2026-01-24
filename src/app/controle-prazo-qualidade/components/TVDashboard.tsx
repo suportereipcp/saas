@@ -280,7 +280,7 @@ export const TVDashboard: React.FC<TVDashboardProps> = ({ items, warehouseReques
             </header>
 
             <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-5 gap-6 h-full grid-rows-3">
                     {!isWarehouseView && sortedProductionItems.map((item) => (
                         <Card key={item.id} className={cn(
                             "rounded-2xl bg-white border-l-[10px] shadow-xl relative overflow-hidden flex flex-col transition-all duration-500 hover:scale-[1.02]",

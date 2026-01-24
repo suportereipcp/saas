@@ -109,7 +109,7 @@ function ControleQualidadeContent() {
             } else if (newStatus === ProcessStatus.ADHESIVE) {
                 updatePayload.wash_finished_at = new Date().toISOString();
                 updatePayload.wash_finished_by = user?.email;
-                updatePayload.adhesive_started_at = new Date().toISOString();
+                // updatePayload.adhesive_started_at = new Date().toISOString(); // REMOVED: Must go to Queue first
             } else if (newStatus === ProcessStatus.FINISHED) {
                 updatePayload.adhesive_finished_at = new Date().toISOString();
                 updatePayload.adhesive_finished_by = user?.email; // Keep original field for compatibility

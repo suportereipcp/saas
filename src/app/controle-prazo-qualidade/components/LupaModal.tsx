@@ -60,15 +60,30 @@ export function LupaModal({ mode, isOpen, onClose, onConfirm, initialOp }: LupaM
 
     const startCamera = async () => {
         try {
-            const mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert("Seu navegador não suporta acesso à câmera.");
+                return;
+            }
+
+            const mediaStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment' }
+            });
+
             setStream(mediaStream);
             setIsScanning(true);
-            if (videoRef.current) {
-                videoRef.current.srcObject = mediaStream;
-            }
+
+            // Wait a bit to ensure video ref is mounted
+            setTimeout(() => {
+                if (videoRef.current) {
+                    videoRef.current.srcObject = mediaStream;
+                }
+            }, 100);
+
         } catch (err) {
-            console.error("Error referencing camera:", err);
-            alert("Erro ao acessar câmera. Verifique as permissões.");
+            console.error("Error accessing camera:", err);
+            // Fallback for demo or error
+            alert("Não foi possível acessar a câmera. Verifique as permissões ou digite manualmente.");
+            setIsScanning(false);
         }
     };
 
