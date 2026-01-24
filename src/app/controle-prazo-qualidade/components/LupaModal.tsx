@@ -119,7 +119,10 @@ export function LupaModal({ mode, isOpen, onClose, onConfirm, initialOp }: LupaM
                     },
                     (decodedText) => {
                         if (!mounted) return;
-                        setOpNumber(decodedText);
+                        // Sanitize: remove points/symbols, keep only numbers
+                        const sanitized = decodedText.replace(/\D/g, '');
+                        setOpNumber(sanitized);
+
                         // Don't toggle isScanning here immediately to avoid race? 
                         // Better to just let user stop or auto-stop. 
                         // Let's auto-stop safely.
