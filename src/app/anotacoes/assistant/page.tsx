@@ -1,10 +1,103 @@
 'use client';
 
-import { useState, useEffect } from "react";
-import { Mic, Send, Bot, Sparkles } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Mic, Send, Bot, Sparkles, Search, X, ImageIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/lib/supabase";
+
+// Helper para renderizar conteúdo com links, imagens clicáveis e formatação
+function MessageContent({ content, onImageClick }: { content: string, onImageClick: (url: string) => void }) {
+    // First, parse **bold** text and URLs
+    const parseContent = (text: string): React.ReactNode[] => {
+        const result: React.ReactNode[] = [];
+        let key = 0;
+
+        // Pattern for URLs and **bold** text
+        const combinedPattern = /(\*\*[^*]+\*\*)|(https?:\/\/[^\s<>"]+)/gi;
+        let lastIndex = 0;
+        let match;
+
+        while ((match = combinedPattern.exec(text)) !== null) {
+            // Add text before this match
+            if (match.index > lastIndex) {
+                result.push(<span key={key++}>{text.slice(lastIndex, match.index)}</span>);
+            }
+
+            if (match[1]) {
+                // Bold text: **text**
+                const boldText = match[1].slice(2, -2);
+                result.push(<strong key={key++} className="font-semibold text-slate-800">{boldText}</strong>);
+            } else if (match[2]) {
+                // URL
+                const url = match[2];
+                const isImage = /\.(?:jpg|jpeg|png|webp|gif)/i.test(url);
+
+                if (isImage) {
+                    result.push(
+                        <button
+                            key={key++}
+                            onClick={() => onImageClick(url)}
+                            className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-800 underline font-medium"
+                        >
+                            <ImageIcon size={16} className="shrink-0" />
+                            Ver imagem
+                        </button>
+                    );
+                } else {
+                    const displayUrl = url.length > 50 ? url.slice(0, 47) + '...' : url;
+                    result.push(
+                        <a
+                            key={key++}
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-emerald-600 hover:text-emerald-800 underline"
+                        >
+                            {displayUrl}
+                        </a>
+                    );
+                }
+            }
+
+            lastIndex = match.index + match[0].length;
+        }
+
+        // Add remaining text
+        if (lastIndex < text.length) {
+            result.push(<span key={key++}>{text.slice(lastIndex)}</span>);
+        }
+
+        return result;
+    };
+
+    // Split by newlines to create better structure
+    const lines = content.split('\n');
+
+    return (
+        <div className="space-y-1">
+            {lines.map((line, idx) => {
+                if (!line.trim()) return <div key={idx} className="h-2" />; // Empty line = spacing
+
+                // Check if line starts with emoji (info label)
+                const emojiMatch = line.match(/^(📷|🔢|⚖️|📦|📋|🔧|⚠️|💡|🚗|🏭|🔗|•)\s*/);
+
+                if (emojiMatch) {
+                    return (
+                        <div key={idx} className="flex items-start gap-2">
+                            <span className="shrink-0">{emojiMatch[1]}</span>
+                            <span>{parseContent(line.slice(emojiMatch[0].length))}</span>
+                        </div>
+                    );
+                }
+
+                return <div key={idx}>{parseContent(line)}</div>;
+            })}
+        </div>
+    );
+}
+
 
 export default function AssistantPage() {
     const [messages, setMessages] = useState<{ role: 'user' | 'assistant' | 'model', content: string }[]>([]);
@@ -12,6 +105,22 @@ export default function AssistantPage() {
     const [isRecording, setIsRecording] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [userId, setUserId] = useState<string | null>(null);
+
+    // Busca no histórico
+    const [searchQuery, setSearchQuery] = useState("");
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+    // Image popup
+    const [imagePopupUrl, setImagePopupUrl] = useState<string | null>(null);
+
+    // Mensagens filtradas baseadas na busca
+    const filteredMessages = useMemo(() => {
+        if (!searchQuery.trim()) return messages;
+        const query = searchQuery.toLowerCase();
+        return messages.filter(msg =>
+            msg.content.toLowerCase().includes(query)
+        );
+    }, [messages, searchQuery]);
 
     // Initial Load: Get User & History
     useEffect(() => {
@@ -21,14 +130,14 @@ export default function AssistantPage() {
             if (user) {
                 setUserId(user.id);
 
-                // 2. Fetch History (last 30)
-                // Note: role is 'model' in DB, 'assistant' in frontend logic usually. Mapping needed.
-                const { data: history, error } = await supabase
-                    .from('chat_messages' as any) // Temporary casting until types update
+                // 2. Fetch History (last 200)
+                const { data: history, error } = await (supabase as any)
+                    .schema('app_anotacoes')
+                    .from('chat_messages')
                     .select('*')
                     .eq('user_id', user.id)
                     .order('created_at', { ascending: false })
-                    .limit(30);
+                    .limit(200);
 
                 if (history) {
                     // Reverse to show oldest first
@@ -56,13 +165,19 @@ export default function AssistantPage() {
         setInputValue("");
         setIsLoading(true);
 
+        // Fechar busca ao enviar nova mensagem
+        if (isSearchOpen) {
+            setIsSearchOpen(false);
+            setSearchQuery("");
+        }
+
         try {
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     message: userMessage,
-                    userId: userId // Pass userID for saving in backend
+                    userId: userId
                 })
             });
 
@@ -84,15 +199,10 @@ export default function AssistantPage() {
 
     const toggleRecording = () => {
         if (isRecording) {
-            // Stop Recording
             setIsRecording(false);
-            // Simulate Transcription
             setInputValue("Estou gravando um áudio para testar a transcrição da inteligência artificial...");
         } else {
-            // Start Recording
             setIsRecording(true);
-            // In a real app, we would request microphone permissions here
-            // navigator.mediaDevices.getUserMedia({ audio: true })...
         }
     };
 
@@ -103,31 +213,75 @@ export default function AssistantPage() {
                 <div className="h-10 w-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
                     <Bot size={20} />
                 </div>
-                <div>
+                <div className="flex-1">
                     <h1 className="text-xl font-bold text-slate-800">Jarvis</h1>
                     <p className="text-xs text-slate-500 font-medium">Sr Donizete, qual a sua dúvida?</p>
                 </div>
+
+                {/* Botão de Busca */}
+                <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => {
+                        setIsSearchOpen(!isSearchOpen);
+                        if (isSearchOpen) setSearchQuery("");
+                    }}
+                    className={`h-10 w-10 rounded-full ${isSearchOpen ? 'bg-emerald-100 text-emerald-600' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'}`}
+                    title="Buscar no histórico"
+                >
+                    {isSearchOpen ? <X size={20} /> : <Search size={20} />}
+                </Button>
             </div>
+
+            {/* Barra de Busca (Expandida) */}
+            {isSearchOpen && (
+                <div className="bg-white border-b border-slate-200 px-6 py-3 shadow-sm">
+                    <div className="max-w-3xl mx-auto relative">
+                        <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <Input
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Buscar nas conversas..."
+                            className="h-10 pl-11 pr-4 rounded-full border-slate-200 bg-slate-50 focus-visible:ring-emerald-500"
+                            autoFocus
+                        />
+                        {searchQuery && (
+                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+                                {filteredMessages.length} resultado(s)
+                            </span>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Chat Area */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                {messages.length === 0 && !isLoading && (
+                {filteredMessages.length === 0 && !isLoading && (
                     <div className="text-center text-slate-400 mt-10">
                         <Sparkles size={48} className="mx-auto mb-4 opacity-20" />
-                        <p>Inicie uma nova conversa...</p>
+                        <p>{searchQuery ? "Nenhum resultado encontrado..." : "Inicie uma nova conversa..."}</p>
                     </div>
                 )}
 
-                {messages.map((msg, idx) => (
+                {filteredMessages.map((msg, idx) => (
                     <div key={idx} className={`flex gap-4 max-w-3xl mx-auto ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                         <div className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${msg.role === 'assistant' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-600'}`}>
                             {msg.role === 'assistant' ? <Bot size={20} /> : <div className="font-bold text-xs">VOCÊ</div>}
                         </div>
-                        <div className={`p-5 rounded-2xl shadow-sm border max-w-[80%] ${msg.role === 'assistant'
+                        <div className={`p-5 rounded-2xl shadow-sm border max-w-[80%] overflow-hidden ${msg.role === 'assistant'
                             ? 'bg-white border-slate-200 rounded-tl-none text-slate-700'
                             : 'bg-emerald-600 border-emerald-500 rounded-tr-none text-white'
                             }`}>
-                            <p className="leading-relaxed text-lg whitespace-pre-wrap">{msg.content}</p>
+                            <div className="leading-relaxed text-lg break-words">
+                                {msg.role === 'assistant' ? (
+                                    <MessageContent
+                                        content={msg.content}
+                                        onImageClick={(url) => setImagePopupUrl(url)}
+                                    />
+                                ) : (
+                                    msg.content
+                                )}
+                            </div>
                         </div>
                     </div>
                 ))}
@@ -183,6 +337,20 @@ export default function AssistantPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Image Popup Modal */}
+            <Dialog open={!!imagePopupUrl} onOpenChange={() => setImagePopupUrl(null)}>
+                <DialogContent className="max-w-4xl p-2 bg-white">
+                    <DialogTitle className="sr-only">Foto do produto</DialogTitle>
+                    {imagePopupUrl && (
+                        <img
+                            src={imagePopupUrl}
+                            alt="Foto do produto"
+                            className="w-full h-auto max-h-[80vh] object-contain rounded-lg"
+                        />
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
