@@ -6,3 +6,4 @@
 
 ALTER TABLE app_anotacoes.notes 
 ADD COLUMN IF NOT EXISTS transcription TEXT;
+v
