@@ -36,17 +36,47 @@ export async function performCatalogSearch(query: string) {
         const searchHtml = await searchResponse.text();
 
         // Extract product links from search results
-        // Links are relative URLs like: href="coxim-dianteiro-e-traseiro-da-suspensao-do-motor-mercedes-benz-r-025"
-        const cleanQuery = query.toLowerCase().replace(/[^a-z0-9-]/g, '');
-        const linkPattern = `<a\\s+href="([^"]*${cleanQuery}[^"]*)"`;
-        const linkRegex = new RegExp(linkPattern, 'i');
-        const linkMatch = searchHtml.match(linkRegex);
+        // The query might be "R-1221" - we need to handle the hyphen properly
+        // Build a regex pattern that matches the product code with optional hyphen
+        const normalizedQuery = query.toLowerCase().trim();
+
+        // Try multiple patterns to find the product link
+        let linkMatch = null;
+
+        // Pattern 1: exact match with the query in the URL (e.g., r-1221 in "...vw-r-1221...")
+        const exactPattern = new RegExp(`<a\\s+href="([^"]*${normalizedQuery.replace(/[-]/g, '[-]?')}[^"]*)"`, 'i');
+        linkMatch = searchHtml.match(exactPattern);
+
+        // Pattern 2: if starts with letter-number, try without hyphen too (r1221)
+        if (!linkMatch) {
+            const noHyphenQuery = normalizedQuery.replace(/-/g, '');
+            const noHyphenPattern = new RegExp(`<a\\s+href="([^"]*${noHyphenQuery}[^"]*)"`, 'i');
+            linkMatch = searchHtml.match(noHyphenPattern);
+        }
+
+        // Pattern 3: Look for product cards with the code visible
+        if (!linkMatch) {
+            // Search for the code in the page content and find nearby link
+            const codeInPagePattern = new RegExp(`<a\\s+href="([^"]+)"[^>]*>\\s*[^<]*${normalizedQuery}`, 'i');
+            linkMatch = searchHtml.match(codeInPagePattern);
+        }
+
+        // Pattern 4: Try to find any product link on the search results page
+        if (!linkMatch && searchHtml.includes('VEJA MAIS')) {
+            // Find links near "VEJA MAIS" buttons - these are product links
+            const vejaPattern = /<a\s+href="([^"]+)"[^>]*>\s*VEJA MAIS/gi;
+            const vejaMatch = searchHtml.match(vejaPattern);
+            if (vejaMatch && vejaMatch.length === 1) {
+                // Only one result, use it
+                const singleLinkMatch = vejaMatch[0].match(/href="([^"]+)"/i);
+                if (singleLinkMatch) linkMatch = singleLinkMatch;
+            }
+        }
 
         if (!linkMatch) {
             return {
                 found: false,
-                message: `Produto "${query}" não encontrado.`,
-                suggestion: `Acesse ${searchUrl} para verificar manualmente.`
+                message: `Produto "${query}" não foi encontrado no catálogo.`
             };
         }
 
@@ -67,28 +97,230 @@ export async function performCatalogSearch(query: string) {
 
         const productHtml = await productResponse.text();
 
-        // Extract product title
+
+        // === EXTRACT PRODUCT DETAILS ===
+
+        // 1. Title from <title> tag
         const titleMatch = productHtml.match(/<title>(.*?)<\/title>/i);
         const fullTitle = titleMatch ? titleMatch[1].replace(' - Suporte Rei', '').trim() : '';
 
-        // Extract product code from beginning of title
-        const codeMatch = fullTitle.match(/^([A-Z]-?\d+[A-Z]?)/i);
+        // 2. Product code from title
+        const codeMatch = fullTitle.match(/^([A-Z]-?\d+[A-Za-z]?)/i);
         const extractedCode = codeMatch ? codeMatch[1].toUpperCase() : query.toUpperCase();
+
+        // 3. Product Name (part of title after code)
+        const productName = fullTitle.replace(/^[A-Z]-?\d+[A-Za-z]?\s*-?\s*/i, '').trim();
+
+        // 4. Weight - look for "PESO:" pattern
+        const weightMatch = productHtml.match(/PESO[:\s]*([0-9,.]+)\s*\(?(KG|kg)?/i);
+        const weight = weightMatch ? `${weightMatch[1]} kg` : null;
+
+        // 5. Packaging - look for "EMBALAGEM COM X PEÇA"
+        const packagingMatch = productHtml.match(/EMBALAGEM\s+COM\s+(\d+)\s+PE[ÇC]A/i);
+        const packaging = packagingMatch ? `${packagingMatch[1]} peça(s)` : null;
+
+        // === EXTRACT FROM div.texto-editavel (where all technical data lives) ===
+        // Find the texto-editavel section which contains structured info
+        const textoEditavelMatch = productHtml.match(/class="texto-editavel"[^>]*>([\s\S]*?)<\/div>/i);
+        const textoEditavel = textoEditavelMatch ? textoEditavelMatch[1] : '';
+
+        // Extract raw text content from texto-editavel, preserving line breaks
+        // Remove HTML tags but keep the text content exactly as written
+        const rawTextContent = textoEditavel
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<\/p>/gi, '\n')
+            .replace(/<[^>]+>/g, '')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line.length > 0);
+
+        // Parse individual fields from raw text - exact as written
+        let originalPartNumber: string | null = null;
+        let technicalDescription: string | null = null;
+        let rosca: string | null = null;
+        let material: string | null = null;
+        let observation: string | null = null;
+        let suggestionRei: string | null = null;
+
+        for (const line of rawTextContent) {
+            // Substitui Nº... (exact match)
+            if (line.match(/^Substitui\s+N[º°]/i)) {
+                originalPartNumber = line;
+            }
+            // Rosca... (exact match)
+            else if (line.match(/^Rosca\s/i)) {
+                rosca = line;
+            }
+            // (Tarja...) or (Fabricado em...)
+            else if (line.match(/^\(Tarja/i) || line.match(/^\(Fabricado\s+em/i)) {
+                material = line;
+            }
+            // OBS:...
+            else if (line.match(/^OBS[:\s]/i)) {
+                observation = line;
+            }
+            // Sugestão Rei:...
+            else if (line.match(/^Sugest[ãa]o\s+Rei/i)) {
+                suggestionRei = line;
+            }
+            // Technical description (Coxim, Suporte, etc.)
+            else if (line.match(/^(Coxim|Suporte|Bucha|Anel|Mola|Parafuso|Pino)/i) && !technicalDescription) {
+                technicalDescription = line;
+            }
+        }
+
+        // 10. Specifications (furos, etc.)
+        const specsMatch = productHtml.match(/\(\d+\s*furos?\)[^<]*/i);
+        const specifications = specsMatch ? specsMatch[0].trim() : null;
+
+        // 13. Vehicle models by brand - extract from div.grupo structure
+        const vehiclesByBrand: { [key: string]: string[] } = {};
+
+        // Pattern for div.grupo with grupo-titulo and span.modelo
+        const grupoPattern = /<div[^>]*class="[^"]*grupo[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/gi;
+        const grupoMatches = productHtml.matchAll(grupoPattern);
+
+        for (const grupoMatch of grupoMatches) {
+            const grupoContent = grupoMatch[1];
+            // Get the brand name from grupo-titulo
+            const tituloMatch = grupoContent.match(/class="[^"]*grupo-titulo[^"]*"[^>]*>([^<]+)/i);
+            if (tituloMatch) {
+                const brand = tituloMatch[1].replace(':', '').trim();
+                // Get all models from span.modelo
+                const modeloMatches = grupoContent.matchAll(/class="[^"]*modelo[^"]*"[^>]*>([^<]+)/gi);
+                const models: string[] = [];
+                for (const m of modeloMatches) {
+                    if (m[1] && m[1].trim()) models.push(m[1].trim());
+                }
+                if (models.length > 0) {
+                    vehiclesByBrand[brand] = models;
+                }
+            }
+        }
+
+        // Fallback: also try link-based extraction for older formats
+        const brandSectionPatterns = [
+            /<strong>([^<]+)<\/strong>:?\s*(?:<br\s*\/?>)?\s*((?:<a[^>]*>[^<]+<\/a>\s*\|?\s*)+)/gi,
+            /(Scania|Ônibus|MB|VW|Volvo|Mercedes|Delivery)[:\s]*(?:<br\s*\/?>)?\s*((?:<a[^>]*>[^<]+<\/a>\s*\|?\s*)+)/gi
+        ];
+
+        for (const pattern of brandSectionPatterns) {
+            const matches = productHtml.matchAll(pattern);
+            for (const match of matches) {
+                const brand = (match[1] || '').trim();
+                const linksSection = match[2] || '';
+                const modelLinks = linksSection.matchAll(/<a[^>]*>([^<]+)<\/a>/gi);
+                const models: string[] = [];
+                for (const m of modelLinks) {
+                    if (m[1] && m[1].trim()) models.push(m[1].trim());
+                }
+                if (brand && models.length > 0) {
+                    if (!vehiclesByBrand[brand]) vehiclesByBrand[brand] = [];
+                    vehiclesByBrand[brand].push(...models);
+                }
+            }
+        }
+
+        // Remove duplicates from each brand
+        for (const brand in vehiclesByBrand) {
+            vehiclesByBrand[brand] = [...new Set(vehiclesByBrand[brand])];
+        }
+
+        // Convert to array for display
+        const vehicleModels: string[] = Object.entries(vehiclesByBrand)
+            .map(([brand, models]) => `${brand}: ${models.join(', ')}`);
+
+        // 14. Montadoras/Manufacturers
+        const montadorasSection = productHtml.match(/Montadoras[^<]*<[^>]*>([^<]+)/gi);
+        let montadoras: string[] = [];
+        if (montadorasSection) {
+            for (const section of montadorasSection) {
+                const brandMatch = section.match(/(MERCEDES-BENZ|VOLKSWAGEN|VOLVO|SCANIA|MAN|IVECO|DAF|FORD|GM|CHEVROLET)/gi);
+                if (brandMatch) montadoras.push(...brandMatch);
+            }
+            montadoras = [...new Set(montadoras.map(m => m.toUpperCase()))];
+        }
+
+        // 15. Compatibility text
+        const compatMatch = productHtml.match(/\([A-Z]-?\d+[A-Za-z]?\)\s+compat[ií]vel\s+com\s+([^.<]+)/i);
+        const compatibility = compatMatch ? compatMatch[1].trim() : null;
+
+        // 16. Product Image URL - look for a.swipebox href
+        // HTML: <a class="swipebox" data-rel="gal-10650" href="uploads/produto/...">
+        let imageUrl: string | null = null;
+
+        // Method 1: Find a tag with swipebox class and extract href
+        const swipeboxTagMatch = productHtml.match(/<a\s+[^>]*swipebox[^>]*>/i);
+        if (swipeboxTagMatch) {
+            const tagHtml = swipeboxTagMatch[0];
+            const hrefMatch = tagHtml.match(/href=["']([^"']+)["']/i);
+            if (hrefMatch && hrefMatch[1]) {
+                const href = hrefMatch[1];
+                imageUrl = href.startsWith('http') ? href : `https://suporterei.com.br/${href.replace(/^\//, '')}`;
+                console.log('[Tool] Image URL from swipebox:', imageUrl);
+            }
+        }
+
+        // Method 2: Fallback to img with uploads in src
+        if (!imageUrl) {
+            const imgMatch = productHtml.match(/<img[^>]+src=["']([^"']*uploads\/produto[^"']*\.(?:jpg|jpeg|png|webp)[^"']*)["']/i);
+            if (imgMatch && imgMatch[1]) {
+                const src = imgMatch[1];
+                imageUrl = src.startsWith('http') ? src : `https://suporterei.com.br/${src.replace(/^\//, '')}`;
+                console.log('[Tool] Image URL from img fallback:', imageUrl);
+            }
+        }
+
+        console.log('[Tool] Final image URL:', imageUrl);
+
+        // Build comprehensive response - use exact text as extracted
+        let details = `**${extractedCode}** - ${productName}\n\n`;
+
+        if (originalPartNumber) details += `🔢 ${originalPartNumber}\n`;
+        if (technicalDescription) details += `📋 ${technicalDescription}\n`;
+        if (rosca) details += `🔩 ${rosca}\n`;
+        if (material) details += `🏭 ${material}\n`;
+        if (weight) details += `⚖️ **Peso:** ${weight}\n`;
+        if (packaging) details += `📦 **Embalagem:** ${packaging}\n`;
+        if (specifications) details += `🔧 ${specifications}\n`;
+        if (observation) details += `\n⚠️ ${observation}\n`;
+        if (suggestionRei) details += `💡 ${suggestionRei}\n`;
+        if (vehicleModels.length > 0) details += `\n🚗 **Veículos:**\n${vehicleModels.map(v => `  • ${v}`).join('\n')}\n`;
+        if (montadoras.length > 0) details += `\n🏭 **Montadoras:** ${montadoras.join(', ')}\n`;
+        if (imageUrl) details += `\n📷 [Ver imagem](${imageUrl})\n`;
+
+        // Link is passed in structured data, AI will use it if needed
 
         return {
             found: true,
             productCode: extractedCode,
             title: fullTitle,
+            productName: productName,
+            originalPartNumber: originalPartNumber,
+            rosca: rosca,
+            material: material,
+            weight: weight,
+            packaging: packaging,
+            technicalDescription: technicalDescription,
+            specifications: specifications,
+            observation: observation,
+            suggestionRei: suggestionRei,
+            vehicleModels: vehicleModels,
+            vehiclesByBrand: vehiclesByBrand,
+            compatibility: compatibility,
+            montadoras: montadoras,
+            imageUrl: imageUrl,
             url: productUrl,
-            message: `✅ **${fullTitle}**\n\n📎 ${productUrl}\n\n💡 Acesse para ver foto, aplicações em veículos e especificações técnicas completas.`
+            message: details
         };
 
     } catch (error: any) {
         console.error('[Tool] Catalog search error:', error);
         return {
             found: false,
-            message: `❌ Erro ao buscar: ${error.message}`,
-            suggestion: "Verifique o código do produto e sua conexão."
+            message: `❌ Erro ao buscar produto: ${error.message}`
         };
     }
 }

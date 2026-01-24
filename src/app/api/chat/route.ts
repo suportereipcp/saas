@@ -55,11 +55,17 @@ export async function POST(req: Request) {
 
         if (userId) {
             // Save USER message
-            await (supabaseAdmin as any).from('app_anotacoes.chat_messages').insert({
-                user_id: userId,
-                role: 'user',
-                content: message
-            });
+            const { data, error } = await (supabaseAdmin as any)
+                .schema('app_anotacoes')
+                .from('chat_messages')
+                .insert({
+                    user_id: userId,
+                    role: 'user',
+                    content: message
+                }).select();
+
+            if (error) console.error('[DB] Error saving user message:', error);
+            else console.log('[DB] Saved user message ID:', data?.[0]?.id);
         }
 
         // 2. Initialize Gemini with Tools
@@ -124,11 +130,17 @@ export async function POST(req: Request) {
 
         if (userId) {
             // Save MODEL message
-            await (supabaseAdmin as any).from('app_anotacoes.chat_messages').insert({
-                user_id: userId,
-                role: 'model', // or 'assistant'
-                content: text
-            });
+            const { data, error } = await (supabaseAdmin as any)
+                .schema('app_anotacoes')
+                .from('chat_messages')
+                .insert({
+                    user_id: userId,
+                    role: 'model', // or 'assistant'
+                    content: text
+                }).select();
+
+            if (error) console.error('[DB] Error saving model messsage:', error);
+            else console.log('[DB] Saved model message ID:', data?.[0]?.id);
         }
 
         return NextResponse.json({ reply: text });
