@@ -8,6 +8,7 @@ export const viewport: Viewport = {
   userScalable: false,
 };
 
+import { PwaRegistry } from "@/components/pwa-registry";
 import { Toaster } from "sonner";
 import { Geist, Geist_Mono } from "next/font/google"; // Import Geist
 import "./globals.css";
@@ -45,23 +46,10 @@ export default function RootLayout({
         suppressHydrationWarning
         className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
       >
+        <link rel="manifest" href="/manifest.json" />
         {children}
         <Toaster position="top-right" richColors />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js').then(function(registration) {
-                    console.log('ServiceWorker registration successful with scope: ', registration.scope);
-                  }, function(err) {
-                    console.log('ServiceWorker registration failed: ', err);
-                  });
-                });
-              }
-            `,
-          }}
-        />
+        <PwaRegistry />
       </body>
     </html>
   );

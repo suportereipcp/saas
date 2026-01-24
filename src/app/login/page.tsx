@@ -13,6 +13,7 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/card";
+import { InstallPrompt } from "@/components/install-prompt";
 
 export default function LoginPage() {
     const router = useRouter();
@@ -93,6 +94,10 @@ export default function LoginPage() {
                     </form>
                 </CardContent>
             </Card>
+
+            <div className="w-full max-w-sm">
+                <InstallPrompt />
+            </div>
 
             <div className="absolute bottom-4 right-4 text-xs text-muted-foreground font-medium">
                 Powered by PCP
