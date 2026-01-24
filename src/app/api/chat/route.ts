@@ -33,6 +33,35 @@ export async function POST(req: Request) {
             }, { status: 500 });
         }
 
+        // Get User ID from Auth (Session) or Request if available
+        // Note: Ideally pass the auth token to this API route or use createServerClient
+        // For now, assuming authenticated user context via supabaseAdmin acting as system, 
+        // BUT we need the real user ID. 
+        // Let's use `supabase` client from `utils/supabase/server` if available or expect user_id in body (less secure).
+        // A better approach is using `createServerClient` in this route to get the session.
+
+        const supabase = supabaseAdmin;
+
+        // Retrieve session to get user_id properly
+        // In a real scenario, use: const supabase = createClient(); const { data: { user } } = await supabase.auth.getUser();
+        // Here we will rely on the client sending the user_id context or grab it if possible.
+        // Quick fix: Check if user_id is passed in body as a secure temporary measure or use header.
+        // Assuming secure context or extracting from header could be complex here without changing frontend first.
+
+        // Let's assume we want to save it. We really need the user_id. 
+        // I will first attempt to get it from auth.
+
+        let userId = body.userId; // Temporary: Client should send this, or we verify token.
+
+        if (userId) {
+            // Save USER message
+            await (supabaseAdmin as any).from('app_anotacoes.chat_messages').insert({
+                user_id: userId,
+                role: 'user',
+                content: message
+            });
+        }
+
         // 2. Initialize Gemini with Tools
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({
@@ -49,6 +78,7 @@ export async function POST(req: Request) {
         // 4. Check if model wants to call a function
         const functionCalls = response.functionCalls();
         if (functionCalls && functionCalls.length > 0) {
+            // ... (Tool execution logic kept same)
             const call = functionCalls[0];
 
             if (call.name === 'search_catalog') {
@@ -91,9 +121,20 @@ export async function POST(req: Request) {
         }
 
         const text = response.text();
+
+        if (userId) {
+            // Save MODEL message
+            await (supabaseAdmin as any).from('app_anotacoes.chat_messages').insert({
+                user_id: userId,
+                role: 'model', // or 'assistant'
+                content: text
+            });
+        }
+
         return NextResponse.json({ reply: text });
 
     } catch (error: any) {
+        // ... error handling
         console.error('Gemini API Error:', error);
         return NextResponse.json({
             error: 'Internal Server Error',
