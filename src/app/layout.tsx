@@ -24,9 +24,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SaaS PCP",
+  title: "SAAS PCP",
   description: "Starter Kit for PCP Support",
   manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    title: "SAAS PCP",
+    statusBarStyle: "black-translucent",
+  },
 };
 
 export default function RootLayout({
