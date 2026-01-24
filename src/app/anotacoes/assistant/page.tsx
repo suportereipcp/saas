@@ -1,18 +1,55 @@
 'use client';
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Mic, Send, Bot, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/lib/supabase";
 
 export default function AssistantPage() {
-    const [messages, setMessages] = useState<{ role: 'user' | 'assistant', content: string }[]>([]);
+    const [messages, setMessages] = useState<{ role: 'user' | 'assistant' | 'model', content: string }[]>([]);
     const [inputValue, setInputValue] = useState("");
     const [isRecording, setIsRecording] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [userId, setUserId] = useState<string | null>(null);
+
+    // Initial Load: Get User & History
+    useEffect(() => {
+        const init = async () => {
+            // 1. Get User
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                setUserId(user.id);
+
+                // 2. Fetch History (last 30)
+                // Note: role is 'model' in DB, 'assistant' in frontend logic usually. Mapping needed.
+                const { data: history, error } = await supabase
+                    .from('chat_messages' as any) // Temporary casting until types update
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .order('created_at', { ascending: false })
+                    .limit(30);
+
+                if (history) {
+                    // Reverse to show oldest first
+                    const formattedHistory = history.reverse().map((msg: any) => ({
+                        role: (msg.role === 'model' ? 'assistant' : 'user') as 'user' | 'assistant',
+                        content: msg.content
+                    }));
+                    setMessages(formattedHistory);
+                }
+            }
+        };
+
+        init();
+    }, []);
 
     const handleSend = async () => {
         if (!inputValue.trim()) return;
+        if (!userId) {
+            console.error("User not authenticated");
+            return;
+        }
 
         const userMessage = inputValue;
         setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
@@ -23,7 +60,10 @@ export default function AssistantPage() {
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: userMessage })
+                body: JSON.stringify({
+                    message: userMessage,
+                    userId: userId // Pass userID for saving in backend
+                })
             });
 
             if (!res.ok) {
@@ -71,6 +111,13 @@ export default function AssistantPage() {
 
             {/* Chat Area */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {messages.length === 0 && !isLoading && (
+                    <div className="text-center text-slate-400 mt-10">
+                        <Sparkles size={48} className="mx-auto mb-4 opacity-20" />
+                        <p>Inicie uma nova conversa...</p>
+                    </div>
+                )}
+
                 {messages.map((msg, idx) => (
                     <div key={idx} className={`flex gap-4 max-w-3xl mx-auto ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                         <div className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${msg.role === 'assistant' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-600'}`}>
@@ -80,7 +127,7 @@ export default function AssistantPage() {
                             ? 'bg-white border-slate-200 rounded-tl-none text-slate-700'
                             : 'bg-emerald-600 border-emerald-500 rounded-tr-none text-white'
                             }`}>
-                            <p className="leading-relaxed text-lg">{msg.content}</p>
+                            <p className="leading-relaxed text-lg whitespace-pre-wrap">{msg.content}</p>
                         </div>
                     </div>
                 ))}

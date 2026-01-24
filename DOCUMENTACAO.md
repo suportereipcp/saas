@@ -98,7 +98,18 @@ Eventos e lembretes do calendário.
 - **date**: Data e hora do evento.
 - **title**: Título curto.
 - **description**: Detalhes opcionais.
+- **title**: Título curto.
+- **description**: Detalhes opcionais.
 - **is_completed**: Status de conclusão.
+
+#### Tabela `chat_messages` [NOVO]
+Armazena o histórico de conversas com o assistente Jarvis.
+- **id**: UUID único.
+- **user_id**: Dono da conversa (FK p/ `auth.users`).
+- **role**: Quem enviou a mensagem (`user` ou `model`).
+- **content**: Conteúdo textual da mensagem.
+- **metadata**: Dados extras (opcional).
+- **created_at**: Data e hora da mensagem (Indexado para performance).
 
 ---
 
