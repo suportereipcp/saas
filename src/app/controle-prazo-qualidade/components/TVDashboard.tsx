@@ -280,29 +280,32 @@ export const TVDashboard: React.FC<TVDashboardProps> = ({ items, warehouseReques
             </header>
 
             <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
-                <div className="grid grid-cols-5 gap-6 h-full grid-rows-3">
+                <div className="grid grid-cols-4 gap-6 h-full grid-rows-2">
                     {!isWarehouseView && sortedProductionItems.map((item) => (
                         <Card key={item.id} className={cn(
-                            "rounded-2xl bg-white border-l-[10px] shadow-xl relative overflow-hidden flex flex-col transition-all duration-500 hover:scale-[1.02]",
+                            "rounded-2xl bg-white border-l-[12px] shadow-xl relative overflow-hidden flex flex-col transition-all duration-500 hover:scale-[1.02]",
                             item.colorStatus === 'red' ? "border-red-600 animate-pulse" :
                                 item.colorStatus === 'amber' ? "border-amber-500" : "border-emerald-500"
                         )}>
-                            <CardContent className="p-6 flex flex-col h-full">
-                                <div className="flex justify-between items-start mb-4">
-                                    <span className="text-[10px] font-black bg-slate-100 text-slate-600 px-2 py-1 rounded-lg border border-slate-200 uppercase tracking-tighter shadow-sm">
+                            <CardContent className="p-8 flex flex-col h-full justify-between">
+                                <div className="flex justify-between items-start mb-2">
+                                    <span className="text-sm font-black bg-slate-100 text-slate-600 px-3 py-1.5 rounded-lg border border-slate-200 uppercase tracking-tighter shadow-sm">
                                         {item.status === 'WASHING' ? 'LAVAGEM' : item.status === 'ADHESIVE' ? 'ADESIVO' : item.status}
                                     </span>
                                     <span className={cn(
-                                        "text-xl font-black italic",
+                                        "text-2xl font-black italic",
                                         item.calculation_priority === 'Calculo 1' ? "text-red-600" : "text-slate-400"
                                     )}>
                                         {item.calculation_priority || ('#' + item.nr_solicitacao.toString().slice(-4))}
                                     </span>
                                 </div>
-                                <h2 className="text-xl font-bold text-slate-900 mb-1 truncate leading-tight transition-colors uppercase">{item.it_codigo}</h2>
-                                <p className="text-slate-500 text-xs mb-6 flex items-center gap-1.5 font-medium">
-                                    <Hash className="w-3.5 h-3.5" /> {item.calculation_priority || item.nr_solicitacao} • Qtd: <strong className="text-slate-900 text-base ml-1">{item.quantity}</strong>
-                                </p>
+
+                                <div className="flex-1 flex flex-col justify-center">
+                                    <h2 className="text-5xl font-black text-slate-900 mb-2 truncate leading-none tracking-tight">{item.it_codigo}</h2>
+                                    <p className="text-slate-500 text-lg flex items-center gap-2 font-bold">
+                                        <Hash className="w-5 h-5" /> {item.calculation_priority || item.nr_solicitacao} • Qtd: <strong className="text-slate-900 text-3xl ml-1">{item.quantity}</strong>
+                                    </p>
+                                </div>
 
                                 <div className="mt-auto bg-slate-50 p-4 rounded-xl border border-slate-100 shadow-inner">
                                     <div className="flex justify-between items-end mb-2">
