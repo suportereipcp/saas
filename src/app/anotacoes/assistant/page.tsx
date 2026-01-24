@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Mic, Send, Bot, Sparkles, Search, X, ImageIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,8 @@ function MessageContent({ content, onImageClick }: { content: string, onImageCli
         const result: React.ReactNode[] = [];
         let key = 0;
 
-        // Pattern for URLs and **bold** text
-        const combinedPattern = /(\*\*[^*]+\*\*)|(https?:\/\/[^\s<>"]+)/gi;
+        // Pattern for Markdown links [text](url), **bold**, and raw URLs
+        const combinedPattern = /\[([^\]]+)\]\((https?:\/\/[^\s<>\)]+)\)|(\*\*[^*]+\*\*)|(https?:\/\/[^\s<>"]+)/gi;
         let lastIndex = 0;
         let match;
 
@@ -25,13 +25,43 @@ function MessageContent({ content, onImageClick }: { content: string, onImageCli
                 result.push(<span key={key++}>{text.slice(lastIndex, match.index)}</span>);
             }
 
-            if (match[1]) {
-                // Bold text: **text**
-                const boldText = match[1].slice(2, -2);
-                result.push(<strong key={key++} className="font-semibold text-slate-800">{boldText}</strong>);
-            } else if (match[2]) {
-                // URL
+            if (match[1] && match[2]) {
+                // Markdown Link: [text](url)
+                const linkText = match[1];
                 const url = match[2];
+                const isImage = /\.(?:jpg|jpeg|png|webp|gif)/i.test(url) || linkText.toLowerCase().includes('imagem');
+
+                if (isImage) {
+                    result.push(
+                        <button
+                            key={key++}
+                            onClick={() => onImageClick(url)}
+                            className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-800 underline font-medium"
+                        >
+                            <ImageIcon size={16} className="shrink-0" />
+                            {linkText}
+                        </button>
+                    );
+                } else {
+                    result.push(
+                        <a
+                            key={key++}
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-emerald-600 hover:text-emerald-800 underline"
+                        >
+                            {linkText}
+                        </a>
+                    );
+                }
+            } else if (match[3]) {
+                // Bold text: **text**
+                const boldText = match[3].slice(2, -2);
+                result.push(<strong key={key++} className="font-semibold text-slate-800">{boldText}</strong>);
+            } else if (match[4]) {
+                // Raw URL (fallback)
+                const url = match[4];
                 const isImage = /\.(?:jpg|jpeg|png|webp|gif)/i.test(url);
 
                 if (isImage) {
@@ -121,6 +151,20 @@ export default function AssistantPage() {
             msg.content.toLowerCase().includes(query)
         );
     }, [messages, searchQuery]);
+
+    // Auto-scroll logic
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    const scrollToBottom = () => {
+        // Use timeout to ensure DOM is updated
+        setTimeout(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        }, 100);
+    };
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [filteredMessages, isLoading]); // Scroll on new messages or loading state change
 
     // Initial Load: Get User & History
     useEffect(() => {
@@ -299,6 +343,9 @@ export default function AssistantPage() {
                         </div>
                     </div>
                 )}
+
+                {/* Scroll Anchor */}
+                <div ref={messagesEndRef} />
             </div>
 
             {/* Input Area */}

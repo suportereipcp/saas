@@ -35,39 +35,48 @@ export async function performCatalogSearch(query: string) {
 
         const searchHtml = await searchResponse.text();
 
-        // Extract product links from search results
-        // The query might be "R-1221" - we need to handle the hyphen properly
-        // Build a regex pattern that matches the product code with optional hyphen
+        // Normalize query for comparison
         const normalizedQuery = query.toLowerCase().trim();
 
-        // Try multiple patterns to find the product link
+        // Match all product cards in search results, explicitly excluding navigation/language links
+        // We look for links that likely contain product slugs (longer than 3 chars, ignoring common nav links)
+        const cardPattern = /<a\s+(?:[^>]*?\s+)?href=["']([^"']+)["'][^>]*>[\s\S]*?<div\s+class=["']titulo["']>\s*([^<]+)\s*<\/div>/gi;
+        const potentialMatches = [...searchHtml.matchAll(cardPattern)];
+
         let linkMatch = null;
 
-        // Pattern 1: exact match with the query in the URL (e.g., r-1221 in "...vw-r-1221...")
-        const exactPattern = new RegExp(`<a\\s+href="([^"]*${normalizedQuery.replace(/[-]/g, '[-]?')}[^"]*)"`, 'i');
-        linkMatch = searchHtml.match(exactPattern);
+        // Filter out obvious non-product links (like 'en', 'es', '#', etc)
+        const validMatches = potentialMatches.filter(m => {
+            const url = m[1].toLowerCase();
+            return url.length > 3 && !['en', 'es', 'pt', 'home', 'contato'].includes(url) && !url.startsWith('?');
+        });
 
-        // Pattern 2: if starts with letter-number, try without hyphen too (r1221)
-        if (!linkMatch) {
-            const noHyphenQuery = normalizedQuery.replace(/-/g, '');
-            const noHyphenPattern = new RegExp(`<a\\s+href="([^"]*${noHyphenQuery}[^"]*)"`, 'i');
-            linkMatch = searchHtml.match(noHyphenPattern);
+        // 1. Try EXACT match on the product code (e.g. "R-878" vs "R-878A")
+        const strictMatch = validMatches.find(m => m[2].trim().toUpperCase() === normalizedQuery.toUpperCase());
+        if (strictMatch) {
+            linkMatch = strictMatch;
+        }
+        // 2. Fallback: Try match where code contains query (e.g. searching "878" finds "R-878")
+        else {
+            const looseMatch = validMatches.find(m => m[2].trim().toUpperCase().includes(normalizedQuery.toUpperCase()));
+            if (looseMatch) {
+                linkMatch = looseMatch;
+            }
         }
 
-        // Pattern 3: Look for product cards with the code visible
+        // 3. Fallback: Original regex patterns for older search layouts or simple links
+        // Exclude /en /es matches here too
         if (!linkMatch) {
-            // Search for the code in the page content and find nearby link
-            const codeInPagePattern = new RegExp(`<a\\s+href="([^"]+)"[^>]*>\\s*[^<]*${normalizedQuery}`, 'i');
-            linkMatch = searchHtml.match(codeInPagePattern);
+            // Look for href that contains the query (common in slug) but isn't just the query
+            const exactPattern = new RegExp(`<a\\s+href=["']([^"']*(?!en|es|pt)${normalizedQuery.replace(/[-]/g, '[-]?')}[^"']*)["']`, 'i');
+            linkMatch = searchHtml.match(exactPattern);
         }
 
-        // Pattern 4: Try to find any product link on the search results page
+        // 4. Fallback: "VEJA MAIS" logic
         if (!linkMatch && searchHtml.includes('VEJA MAIS')) {
-            // Find links near "VEJA MAIS" buttons - these are product links
             const vejaPattern = /<a\s+href="([^"]+)"[^>]*>\s*VEJA MAIS/gi;
             const vejaMatch = searchHtml.match(vejaPattern);
             if (vejaMatch && vejaMatch.length === 1) {
-                // Only one result, use it
                 const singleLinkMatch = vejaMatch[0].match(/href="([^"]+)"/i);
                 if (singleLinkMatch) linkMatch = singleLinkMatch;
             }
@@ -80,9 +89,9 @@ export async function performCatalogSearch(query: string) {
             };
         }
 
-        // Build full product URL (href is relative, product pages are at root)
-        const productSlug = linkMatch[1];
-        const productUrl = `https://suporterei.com.br/${productSlug}`;
+        // Build full product URL (href is relative or absolute)
+        const href = linkMatch[1];
+        const productUrl = href.startsWith('http') ? href : `https://suporterei.com.br/${href.replace(/^\//, '')}`;
         console.log(`[Tool] Found product URL: ${productUrl}`);
 
         // Fetch the product page to get details
@@ -179,53 +188,41 @@ export async function performCatalogSearch(query: string) {
         const vehiclesByBrand: { [key: string]: string[] } = {};
 
         // Pattern for div.grupo with grupo-titulo and span.modelo
-        const grupoPattern = /<div[^>]*class="[^"]*grupo[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/gi;
-        const grupoMatches = productHtml.matchAll(grupoPattern);
+        // Robust regex to capture full content of each group
+        const grupoPattern = /<div\s+class="grupo">([\s\S]*?)class="modelos-wrapper"[\s\S]*?<\/div>\s*<\/div>/gi;
+        // Alternative simple loop over "grupo-titulo" occurrences if regex fails
+        const titulos = [...productHtml.matchAll(/class="[^"]*grupo-titulo[^"]*"[^>]*>([^<]+)/gi)];
 
-        for (const grupoMatch of grupoMatches) {
-            const grupoContent = grupoMatch[1];
-            // Get the brand name from grupo-titulo
-            const tituloMatch = grupoContent.match(/class="[^"]*grupo-titulo[^"]*"[^>]*>([^<]+)/i);
-            if (tituloMatch) {
-                const brand = tituloMatch[1].replace(':', '').trim();
-                // Get all models from span.modelo
-                const modeloMatches = grupoContent.matchAll(/class="[^"]*modelo[^"]*"[^>]*>([^<]+)/gi);
+        // Scan for groups using a simpler block approach if possible, or stick to robust regex parsing
+        // Let's use string splitting for maximum reliability if regex is tricky with nested divs
+        const groupSplit = productHtml.split('class="grupo"');
+
+        for (let i = 1; i < groupSplit.length; i++) {
+            const fragment = groupSplit[i];
+            // Check if this fragment has a title and models before the next group start
+            const titleMatch = fragment.match(/class="[^"]*grupo-titulo[^"]*"[^>]*>([^<]+)/i);
+            // Verify this fragment belongs to a real group (heuristic)
+            if (titleMatch) {
+                const brand = titleMatch[1].replace(':', '').trim();
+
+                // Extract models (span.modelo)
                 const models: string[] = [];
-                for (const m of modeloMatches) {
+                const modelMatches = [...fragment.matchAll(/class="[^"]*modelo[^"]*"[^>]*>([^<]+)/gi)];
+
+                for (const m of modelMatches) {
                     if (m[1] && m[1].trim()) models.push(m[1].trim());
                 }
+
                 if (models.length > 0) {
-                    vehiclesByBrand[brand] = models;
-                }
-            }
-        }
-
-        // Fallback: also try link-based extraction for older formats
-        const brandSectionPatterns = [
-            /<strong>([^<]+)<\/strong>:?\s*(?:<br\s*\/?>)?\s*((?:<a[^>]*>[^<]+<\/a>\s*\|?\s*)+)/gi,
-            /(Scania|Ônibus|MB|VW|Volvo|Mercedes|Delivery)[:\s]*(?:<br\s*\/?>)?\s*((?:<a[^>]*>[^<]+<\/a>\s*\|?\s*)+)/gi
-        ];
-
-        for (const pattern of brandSectionPatterns) {
-            const matches = productHtml.matchAll(pattern);
-            for (const match of matches) {
-                const brand = (match[1] || '').trim();
-                const linksSection = match[2] || '';
-                const modelLinks = linksSection.matchAll(/<a[^>]*>([^<]+)<\/a>/gi);
-                const models: string[] = [];
-                for (const m of modelLinks) {
-                    if (m[1] && m[1].trim()) models.push(m[1].trim());
-                }
-                if (brand && models.length > 0) {
                     if (!vehiclesByBrand[brand]) vehiclesByBrand[brand] = [];
-                    vehiclesByBrand[brand].push(...models);
+                    // Avoid duplicates
+                    for (const model of models) {
+                        if (!vehiclesByBrand[brand].includes(model)) {
+                            vehiclesByBrand[brand].push(model);
+                        }
+                    }
                 }
             }
-        }
-
-        // Remove duplicates from each brand
-        for (const brand in vehiclesByBrand) {
-            vehiclesByBrand[brand] = [...new Set(vehiclesByBrand[brand])];
         }
 
         // Convert to array for display
@@ -252,15 +249,31 @@ export async function performCatalogSearch(query: string) {
         let imageUrl: string | null = null;
 
         // Method 1: Find a tag with swipebox class and extract href
-        const swipeboxTagMatch = productHtml.match(/<a\s+[^>]*swipebox[^>]*>/i);
+        // Regex to find the tag and then extract href attribute, handling various quote styles and relative paths
+        const swipeboxTagMatch = productHtml.match(/<a\s+[^>]*class=["'][^"']*swipebox[^"']*["'][^>]*>/i);
         if (swipeboxTagMatch) {
             const tagHtml = swipeboxTagMatch[0];
-            const hrefMatch = tagHtml.match(/href=["']([^"']+)["']/i);
+            console.log('[Tool] Found swipebox tag:', tagHtml);
+
+            // Extract href value
+            const hrefMatch = tagHtml.match(/href=["']([^"']+)["']/i) || tagHtml.match(/href=([^ >]+)/i);
+
             if (hrefMatch && hrefMatch[1]) {
-                const href = hrefMatch[1];
-                imageUrl = href.startsWith('http') ? href : `https://suporterei.com.br/${href.replace(/^\//, '')}`;
+                let href = hrefMatch[1];
+                // Resolve relative URLs
+                if (!href.startsWith('http') && !href.startsWith('//')) {
+                    // Remove leading slash if present to avoid double slashes when appending
+                    href = href.replace(/^\//, '');
+                    imageUrl = `https://suporterei.com.br/${href}`;
+                } else {
+                    imageUrl = href;
+                }
                 console.log('[Tool] Image URL from swipebox:', imageUrl);
+            } else {
+                console.log('[Tool] Failed to extract href from swipebox tag');
             }
+        } else {
+            console.log('[Tool] No swipebox tag found');
         }
 
         // Method 2: Fallback to img with uploads in src
@@ -276,20 +289,42 @@ export async function performCatalogSearch(query: string) {
         console.log('[Tool] Final image URL:', imageUrl);
 
         // Build comprehensive response - use exact text as extracted
-        let details = `**${extractedCode}** - ${productName}\n\n`;
+        // Force a standardized Markdown structure
+        let details = `🔹 **CÓDIGO: ${extractedCode}**\n`;
+        details += `**Produto:** ${productName}\n\n`;
 
-        if (originalPartNumber) details += `🔢 ${originalPartNumber}\n`;
-        if (technicalDescription) details += `📋 ${technicalDescription}\n`;
-        if (rosca) details += `🔩 ${rosca}\n`;
-        if (material) details += `🏭 ${material}\n`;
+        if (originalPartNumber) details += `🔢 **Nº Original:** ${originalPartNumber.replace(/Substitui N[º°]/i, '').trim()}\n`;
+        if (technicalDescription) details += `📋 **Descrição Técnica:** ${technicalDescription}\n`;
+        if (rosca) details += `🔩 **Rosca:** ${rosca.replace('Rosca ', '')}\n`;
+        if (material) details += `🏭 **Material:** ${material}\n`;
         if (weight) details += `⚖️ **Peso:** ${weight}\n`;
         if (packaging) details += `📦 **Embalagem:** ${packaging}\n`;
-        if (specifications) details += `🔧 ${specifications}\n`;
-        if (observation) details += `\n⚠️ ${observation}\n`;
-        if (suggestionRei) details += `💡 ${suggestionRei}\n`;
-        if (vehicleModels.length > 0) details += `\n🚗 **Veículos:**\n${vehicleModels.map(v => `  • ${v}`).join('\n')}\n`;
+        if (specifications) details += `🔧 **Especificações:** ${specifications}\n`;
+        if (observation) details += `⚠️ **Observação:** ${observation.replace('OBS:', '').trim()}\n`;
+        if (suggestionRei) details += `💡 **Sugestão Rei:** ${suggestionRei.replace(/Sugest[ãa]o Rei:?/i, '').trim()}\n`;
+
+        if (vehicleModels.length > 0) {
+            details += `\n🚗 **Veículos (Aplicações):**\n`;
+            // List each vehicle on a new line to prevent summarization
+            vehicleModels.forEach(v => {
+                details += `- ${v}\n`;
+            });
+        }
+
         if (montadoras.length > 0) details += `\n🏭 **Montadoras:** ${montadoras.join(', ')}\n`;
-        if (imageUrl) details += `\n📷 [Ver imagem](${imageUrl})\n`;
+
+        if (imageUrl) {
+            details += `\n📷 [Ver imagem](${imageUrl})\n`;
+        } else {
+            details += `\n(Imagem não disponível)\n`;
+        }
+
+        // Instructions for the LLM
+        details += `\n\n⚠️ **INSTRUÇÃO AO ASSISTENTE:**\n`;
+        details += `1. VOCÊ DEVE APRESENTAR OS DADOS ACIMA EXATAMENTE NESTE FORMATO.\n`;
+        details += `2. NÃO RESUMA A LISTA DE VEÍCULOS. COPIE TODOS.\n`;
+        details += `3. OBRIGATÓRIO INCLUIR O LINK DA IMAGEM NO FINAL.\n`;
+        details += `4. Se faltar algum dado acima, apenas não o mencione, mas mantenha a estrutura.`;
 
         // Link is passed in structured data, AI will use it if needed
 
