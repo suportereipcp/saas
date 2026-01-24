@@ -13,7 +13,7 @@ export function Logo({ className }: { className?: string }) {
                 />
             </div>
             <span className="text-3xl font-bold tracking-tight text-foreground font-sans whitespace-nowrap uppercase">
-                SaaS PCP
+                SAAS PCP
             </span>
         </div>
     );

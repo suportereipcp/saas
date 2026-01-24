@@ -1,6 +1,6 @@
 {
-    "name": "PCP Quality Control",
-    "short_name": "PCP Dashboard",
+    "name": "SAAS PCP",
+    "short_name": "SAAS PCP",
     "description": "Dashboard de Controle de Prazo e Qualidade para PCP",
     "start_url": "/",
     "display": "standalone",
