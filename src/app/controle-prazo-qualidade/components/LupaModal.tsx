@@ -60,11 +60,53 @@ export function LupaModal({ mode, isOpen, onClose, onConfirm, initialOp }: LupaM
         };
     }, []);
 
-    const startScanner = async () => {
-        setIsScanning(true);
-        // Small delay to ensure DOM element exists
-        setTimeout(async () => {
+    // Locked Scanner Lifecycle Management
+    const processingRef = useRef(false);
+
+    useEffect(() => {
+        let mounted = true;
+
+        const cleanupScanner = async () => {
+            if (scannerRef.current) {
+                try {
+                    // Check if scanner is running before stopping
+                    // Html5Qrcode doesn't expose public isScanning(), but stop() throws if not running.
+                    // We try-catch stop().
+                    await scannerRef.current.stop();
+                } catch (e) {
+                    // Ignore "not running" errors
+                }
+
+                try {
+                    scannerRef.current.clear();
+                } catch (e) {
+                    console.warn("Retrying clear...", e);
+                }
+                scannerRef.current = null;
+            }
+        };
+
+        const initScanner = async () => {
+            if (processingRef.current) return;
+            processingRef.current = true;
+
             try {
+                // Ensure fresh start
+                await cleanupScanner();
+
+                if (!mounted) return;
+
+                // Wait for DOM
+                await new Promise(resolve => setTimeout(resolve, 300));
+
+                if (!mounted) return;
+
+                if (!document.getElementById("reader")) {
+                    console.error("Reader element missing");
+                    setIsScanning(false);
+                    return;
+                }
+
                 const scanner = new Html5Qrcode("reader");
                 scannerRef.current = scanner;
 
@@ -76,33 +118,55 @@ export function LupaModal({ mode, isOpen, onClose, onConfirm, initialOp }: LupaM
                         aspectRatio: 1.0
                     },
                     (decodedText) => {
-                        // Success callback
-                        setOpNumber(decodedText); // Directly set the value
-                        stopScanner();
+                        if (!mounted) return;
+                        setOpNumber(decodedText);
+                        // Don't toggle isScanning here immediately to avoid race? 
+                        // Better to just let user stop or auto-stop. 
+                        // Let's auto-stop safely.
+                        setIsScanning(false);
                     },
                     (errorMessage) => {
-                        // Ignore parse errors, they happen every frame
+                        // ignore failures
                     }
                 );
-            } catch (err) {
+            } catch (err: any) {
                 console.error("Error starting scanner:", err);
-                setIsScanning(false);
-                alert("Erro ao iniciar câmera. Verifique permissões.");
+                // Only alert if it's a real error, not a state error we handled
+                if (mounted && isScanning) {
+                    alert(`Erro na câmera: ${err?.message || err}`);
+                    setIsScanning(false);
+                }
+            } finally {
+                processingRef.current = false;
             }
-        }, 100);
-    };
+        };
 
-    const stopScanner = async () => {
-        if (scannerRef.current) {
+        const safeStop = async () => {
+            if (processingRef.current) return;
+            processingRef.current = true;
             try {
-                await scannerRef.current.stop();
-                scannerRef.current.clear();
-            } catch (err) {
-                console.error("Error stopping scanner:", err);
+                await cleanupScanner();
+            } finally {
+                processingRef.current = false;
             }
-            scannerRef.current = null;
+        };
+
+        if (isScanning) {
+            initScanner();
+        } else {
+            safeStop();
         }
-        setIsScanning(false);
+
+        return () => {
+            mounted = false;
+            // Force cleanup on unmount, bypassing lock if needed or just attempting
+            cleanupScanner().catch(console.error);
+        };
+    }, [isScanning]);
+
+    const toggleScanner = () => {
+        if (processingRef.current) return; // Prevent clicks while processing
+        setIsScanning(prev => !prev);
     };
 
     const isFormValid = (mode === 'START' ? opNumber.trim().length > 0 : true) && code.trim().length > 0;
@@ -155,7 +219,7 @@ export function LupaModal({ mode, isOpen, onClose, onConfirm, initialOp }: LupaM
                                     type="button"
                                     variant={isScanning ? "destructive" : "outline"}
                                     size="icon"
-                                    onClick={isScanning ? stopScanner : startScanner}
+                                    onClick={toggleScanner}
                                     title="Ler QR Code"
                                 >
                                     {isScanning ? <XCircle className="w-5 h-5" /> : <QrCode className="w-5 h-5" />}
@@ -172,7 +236,7 @@ export function LupaModal({ mode, isOpen, onClose, onConfirm, initialOp }: LupaM
                                         type="button"
                                         variant="destructive"
                                         size="sm"
-                                        onClick={stopScanner}
+                                        onClick={() => setIsScanning(false)}
                                         className="h-6 text-[10px] uppercase font-bold px-2"
                                     >
                                         Parar
