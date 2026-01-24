@@ -183,7 +183,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ items, onUpdateStatus,
             onUpdateStatus(lupaItem.id, ProcessStatus.ADHESIVE, {
                 op_number: data.opNumber,
                 lupa_evaluator: data.code,
-                lupa_status_start: data.status
+                lupa_status_start: data.status,
+                adhesive_started_at: new Date().toISOString()
             });
         } else {
             onUpdateStatus(lupaItem.id, ProcessStatus.FINISHED, {

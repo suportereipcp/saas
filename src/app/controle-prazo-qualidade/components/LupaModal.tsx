@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Html5Qrcode } from "html5-qrcode";
 import {
     Dialog,
     DialogContent,
@@ -32,8 +33,7 @@ export function LupaModal({ mode, isOpen, onClose, onConfirm, initialOp }: LupaM
     const [code, setCode] = useState('');
     const [status, setStatus] = useState<'APPROVED' | 'REJECTED'>('APPROVED');
     const [isScanning, setIsScanning] = useState(false);
-    const videoRef = useRef<HTMLVideoElement>(null);
-    const [stream, setStream] = useState<MediaStream | null>(null);
+    const scannerRef = useRef<Html5Qrcode | null>(null);
 
     // Reset state when opening
     useEffect(() => {
@@ -42,71 +42,70 @@ export function LupaModal({ mode, isOpen, onClose, onConfirm, initialOp }: LupaM
             setCode('');
             setStatus('APPROVED');
             setIsScanning(false);
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                setStream(null);
+            if (scannerRef.current) {
+                scannerRef.current.stop().catch(console.error);
+                scannerRef.current.clear();
+                scannerRef.current = null;
             }
         }
     }, [isOpen, initialOp]);
 
-    // Camera cleanup
+    // Cleanup on unmount or close
     useEffect(() => {
         return () => {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
+            if (scannerRef.current) {
+                scannerRef.current.stop().catch(console.error);
+                scannerRef.current.clear();
             }
         };
-    }, [stream]);
+    }, []);
 
-    const startCamera = async () => {
-        try {
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                alert("Seu navegador não suporta acesso à câmera.");
-                return;
+    const startScanner = async () => {
+        setIsScanning(true);
+        // Small delay to ensure DOM element exists
+        setTimeout(async () => {
+            try {
+                const scanner = new Html5Qrcode("reader");
+                scannerRef.current = scanner;
+
+                await scanner.start(
+                    { facingMode: "environment" },
+                    {
+                        fps: 10,
+                        qrbox: { width: 250, height: 250 },
+                        aspectRatio: 1.0
+                    },
+                    (decodedText) => {
+                        // Success callback
+                        setOpNumber(decodedText); // Directly set the value
+                        stopScanner();
+                    },
+                    (errorMessage) => {
+                        // Ignore parse errors, they happen every frame
+                    }
+                );
+            } catch (err) {
+                console.error("Error starting scanner:", err);
+                setIsScanning(false);
+                alert("Erro ao iniciar câmera. Verifique permissões.");
             }
-
-            const mediaStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'environment' }
-            });
-
-            setStream(mediaStream);
-            setIsScanning(true);
-
-            // Wait a bit to ensure video ref is mounted
-            setTimeout(() => {
-                if (videoRef.current) {
-                    videoRef.current.srcObject = mediaStream;
-                }
-            }, 100);
-
-        } catch (err) {
-            console.error("Error accessing camera:", err);
-            // Fallback for demo or error
-            alert("Não foi possível acessar a câmera. Verifique as permissões ou digite manualmente.");
-            setIsScanning(false);
-        }
+        }, 100);
     };
 
-    const stopCamera = () => {
-        if (stream) {
-            stream.getTracks().forEach(track => track.stop());
-            setStream(null);
+    const stopScanner = async () => {
+        if (scannerRef.current) {
+            try {
+                await scannerRef.current.stop();
+                scannerRef.current.clear();
+            } catch (err) {
+                console.error("Error stopping scanner:", err);
+            }
+            scannerRef.current = null;
         }
         setIsScanning(false);
     };
 
-    // Mock scanning function for now (real scanning would need a library like jsQR)
-    // In a real implementation we would process frames from videoRef
-    const handleMockScan = () => {
-        // Simulate finding a code after 2s
-        setTimeout(() => {
-            const randomOp = Math.floor(Math.random() * 9000) + 1000;
-            setOpNumber(randomOp.toString());
-            stopCamera();
-        }, 1500);
-    };
-
-    const isFormValid = opNumber.trim().length > 0 && code.trim().length > 0;
+    const isFormValid = (mode === 'START' ? opNumber.trim().length > 0 : true) && code.trim().length > 0;
 
     const handleSubmit = () => {
         if (!isFormValid) return;
@@ -156,7 +155,7 @@ export function LupaModal({ mode, isOpen, onClose, onConfirm, initialOp }: LupaM
                                     type="button"
                                     variant={isScanning ? "destructive" : "outline"}
                                     size="icon"
-                                    onClick={isScanning ? stopCamera : startCamera}
+                                    onClick={isScanning ? stopScanner : startScanner}
                                     title="Ler QR Code"
                                 >
                                     {isScanning ? <XCircle className="w-5 h-5" /> : <QrCode className="w-5 h-5" />}
@@ -166,18 +165,19 @@ export function LupaModal({ mode, isOpen, onClose, onConfirm, initialOp }: LupaM
 
                         {/* Camera Viewfinder */}
                         {isScanning && (
-                            <div className="relative aspect-video bg-black rounded-lg overflow-hidden mt-2 animate-in fade-in zoom-in duration-300">
-                                <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
-                                <div className="absolute inset-0 border-2 border-white/50 m-8 rounded-lg animate-pulse" />
-                                <div className="absolute bottom-2 left-0 right-0 text-center text-white text-xs font-bold drop-shadow-md">
-                                    Enquadre o código...
+                            <div className="relative aspect-square bg-black rounded-lg overflow-hidden mt-2 border-2 border-slate-200">
+                                <div id="reader" className="w-full h-full"></div>
+                                <div className="absolute top-2 right-2 z-10">
+                                    <Button
+                                        type="button"
+                                        variant="destructive"
+                                        size="sm"
+                                        onClick={stopScanner}
+                                        className="h-6 text-[10px] uppercase font-bold px-2"
+                                    >
+                                        Parar
+                                    </Button>
                                 </div>
-                                {/* Mock scan trigger for demo purposes */}
-                                <div
-                                    className="absolute inset-0 cursor-pointer"
-                                    onClick={handleMockScan}
-                                    title="Clique para simular leitura (Demo)"
-                                />
                             </div>
                         )}
                     </div>

@@ -29,14 +29,35 @@ function ControleQualidadeContent() {
         setIsLoading(true);
         try {
             // Busca Itens de Produção (via View que já calcula a prioridade)
-            const { data: itemsData, error: itemsError } = await supabase
-                .schema('app_controle_prazo_qualidade')
-                .from('production_items_view')
-                .select('*')
-                .order('created_at', { ascending: false });
+            // Busca Itens de Produção (View + Tabela para garantir dados recentes como op_number)
+            const [viewResponse, tableResponse] = await Promise.all([
+                supabase
+                    .schema('app_controle_prazo_qualidade')
+                    .from('production_items_view')
+                    .select('*')
+                    .order('created_at', { ascending: false }),
+                supabase
+                    .schema('app_controle_prazo_qualidade')
+                    .from('production_items')
+                    .select('id, op_number')
+            ]);
+
+            const itemsView = viewResponse.data || [];
+            const itemsTable = tableResponse.data || [];
+            const itemsError = viewResponse.error || tableResponse.error;
 
             if (itemsError) throw itemsError;
-            setItems(itemsData || []);
+
+            // Merge op_number primarily from table (source of truth)
+            const mergedItems = itemsView.map((viewItem: any) => {
+                const tableItem = itemsTable.find((t: any) => t.id === viewItem.id);
+                return {
+                    ...viewItem,
+                    op_number: tableItem?.op_number || viewItem.op_number
+                };
+            });
+
+            setItems(mergedItems);
 
             // Busca Solicitações de Almoxarifado
             const { data: requestsData, error: requestsError } = await supabase
@@ -112,9 +133,7 @@ function ControleQualidadeContent() {
                 // updatePayload.adhesive_started_at = new Date().toISOString(); // REMOVED: Must go to Queue first
             } else if (newStatus === ProcessStatus.FINISHED) {
                 updatePayload.adhesive_finished_at = new Date().toISOString();
-                updatePayload.adhesive_finished_by = user?.email; // Keep original field for compatibility
-                updatePayload.completed_at = new Date().toISOString(); // Update warehouse request too
-                updatePayload.completed_by = user?.email;
+                updatePayload.adhesive_finished_by = user?.email;
             }
 
             // Merge extra data (Lupa details)
