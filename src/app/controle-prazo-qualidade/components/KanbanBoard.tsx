@@ -5,10 +5,11 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { LupaModal, LupaData } from './LupaModal';
 
 interface KanbanBoardProps {
     items: ProductionItemWithDetails[];
-    onUpdateStatus: (itemId: string, newStatus: ProcessStatus) => void;
+    onUpdateStatus: (itemId: string, newStatus: ProcessStatus, extraData?: any) => void;
     onCallPresence?: () => void;
     viewMode: 'WASHING' | 'ADHESIVE';
 }
@@ -146,6 +147,53 @@ const ItemCard: React.FC<{
 export const KanbanBoard: React.FC<KanbanBoardProps> = ({ items, onUpdateStatus, onCallPresence, viewMode }) => {
     const [mobileTab, setMobileTab] = useState(0);
     const [searchTerm, setSearchTerm] = useState('');
+
+    // Lupa Modal State
+    const [isLupaOpen, setIsLupaOpen] = useState(false);
+    const [lupaMode, setLupaMode] = useState<'START' | 'FINISH'>('START');
+    const [lupaItem, setLupaItem] = useState<ProductionItemWithDetails | null>(null);
+
+    const handleActionClick = (item: ProductionItemWithDetails, nextStatus: ProcessStatus) => {
+        // Adhesive View: Queue -> Active (Start Lupa)
+        // If we are in Adhesive view, and the action is to stay in ADHESIVE (Start Application), 
+        // implies we are moving from Queue (no start time) to Active.
+        if (viewMode === 'ADHESIVE' && nextStatus === ProcessStatus.ADHESIVE && !item.adhesive_started_at) {
+            setLupaItem(item);
+            setLupaMode('START');
+            setIsLupaOpen(true);
+            return;
+        }
+
+        // Adhesive -> Finished (Finish Lupa)
+        if (viewMode === 'ADHESIVE' && nextStatus === ProcessStatus.FINISHED) {
+            setLupaItem(item);
+            setLupaMode('FINISH');
+            setIsLupaOpen(true);
+            return;
+        }
+
+        // Default behavior for other transitions (including Washing -> Adhesive Queue)
+        onUpdateStatus(item.id, nextStatus);
+    };
+
+    const handleLupaConfirm = (data: LupaData) => {
+        if (!lupaItem) return;
+
+        if (lupaMode === 'START') {
+            onUpdateStatus(lupaItem.id, ProcessStatus.ADHESIVE, {
+                op_number: data.opNumber,
+                lupa_evaluator: data.code,
+                lupa_status_start: data.status
+            });
+        } else {
+            onUpdateStatus(lupaItem.id, ProcessStatus.FINISHED, {
+                lupa_operator: data.code,
+                lupa_status_end: data.status
+            });
+        }
+        setIsLupaOpen(false);
+        setLupaItem(null);
+    };
 
     const filteredItems = items.filter(item =>
         item.it_codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -304,7 +352,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ items, onUpdateStatus,
                                 <ItemCard
                                     key={item.id}
                                     item={item}
-                                    onNext={() => onUpdateStatus(item.id, col.nextStatus as ProcessStatus)}
+                                    onNext={() => handleActionClick(item, col.nextStatus as ProcessStatus)}
                                     onRework={() => console.log("Retrabalho: Implementar se necessário")}
                                     actionLabel={col.action}
                                     icon={col.actionIcon}
@@ -363,6 +411,13 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ items, onUpdateStatus,
                     </div>
                 )}
             </div>
+            <LupaModal
+                isOpen={isLupaOpen}
+                onClose={() => setIsLupaOpen(false)}
+                mode={lupaMode}
+                onConfirm={handleLupaConfirm}
+                initialOp={lupaItem?.op_number}
+            />
         </div>
     );
 };

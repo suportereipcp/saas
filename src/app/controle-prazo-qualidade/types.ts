@@ -37,7 +37,18 @@ export interface ProductionItem {
     created_at: string;
     product_description?: string;
     calculation_priority?: string;
+    transfer_status?: TransferStatus;
+    transfer_note?: string;
+    transfer_updated_at?: string;
+    transfer_updated_by?: string;
+    op_number?: number;
+    lupa_evaluator?: string;
+    lupa_operator?: string;
+    lupa_status_start?: 'APPROVED' | 'REJECTED';
+    lupa_status_end?: 'APPROVED' | 'REJECTED';
 }
+
+export type TransferStatus = 'PENDING' | 'TRANSFERRED' | 'EVALUATION';
 
 export interface ProductionItemWithDetails extends ProductionItem {
     productName: string;
