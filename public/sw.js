@@ -1,18 +1,19 @@
-const CACHE_NAME = 'pcp-saas-v1';
-const STATIC_ASSETS = [
+const CACHE_NAME = 'saas-pcp-v2';
+const STATIC_URLS = [
     '/',
     '/manifest.json',
     '/icon-192.png',
-    '/icon-512.png',
+    '/icon-512.png'
 ];
 
 self.addEventListener('install', (event) => {
+    self.skipWaiting();
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
-            return cache.addAll(STATIC_ASSETS);
+            // Try to cache core assets, but don't fail install if one misses
+            return cache.addAll(STATIC_URLS).catch(err => console.log('Cache addAll failed', err));
         })
     );
-    self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
@@ -31,24 +32,29 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-    // Basic Stale-While-Revalidate strategy
     if (event.request.method !== 'GET') return;
+    if (!event.request.url.startsWith('http')) return; // Skip chrome-extension schemes
 
     event.respondWith(
-        caches.open(CACHE_NAME).then((cache) => {
-            return cache.match(event.request).then((cachedResponse) => {
-                const fetchPromise = fetch(event.request).then((networkResponse) => {
-                    if (networkResponse) {
-                        cache.put(event.request, networkResponse.clone());
-                    }
+        caches.match(event.request).then((cachedResponse) => {
+            // Stale-While-Revalidate strategy
+            const fetchPromise = fetch(event.request).then((networkResponse) => {
+                if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
                     return networkResponse;
-                }).catch(() => {
-                    // Return cached response if network fails, or fallback
-                    return cachedResponse;
+                }
+
+                const responseToCache = networkResponse.clone();
+                caches.open(CACHE_NAME).then((cache) => {
+                    cache.put(event.request, responseToCache);
                 });
 
-                return cachedResponse || fetchPromise;
+                return networkResponse;
+            }).catch(() => {
+                // Network failed (offline)
+                return cachedResponse;
             });
+
+            return cachedResponse || fetchPromise;
         })
     );
 });
