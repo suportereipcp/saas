@@ -27,6 +27,7 @@ export default function TagsPage() {
 
     // Form State
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [editingMarker, setEditingMarker] = useState<Marker | null>(null);
     const [newName, setNewName] = useState("");
     const [newType, setNewType] = useState<MarkerType>('TOPIC');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -55,40 +56,79 @@ export default function TagsPage() {
         fetchMarkers();
     }, []);
 
-    const handleCreateMarker = async (e: React.FormEvent) => {
+    const openCreateDialog = () => {
+        setEditingMarker(null);
+        setNewName("");
+        setNewType('TOPIC');
+        setIsDialogOpen(true);
+    };
+
+    const openEditDialog = (marker: Marker, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setEditingMarker(marker);
+        setNewName(marker.name);
+        setNewType(marker.type);
+        setIsDialogOpen(true);
+    };
+
+    const handleSaveMarker = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newName.trim()) return;
 
         setIsSubmitting(true);
-
         const avatarUrl = null;
 
-        const { data, error } = await supabase
-            .schema('app_anotacoes')
-            .from('markers')
-            .insert({
-                name: newName,
-                type: newType,
-                avatar_url: avatarUrl,
-                metadata: {}
-            })
-            .select() // Return the created row to add to UI
-            .single();
+        try {
+            if (editingMarker) {
+                // UPDATE
+                const { data, error } = await supabase
+                    .schema('app_anotacoes')
+                    .from('markers')
+                    .update({
+                        name: newName,
+                        type: newType,
+                        // avatar_url: avatarUrl // Keep existing or update if we had avatar upload
+                    })
+                    .eq('id', editingMarker.id)
+                    .select()
+                    .single();
 
-        if (error) {
-            console.error(error);
-            toast.error("Erro ao criar marcador.");
-        } else {
-            toast.success("Marcador criado!");
-            setMarkers(prev => [data as any, ...prev]);
+                if (error) throw error;
 
-            // Reset Form and Close
+                toast.success("Marcador atualizado!");
+                setMarkers(prev => prev.map(m => m.id === editingMarker.id ? (data as any) : m));
+
+            } else {
+                // CREATE
+                const { data, error } = await supabase
+                    .schema('app_anotacoes')
+                    .from('markers')
+                    .insert({
+                        name: newName,
+                        type: newType,
+                        avatar_url: avatarUrl,
+                        metadata: {}
+                    })
+                    .select()
+                    .single();
+
+                if (error) throw error;
+
+                toast.success("Marcador criado!");
+                setMarkers(prev => [data as any, ...prev]);
+            }
+
+            setIsDialogOpen(false);
             setNewName("");
             setNewType('TOPIC');
-            setIsDialogOpen(false);
-        }
+            setEditingMarker(null);
 
-        setIsSubmitting(false);
+        } catch (error) {
+            console.error(error);
+            toast.error("Erro ao salvar marcador.");
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const handleDelete = async (id: string, e: React.MouseEvent) => {
@@ -125,20 +165,23 @@ export default function TagsPage() {
 
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                     <DialogTrigger asChild>
-                        <Button className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full gap-2 px-3 sm:px-4">
+                        <Button 
+                            onClick={openCreateDialog}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full gap-2 px-3 sm:px-4"
+                        >
                             <Plus size={18} />
                             <span className="hidden sm:inline">Novo Marcador</span>
                         </Button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-md bg-white">
                         <DialogHeader>
-                            <DialogTitle>Criar Novo Marcador</DialogTitle>
+                            <DialogTitle>{editingMarker ? "Editar Marcador" : "Criar Novo Marcador"}</DialogTitle>
                             <DialogDescription>
-                                Adicione uma pessoa ou tema para organizar suas anotações.
+                                {editingMarker ? "Edite as informações do marcador." : "Adicione uma pessoa ou tema para organizar suas anotações."}
                             </DialogDescription>
                         </DialogHeader>
 
-                        <form onSubmit={handleCreateMarker} className="space-y-4 py-4">
+                        <form onSubmit={handleSaveMarker} className="space-y-4 py-4">
                             <div className="space-y-2">
                                 <Label htmlFor="name">Nome</Label>
                                 <Input
@@ -188,10 +231,10 @@ export default function TagsPage() {
                                     {isSubmitting ? (
                                         <>
                                             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                            Criando...
+                                            Salving...
                                         </>
                                     ) : (
-                                        "Criar Marcador"
+                                        editingMarker ? "Salvar Alterações" : "Criar Marcador"
                                     )}
                                 </Button>
                             </DialogFooter>
@@ -218,7 +261,11 @@ export default function TagsPage() {
 
                 <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {markers.map((marker) => (
-                        <div key={marker.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 hover:shadow-md transition-shadow cursor-default group relative">
+                        <div 
+                            key={marker.id} 
+                            onClick={(e) => openEditDialog(marker, e)}
+                            className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 hover:shadow-md transition-shadow cursor-pointer group relative hover:border-emerald-200"
+                        >
                             {/* Avatar / Icon */}
                             <div className="h-12 w-12 rounded-xl flex items-center justify-center shrink-0 bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100 transition-colors overflow-hidden">
                                 {marker.avatar_url ? (
@@ -237,14 +284,16 @@ export default function TagsPage() {
                                 </p>
                             </div>
 
-                            {/* Delete Button (Hover) */}
-                            <button
-                                onClick={(e) => handleDelete(marker.id, e)}
-                                className="absolute top-2 right-2 p-2 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                title="Remover"
-                            >
-                                <Trash2 size={16} />
-                            </button>
+                            {/* Actions (Hover) */}
+                            <div className="absolute top-2 right-2 flex items-center opacity-0 group-hover:opacity-100 transition-opacity gap-1">
+                                <button
+                                    onClick={(e) => handleDelete(marker.id, e)}
+                                    className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Remover"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                            </div>
                         </div>
                     ))}
                 </div>
