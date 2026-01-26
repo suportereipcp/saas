@@ -316,53 +316,53 @@ export const TVDashboard: React.FC<TVDashboardProps> = ({ items, warehouseReques
             </header>
 
             <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
-                <div className="grid grid-cols-4 gap-6 h-full grid-rows-2">
+                <div className="grid grid-cols-4 gap-4 h-full auto-rows-fr">
                     {!isWarehouseView && sortedProductionItems.map((item) => (
                         <Card key={item.id} className={cn(
                             "rounded-2xl bg-white border-l-[12px] shadow-xl relative overflow-hidden flex flex-col transition-all duration-500 hover:scale-[1.02]",
                             item.colorStatus === 'red' ? "border-red-600 animate-pulse" :
                                 item.colorStatus === 'amber' ? "border-amber-500" : "border-emerald-500"
                         )}>
-                            <CardContent className="p-8 flex flex-col h-full justify-between">
+                            <CardContent className="p-4 flex flex-col h-full justify-between">
                                 <div className="flex justify-between items-start mb-2">
-                                    <span className="text-sm font-black bg-slate-100 text-slate-600 px-3 py-1.5 rounded-lg border border-slate-200 uppercase tracking-tighter shadow-sm">
+                                    <span className="text-xs font-black bg-slate-100 text-slate-600 px-2 py-1 rounded-md border border-slate-200 uppercase tracking-tighter shadow-sm">
                                         {item.status === 'WASHING' ? 'LAVAGEM' : item.status === 'ADHESIVE' ? 'ADESIVO' : item.status}
                                     </span>
                                     {/* Priority removed from header as requested */}
                                 </div>
 
                                 <div className="flex-1 flex flex-col justify-center">
-                                    <h2 className="text-5xl font-black text-slate-900 mb-2 truncate leading-none tracking-tight">{item.it_codigo}</h2>
+                                    <h2 className="text-4xl font-black text-slate-900 mb-1 leading-none tracking-tight">{item.it_codigo}</h2>
                                     <div className="flex items-center gap-3">
                                         {(() => {
                                             const status = getDetailedStatus(item);
                                             return (
-                                                <div className={cn("flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 border border-slate-200", status.textColor)}>
-                                                    <div className={cn("w-3 h-3 rounded-full animate-pulse", status.dotColor)} />
-                                                    <span className="text-lg font-bold uppercase tracking-wide">{status.label}</span>
+                                                <div className={cn("flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200", status.textColor)}>
+                                                    <div className={cn("w-2 h-2 rounded-full animate-pulse", status.dotColor)} />
+                                                    <span className="text-sm font-bold uppercase tracking-wide">{status.label}</span>
                                                 </div>
                                             );
                                         })()}
                                         <div className="flex items-center gap-1 text-slate-400">
                                             <span>•</span>
-                                            <span className="text-lg font-bold">Qtd:</span>
-                                            <strong className="text-slate-900 text-3xl">{item.quantity}</strong>
+                                            <span className="text-sm font-bold">Qtd:</span>
+                                            <strong className="text-slate-900 text-xl">{item.quantity}</strong>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="mt-auto bg-slate-50 p-4 rounded-xl border border-slate-100 shadow-inner">
-                                    <div className="flex justify-between items-end mb-2">
-                                        <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Tempo Restante</span>
+                                <div className="mt-auto bg-slate-50 p-3 rounded-lg border border-slate-100 shadow-inner">
+                                    <div className="flex justify-between items-end mb-1">
+                                        <span className="text-[9px] text-slate-400 uppercase font-bold tracking-widest">Tempo Restante</span>
                                         <span className={cn(
-                                            "text-2xl font-mono font-bold",
+                                            "text-lg font-mono font-bold",
                                             item.colorStatus === 'red' ? "text-red-600" :
                                                 item.colorStatus === 'amber' ? "text-amber-500" : "text-emerald-500"
                                         )}>
                                             {item.isLate ? 'ATRASADO' : `${Math.floor(item.timeLeftMs / (1000 * 60))} m`}
                                         </span>
                                     </div>
-                                    <div className="h-2.5 w-full bg-slate-200 rounded-full overflow-hidden p-[1px]">
+                                    <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden p-[1px]">
                                         <div
                                             className={cn(
                                                 "h-full transition-all duration-1000 rounded-full",
