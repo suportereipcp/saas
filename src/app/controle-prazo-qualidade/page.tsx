@@ -25,8 +25,8 @@ function ControleQualidadeContent() {
     const [currentUserEmail, setCurrentUserEmail] = useState("");
     const [isLoading, setIsLoading] = useState(true);
 
-    const fetchData = useCallback(async () => {
-        setIsLoading(true);
+    const fetchData = useCallback(async (isBackground = false) => {
+        if (!isBackground) setIsLoading(true);
         try {
             // Busca Itens de Produção (via View que já calcula a prioridade)
             // Busca Itens de Produção (View + Tabela para garantir dados recentes como op_number)
@@ -39,7 +39,7 @@ function ControleQualidadeContent() {
                 supabase
                     .schema('app_controle_prazo_qualidade')
                     .from('production_items')
-                    .select('id, op_number')
+                    .select('id, op_number, lupa_evaluator, lupa_operator, lupa_status_start, lupa_status_end')
             ]);
 
             const itemsView = viewResponse.data || [];
@@ -53,7 +53,11 @@ function ControleQualidadeContent() {
                 const tableItem = itemsTable.find((t: any) => t.id === viewItem.id);
                 return {
                     ...viewItem,
-                    op_number: tableItem?.op_number || viewItem.op_number
+                    op_number: tableItem?.op_number || viewItem.op_number,
+                    lupa_evaluator: tableItem?.lupa_evaluator || viewItem.lupa_evaluator,
+                    lupa_operator: tableItem?.lupa_operator || viewItem.lupa_operator,
+                    lupa_status_start: tableItem?.lupa_status_start || viewItem.lupa_status_start,
+                    lupa_status_end: tableItem?.lupa_status_end || viewItem.lupa_status_end
                 };
             });
 
@@ -75,7 +79,7 @@ function ControleQualidadeContent() {
             );
             console.dir(error); // Tenta mostrar o objeto de forma expansível
         } finally {
-            setIsLoading(false);
+            if (!isBackground) setIsLoading(false);
         }
     }, []);
 
@@ -90,6 +94,13 @@ function ControleQualidadeContent() {
         };
         getUser();
         fetchData();
+
+        // Polling para atualização automática a cada 15 segundos
+        const intervalId = setInterval(() => {
+            fetchData(true);
+        }, 15000);
+
+        return () => clearInterval(intervalId);
     }, [fetchData]);
 
     const handleNavigate = (newView: ViewState) => {

@@ -22,7 +22,8 @@ import {
     History,
     Hammer,
     Truck,
-    LayoutDashboard
+    LayoutDashboard,
+    Layers
 } from "lucide-react";
 import { SignOutButton } from "./sign-out-button";
 import { cn } from "@/lib/utils";
@@ -79,6 +80,7 @@ const getIcon = (name?: string) => {
         case 'hammer': return Hammer;
         case 'truck': return Truck;
         case 'layout-dashboard': return LayoutDashboard;
+        case 'layers': return Layers;
         default: return Box;
     }
 }

@@ -38,20 +38,26 @@ const ItemCard: React.FC<{
             const deadlineTS = deadlineDate.getTime();
             const diff = deadlineTS - now;
 
-            const totalThreshold = 2 * 60 * 60 * 1000; // 2 horas base para cálculo de progresso
-            const currentPercent = Math.max(0, Math.min(100, 100 - (diff / totalThreshold * 100)));
+            // FIXED STANDARD: 240 minutes = 100% of bar
+            // 240 mins left -> 0%
+            // 0 mins left -> 100%
+            const MAX_MINUTES = 240;
+            const minutesTotal = Math.floor(diff / (1000 * 60)); // diff is timeLeftMs
+
+            // Calculate percent used based on fixed 240m scale
+            // If minutesTotal >= 240, percent is 0.
+            const fixedPercent = Math.max(0, Math.min(100, ((MAX_MINUTES - minutesTotal) / MAX_MINUTES) * 100));
 
             if (diff <= 0) {
                 setTimeLeft('Atrasado');
                 setPercent(100);
                 setStatusColor('red');
             } else {
-                const minutesTotal = Math.floor(diff / (1000 * 60));
                 const hours = Math.floor(minutesTotal / 60);
                 const mins = minutesTotal % 60;
 
                 setTimeLeft(`${hours}h ${mins}m restantes`);
-                setPercent(currentPercent);
+                setPercent(fixedPercent);
 
                 // Amarelo se faltar menos de 20 minutos
                 if (minutesTotal < 20) {

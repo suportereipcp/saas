@@ -33,6 +33,7 @@ export default async function ControleQualidadeLayout({
         { label: "Transferência", href: "/controle-prazo-qualidade/transferencia", icon: "arrow-right-left" },
         { label: "Almox. Perfil", href: "/controle-prazo-qualidade?view=PROFILE_WAREHOUSE", icon: "box" },
         { label: "Solic. Ferragem", href: "/controle-prazo-qualidade?view=HARDWARE_REQUEST", icon: "hammer" },
+        { label: "Camada", href: "/controle-prazo-qualidade/camada", icon: "layers" },
     ];
 
     return (
