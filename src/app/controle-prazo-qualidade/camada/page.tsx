@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Save, Eraser, Plus, RefreshCw, X } from 'lucide-react';
+import { Save, Eraser, Plus, RefreshCw, X, ChevronLeft, ChevronRight, Search, Calendar as CalendarIcon } from 'lucide-react';
 import { toast } from "sonner";
 import {
     Dialog,
@@ -69,6 +69,16 @@ export default function LayerControlPage() {
     const [test3, setTest3] = useState('');
     const [average, setAverage] = useState(0);
     const [calculatedStatus, setCalculatedStatus] = useState('');
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const RECORDS_PER_PAGE = 15;
+
+    // Filter State - Date Range
+    const [filterDateStart, setFilterDateStart] = useState('');
+    const [filterDateEnd, setFilterDateEnd] = useState('');
+    const [filterItem, setFilterItem] = useState('');
+    const [filterOP, setFilterOP] = useState('');
 
     // --- DATA FETCHING ---
     const fetchRecords = useCallback(async () => {
@@ -420,6 +430,65 @@ export default function LayerControlPage() {
                 <CardHeader className="pb-2">
                     <CardTitle className="text-xs font-bold uppercase text-slate-500 tracking-wider">Registros Recentes</CardTitle>
                 </CardHeader>
+
+                {/* Filters */}
+                <div className="px-4 pb-3 flex flex-wrap gap-4 items-end border-b border-slate-200">
+                    <div className="flex gap-2 items-end">
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-bold uppercase text-slate-400">Data Início</label>
+                            <div className="relative">
+                                <CalendarIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                                <Input
+                                    type="date"
+                                    value={filterDateStart}
+                                    onChange={(e) => { setFilterDateStart(e.target.value); setCurrentPage(1); }}
+                                    className="h-9 w-40 text-xs bg-white pl-7"
+                                />
+                            </div>
+                        </div>
+                        <span className="text-slate-400 text-xs pb-2">até</span>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-bold uppercase text-slate-400">Data Fim</label>
+                            <div className="relative">
+                                <CalendarIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                                <Input
+                                    type="date"
+                                    value={filterDateEnd}
+                                    onChange={(e) => { setFilterDateEnd(e.target.value); setCurrentPage(1); }}
+                                    className="h-9 w-40 text-xs bg-white pl-7"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold uppercase text-slate-400">Item</label>
+                        <Input
+                            placeholder="Filtrar item..."
+                            value={filterItem}
+                            onChange={(e) => { setFilterItem(e.target.value.toUpperCase()); setCurrentPage(1); }}
+                            className="h-9 w-44 text-xs bg-white uppercase"
+                        />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-bold uppercase text-slate-400">OP</label>
+                        <Input
+                            placeholder="Filtrar OP..."
+                            value={filterOP}
+                            onChange={(e) => { setFilterOP(e.target.value.replace(/\D/g, '')); setCurrentPage(1); }}
+                            className="h-9 w-36 text-xs bg-white"
+                        />
+                    </div>
+                    {(filterDateStart || filterDateEnd || filterItem || filterOP) && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => { setFilterDateStart(''); setFilterDateEnd(''); setFilterItem(''); setFilterOP(''); setCurrentPage(1); }}
+                            className="h-9 text-xs text-slate-500 hover:text-slate-800"
+                        >
+                            <X className="w-3 h-3 mr-1" /> Limpar Filtros
+                        </Button>
+                    )}
+                </div>
                 <div className="flex-1 overflow-auto">
                     <table className="w-full text-left text-sm text-slate-600">
                         <thead className="bg-slate-50 text-slate-700 font-bold uppercase text-xs sticky top-0 z-10 border-b border-slate-200">
@@ -439,10 +508,32 @@ export default function LayerControlPage() {
                         <tbody className="divide-y divide-slate-100">
                             {isLoading ? (
                                 <tr><td colSpan={11} className="p-8 text-center text-slate-400">Carregando registros...</td></tr>
-                            ) : records.length === 0 ? (
-                                <tr><td colSpan={11} className="p-8 text-center text-slate-400">Nenhum registro encontrado.</td></tr>
-                            ) : (
-                                records.map((r) => (
+                            ) : (() => {
+                                // Apply filters with date range
+                                const filteredRecords = records.filter(r => {
+                                    let matchDate = true;
+                                    if (filterDateStart && filterDateEnd) {
+                                        matchDate = r.date >= filterDateStart && r.date <= filterDateEnd;
+                                    } else if (filterDateStart) {
+                                        matchDate = r.date >= filterDateStart;
+                                    } else if (filterDateEnd) {
+                                        matchDate = r.date <= filterDateEnd;
+                                    }
+                                    const matchItem = !filterItem || r.item_code.includes(filterItem);
+                                    const matchOP = !filterOP || r.op_number.includes(filterOP);
+                                    return matchDate && matchItem && matchOP;
+                                });
+
+                                // Pagination
+                                const totalPages = Math.ceil(filteredRecords.length / RECORDS_PER_PAGE);
+                                const startIndex = (currentPage - 1) * RECORDS_PER_PAGE;
+                                const paginatedRecords = filteredRecords.slice(startIndex, startIndex + RECORDS_PER_PAGE);
+
+                                if (filteredRecords.length === 0) {
+                                    return <tr><td colSpan={11} className="p-8 text-center text-slate-400">Nenhum registro encontrado.</td></tr>;
+                                }
+
+                                return paginatedRecords.map((r) => (
                                     <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
                                         <td className="px-4 py-2 font-mono text-xs">{new Date(r.date + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
                                         <td className="px-4 py-2 font-bold text-slate-800">{r.item_code}</td>
@@ -464,11 +555,62 @@ export default function LayerControlPage() {
                                         <td className="px-4 py-2 text-xs">{r.adhesive_type}</td>
                                         <td className="px-4 py-2 text-xs">{r.standard_thickness}</td>
                                     </tr>
-                                ))
-                            )}
+                                ));
+                            })()}
                         </tbody>
                     </table>
                 </div>
+
+                {/* Pagination Controls */}
+                {!isLoading && records.length > 0 && (() => {
+                    const filteredRecords = records.filter(r => {
+                        let matchDate = true;
+                        if (filterDateStart && filterDateEnd) {
+                            matchDate = r.date >= filterDateStart && r.date <= filterDateEnd;
+                        } else if (filterDateStart) {
+                            matchDate = r.date >= filterDateStart;
+                        } else if (filterDateEnd) {
+                            matchDate = r.date <= filterDateEnd;
+                        }
+                        const matchItem = !filterItem || r.item_code.includes(filterItem);
+                        const matchOP = !filterOP || r.op_number.includes(filterOP);
+                        return matchDate && matchItem && matchOP;
+                    });
+                    const totalPages = Math.ceil(filteredRecords.length / RECORDS_PER_PAGE);
+
+                    if (totalPages <= 1) return null;
+
+                    return (
+                        <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 bg-slate-50/50">
+                            <div className="text-xs text-slate-500">
+                                Mostrando {((currentPage - 1) * RECORDS_PER_PAGE) + 1} - {Math.min(currentPage * RECORDS_PER_PAGE, filteredRecords.length)} de {filteredRecords.length} registros
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                    className="h-8 px-2"
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                </Button>
+                                <span className="text-sm font-medium text-slate-600">
+                                    Página {currentPage} de {totalPages}
+                                </span>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages}
+                                    className="h-8 px-2"
+                                >
+                                    <ChevronRight className="w-4 h-4" />
+                                </Button>
+                            </div>
+                        </div>
+                    );
+                })()}
             </Card>
         </div>
     );
