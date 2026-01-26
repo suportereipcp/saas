@@ -93,9 +93,9 @@ export default function CanvasBoard() {
         getUser();
     }, [supabase]);
 
-    // Load Note Data if Editing
+    // Load Note Data if Editing (With Priority for Local Drafts)
     useEffect(() => {
-        if (!editor || !noteId) return;
+        if (!editor || !noteId || !userId) return;
 
         const loadNote = async () => {
             setIsLoading(true);
@@ -110,21 +110,36 @@ export default function CanvasBoard() {
                 console.error("Error loading note:", error);
                 toast.error("Erro ao carregar anotação.");
             } else if (data) {
-                if (data.canvas_data) {
+                // 1. Restore Metadata (always from DB)
+                if (data.tags) setCurrentTags(data.tags);
+                if (data.transcription) setCurrentTranscription(data.transcription);
+
+                // 2. Restore Canvas (Check Local Draft First)
+                const draftKey = `draft_note_${userId}_${noteId}`;
+                const localDraft = localStorage.getItem(draftKey);
+                
+                let loadedFromDraft = false;
+                if (localDraft) {
+                    try {
+                        const snapshot = JSON.parse(localDraft);
+                        editor.loadSnapshot(snapshot);
+                        toast.info("Edições recentes recuperadas (não salvas).");
+                        loadedFromDraft = true;
+                    } catch (e) {
+                        console.error("Error loading local draft:", e);
+                    }
+                }
+
+                // 3. Fallback to DB Canvas if no valid draft
+                if (!loadedFromDraft && data.canvas_data) {
                     editor.loadSnapshot(data.canvas_data as any);
-                }
-                if (data.tags) {
-                    setCurrentTags(data.tags);
-                }
-                if (data.transcription) {
-                    setCurrentTranscription(data.transcription);
                 }
             }
             setIsLoading(false);
         };
 
         loadNote();
-    }, [editor, noteId, supabase]);
+    }, [editor, noteId, userId, supabase]);
 
 
     // Initial Editor Config (Styles)
@@ -139,6 +154,49 @@ export default function CanvasBoard() {
         });
 
     }, [editor]);
+
+    // --- PERSISTENCE: Auto-Save Drafts ---
+    useEffect(() => {
+        if (!editor || !userId) return;
+
+        const key = `draft_note_${userId}_${noteId || 'new'}`;
+        let timeout: NodeJS.Timeout;
+
+        const handleChange = () => {
+            clearTimeout(timeout);
+            // Debounce save (1s) to avoid spamming LS
+            timeout = setTimeout(() => {
+                const snapshot = getSnapshot(editor.store);
+                localStorage.setItem(key, JSON.stringify(snapshot));
+            }, 1000);
+        };
+
+        const cleanup = editor.store.listen(handleChange);
+
+        return () => {
+            cleanup();
+            clearTimeout(timeout);
+        };
+    }, [editor, userId, noteId]);
+
+    // --- PERSISTENCE: Restore Draft (New Notes) ---
+    useEffect(() => {
+        // Only run for new notes (no noteId) and when editor/user is ready
+        if (!editor || !userId || noteId) return;
+
+        const key = `draft_note_${userId}_new`;
+        const localDraft = localStorage.getItem(key);
+
+        if (localDraft) {
+            try {
+                const snapshot = JSON.parse(localDraft);
+                editor.loadSnapshot(snapshot);
+                toast.info("Rascunho não salvo restaurado.");
+            } catch (e) {
+                console.error("Error restoring new note draft:", e);
+            }
+        }
+    }, [editor, userId, noteId]);
 
     const handleSave = async (selectedTags: string[], transcription: string) => {
         if (!editor || !userId) {
@@ -181,6 +239,10 @@ export default function CanvasBoard() {
             }
 
             if (result.error) throw result.error;
+
+            // Clear Local Draft on Success
+            const key = `draft_note_${userId}_${noteId || 'new'}`;
+            localStorage.removeItem(key);
 
             toast.success("Anotação salva com sucesso!");
 
