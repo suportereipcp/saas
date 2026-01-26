@@ -134,6 +134,13 @@ export default function CanvasBoard() {
                 if (!loadedFromDraft && data.canvas_data) {
                     editor.loadSnapshot(data.canvas_data as any);
                 }
+
+                // FIX: Enforce default styles (S and Solid) even after loading snapshot
+                editor.run(() => {
+                    editor.setStyleForNextShapes(DefaultSizeStyle, 's');
+                    editor.setStyleForNextShapes(DefaultDashStyle, 'solid');
+                    editor.setCurrentTool('draw');
+                });
             }
             setIsLoading(false);
         };
@@ -162,13 +169,20 @@ export default function CanvasBoard() {
         const key = `draft_note_${userId}_${noteId || 'new'}`;
         let timeout: NodeJS.Timeout;
 
+        const saveToStorage = () => {
+            if (!editor) return;
+            try {
+                const snapshot = getSnapshot(editor.store);
+                localStorage.setItem(key, JSON.stringify(snapshot));
+            } catch (e) {
+                console.error("Failed to save draft locally", e);
+            }
+        };
+
         const handleChange = () => {
             clearTimeout(timeout);
             // Debounce save (1s) to avoid spamming LS
-            timeout = setTimeout(() => {
-                const snapshot = getSnapshot(editor.store);
-                localStorage.setItem(key, JSON.stringify(snapshot));
-            }, 1000);
+            timeout = setTimeout(saveToStorage, 1000);
         };
 
         const cleanup = editor.store.listen(handleChange);
@@ -176,6 +190,8 @@ export default function CanvasBoard() {
         return () => {
             cleanup();
             clearTimeout(timeout);
+            // FORCE SAVE on unmount/dep change to capture last second edits
+            saveToStorage();
         };
     }, [editor, userId, noteId]);
 
@@ -198,25 +214,42 @@ export default function CanvasBoard() {
         }
     }, [editor, userId, noteId]);
 
-    const handleSave = async (selectedTags: string[], transcription: string) => {
+    const handleSave = async (selectedTags: string[], transcriptionInputValue: string) => {
         if (!editor || !userId) {
             toast.error("Erro: Editor não carregado ou usuário não logado.");
             return;
         }
 
-        const snapshot = getSnapshot(editor.store);
-
-        // Generate a Title (First text or Default)
-        // Simple logic: "Anotação de [Data]"
-        const title = `Anotação ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
-
         try {
+            // 1. Auto-Transcribe Content (Fresh AI analysis)
+            // We ignore the input value if we want to force a refresh, or we could use it if provided.
+            // The user requested "The intelligence needs to identify the content", implying a fresh look.
+            toast.loading("Analisando conteúdo da nota...", { id: 'save-process' });
+            
+            let finalTranscription = transcriptionInputValue;
+            
+            // Always try to update transcription on save
+            try {
+                const freshTranscription = await handleAutoTranscribe();
+                if (freshTranscription) {
+                    finalTranscription = freshTranscription;
+                }
+            } catch (transcribeError) {
+                console.warn("Auto-transcription failed on save:", transcribeError);
+                // Fallback to existing input or empty, don't block save
+            }
+
+            const snapshot = getSnapshot(editor.store);
+
+            // Generate a Title (First text or Default)
+            const title = `Anotação ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+
             const payload = {
                 user_id: userId,
                 title: title,
-                canvas_data: snapshot as any, // Cast specific Tldraw type to Json
+                canvas_data: snapshot as any,
                 tags: selectedTags,
-                transcription: transcription, // Save transcription!
+                transcription: finalTranscription, // Use the fresh one
                 updated_at: new Date().toISOString()
             };
 
@@ -244,13 +277,15 @@ export default function CanvasBoard() {
             const key = `draft_note_${userId}_${noteId || 'new'}`;
             localStorage.removeItem(key);
 
-            toast.success("Anotação salva com sucesso!");
+            toast.dismiss('save-process');
+            toast.success("Anotação salva e transcrita com sucesso!");
 
             // Redirect to My Notes
             router.push('/anotacoes/memory');
 
         } catch (error: any) {
             console.error("Save error:", error);
+            toast.dismiss('save-process');
             toast.error(`Erro ao salvar: ${error.message}`);
         }
     };

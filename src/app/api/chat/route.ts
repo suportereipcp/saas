@@ -76,8 +76,33 @@ export async function POST(req: Request) {
             tools: [{ functionDeclarations: [catalogToolDefinition, internetSearchToolDefinition, searchNotesToolDefinition] }]
         });
 
+        // 2.5 Fetch Recent Chat History (RAG / Context)
+        let history: any[] = [];
+        if (userId) {
+            const { data: recentMessages, error: historyError } = await (supabaseAdmin as any)
+                .schema('app_anotacoes')
+                .from('chat_messages')
+                .select('role, content')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false })
+                .limit(20);
+
+            if (historyError) {
+                console.error('[DB] Error fetching history:', historyError);
+            } else if (recentMessages && recentMessages.length > 0) {
+                // Reverse to chronological order (Oldest -> Newest)
+                history = recentMessages.reverse().map((msg: any) => ({
+                    role: msg.role === 'user' ? 'user' : 'model',
+                    parts: [{ text: msg.content }]
+                }));
+                console.log(`[RAG] Loaded ${history.length} past messages for context.`);
+            }
+        }
+
         // 3. Start chat and send message
-        const chat = model.startChat();
+        const chat = model.startChat({
+            history: history
+        });
         let result = await chat.sendMessage(message);
         let response = result.response;
 
