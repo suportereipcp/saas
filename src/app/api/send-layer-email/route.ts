@@ -29,7 +29,7 @@ export async function POST(request: Request) {
             'alcides.kobayashi@suporterei.com.br',
             'rafael.fonseca@suporterei.com.br',
             'adesivo@suporterei.com.br',
-            'michel.santos@suporterei.com.br'.
+            'michel.santos@suporterei.com.br',
             'mateuspaulista55@gmail.com'
         ];
 
