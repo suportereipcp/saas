@@ -155,7 +155,7 @@ export function TaggingModal({ open, onOpenChange, initialSelectedTags = [], ini
                             </div>
                         </div>
                         <div className="space-y-2">
-                            <h3 className="text-xl font-bold text-slate-800">Analisando Anotação...</h3>
+                            <DialogTitle className="text-xl font-bold text-slate-800">Analisando Anotação...</DialogTitle>
                             <p className="text-sm text-slate-500">O Jarvis está lendo e transcrevendo seu desenho.</p>
                         </div>
                         <Loader2 className="w-6 h-6 text-emerald-500 animate-spin" />

@@ -447,12 +447,18 @@ export async function performNotesSearch(query: string, tag?: string) {
             .limit(10); // Limit to recent/relevant
 
         if (tag) {
-            // Filter by specific tag if provided
+            // Filter by specific tag if provided (Mandatory Filter)
+            // This ensures we only look within notes related to this person/sector
             dbQuery = dbQuery.contains('tags', [tag]);
-        } else if (query) {
-            // If no specific tag, try to match text in title, transcription OR tags
-            // Note: 'or' syntax in Supabase for text search
-            dbQuery = dbQuery.or(`title.ilike.%${query}%,transcription.ilike.%${query}%`);
+        }
+
+        if (query) {
+            // Smart Search: Replace spaces with % to allow "Cobrar Rafael" to match "Cobrar o Rafael"
+            const fuzzyQuery = query.trim().split(/\s+/).join('%');
+
+            // Search text in title OR transcription
+            // If tag was applied above, this searches text WITHIN that tag's results
+            dbQuery = dbQuery.or(`title.ilike.%${fuzzyQuery}%,transcription.ilike.%${fuzzyQuery}%`);
         }
 
         const { data, error } = await dbQuery;

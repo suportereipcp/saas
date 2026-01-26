@@ -12,6 +12,7 @@ import { supabase } from "@/lib/supabase";
 
 export default function MemoryPage() {
     const [selectedFilterIds, setSelectedFilterIds] = useState<string[]>([]);
+    const [dateRange, setDateRange] = useState<{ start: string, end: string }>({ start: "", end: "" });
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [viewingNote, setViewingNote] = useState<any | null>(null);
     const [notes, setNotes] = useState<any[]>([]);
@@ -78,20 +79,42 @@ export default function MemoryPage() {
         }
     };
 
-    const filteredHistory = selectedFilterIds.length > 0
-        ? notes.filter(note => {
+    const handleApplyFilters = (ids: string[], range: { start: string, end: string }) => {
+        setSelectedFilterIds(ids);
+        setDateRange(range);
+    };
+
+    const filteredHistory = notes.filter(note => {
+        // 1. Date Filter
+        if (dateRange.start) {
+            const noteDate = new Date(note.created_at).toISOString().split('T')[0];
+            if (noteDate < dateRange.start) return false;
+        }
+        if (dateRange.end) {
+            const noteDate = new Date(note.created_at).toISOString().split('T')[0];
+            if (noteDate > dateRange.end) return false;
+        }
+
+        // 2. Marker Filter (if any selected)
+        if (selectedFilterIds.length > 0) {
             if (!note.tags) return false;
-            // Check if ANY of the message tags match ANY of the selected filters
-            return selectedFilterIds.some(filterId => {
+            // Check if ANY matching tag exists
+            const hasMatchingTag = selectedFilterIds.some(filterId => {
                 const marker = markers.find(m => m.id === filterId);
                 if (marker) {
-                    // Exact match preferable, but keeping "contains" for existing logic flexibility
-                    return note.tags.some((tag: string) => tag === marker.name || (marker.type === 'PERSON' && tag.includes(marker.name)));
+                    return note.tags.some((tag: string) =>
+                        tag === marker.name || (marker.type === 'PERSON' && tag.includes(marker.name))
+                    );
                 }
                 return false;
             });
-        })
-        : notes;
+            if (!hasMatchingTag) return false;
+        }
+
+        return true;
+    });
+
+    const hasActiveFilters = selectedFilterIds.length > 0 || dateRange.start || dateRange.end;
 
     return (
         <div className="flex flex-col h-full bg-slate-100">
@@ -106,7 +129,7 @@ export default function MemoryPage() {
                     onClick={() => setIsFilterOpen(true)}
                     className={cn(
                         "rounded-full w-10 h-10 p-0 shadow-sm border-2 transition-all",
-                        selectedFilterIds.length > 0
+                        hasActiveFilters
                             ? "bg-emerald-100 border-emerald-500 text-emerald-600 hover:bg-emerald-200"
                             : "bg-white border-slate-200 text-emerald-600 hover:bg-slate-50 hover:border-slate-300"
                     )}
@@ -120,7 +143,8 @@ export default function MemoryPage() {
                 open={isFilterOpen}
                 onOpenChange={setIsFilterOpen}
                 currentFilters={selectedFilterIds}
-                onApplyFilters={setSelectedFilterIds}
+                currentDateRange={dateRange}
+                onApplyFilters={handleApplyFilters}
             />
 
             <NoteDetailModal
@@ -131,12 +155,22 @@ export default function MemoryPage() {
 
             {/* Chat Area */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                {selectedFilterIds.length > 0 && (
-                    <div className="max-w-3xl mx-auto flex items-center gap-2 mb-2">
+                {hasActiveFilters && (
+                    <div className="max-w-3xl mx-auto flex flex-col gap-2 mb-2">
                         <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                             Filtros ativos:
                         </span>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-2 items-center">
+                            {/* Date Filter Badge */}
+                            {(dateRange.start || dateRange.end) && (
+                                <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-bold border border-blue-200 flex items-center gap-1">
+                                    <Calendar size={12} />
+                                    {dateRange.start ? new Date(dateRange.start).toLocaleDateString('pt-BR') : 'Início'}
+                                    {' -> '}
+                                    {dateRange.end ? new Date(dateRange.end).toLocaleDateString('pt-BR') : 'Fim'}
+                                </span>
+                            )}
+
                             {selectedFilterIds.map(id => {
                                 const entity = markers.find(e => e.id === id);
                                 if (!entity) return null;
@@ -146,8 +180,12 @@ export default function MemoryPage() {
                                     </span>
                                 );
                             })}
+
                             <button
-                                onClick={() => setSelectedFilterIds([])}
+                                onClick={() => {
+                                    setSelectedFilterIds([]);
+                                    setDateRange({ start: "", end: "" });
+                                }}
                                 className="text-xs text-slate-400 hover:text-red-500 underline ml-2"
                             >
                                 Limpar
