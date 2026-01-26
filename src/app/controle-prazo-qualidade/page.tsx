@@ -29,14 +29,35 @@ function ControleQualidadeContent() {
         setIsLoading(true);
         try {
             // Busca Itens de Produção (via View que já calcula a prioridade)
-            const { data: itemsData, error: itemsError } = await supabase
-                .schema('app_controle_prazo_qualidade')
-                .from('production_items_view')
-                .select('*')
-                .order('created_at', { ascending: false });
+            // Busca Itens de Produção (View + Tabela para garantir dados recentes como op_number)
+            const [viewResponse, tableResponse] = await Promise.all([
+                supabase
+                    .schema('app_controle_prazo_qualidade')
+                    .from('production_items_view')
+                    .select('*')
+                    .order('created_at', { ascending: false }),
+                supabase
+                    .schema('app_controle_prazo_qualidade')
+                    .from('production_items')
+                    .select('id, op_number')
+            ]);
+
+            const itemsView = viewResponse.data || [];
+            const itemsTable = tableResponse.data || [];
+            const itemsError = viewResponse.error || tableResponse.error;
 
             if (itemsError) throw itemsError;
-            setItems(itemsData || []);
+
+            // Merge op_number primarily from table (source of truth)
+            const mergedItems = itemsView.map((viewItem: any) => {
+                const tableItem = itemsTable.find((t: any) => t.id === viewItem.id);
+                return {
+                    ...viewItem,
+                    op_number: tableItem?.op_number || viewItem.op_number
+                };
+            });
+
+            setItems(mergedItems);
 
             // Busca Solicitações de Almoxarifado
             const { data: requestsData, error: requestsError } = await supabase
@@ -76,6 +97,7 @@ function ControleQualidadeContent() {
     };
 
     // Logic to calculate deadlines and delays
+    // Logic to calculate deadlines and delays
     const itemsWithDetails: ProductionItemWithDetails[] = useMemo(() => {
         return items.map(item => {
             let deadline: string | null = null;
@@ -95,45 +117,52 @@ function ControleQualidadeContent() {
         });
     }, [items]);
 
-    const handleUpdateStatus = async (itemId: string, newStatus: ProcessStatus) => {
-        const item = items.find(i => i.id === itemId);
-        if (!item) return;
+    const handleUpdateStatus = async (itemId: string, newStatus: ProcessStatus, extraData?: any) => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
 
-        const updates: any = { status: newStatus };
+            // Prepare update payload
+            const updatePayload: any = { status: newStatus };
 
-        // Lógica de Timestamps: Início e Fim de etapas
-        if (newStatus === ProcessStatus.WASHING && !item.wash_started_at) {
-            updates.wash_started_at = new Date().toISOString();
-        } else if (newStatus === ProcessStatus.ADHESIVE) {
-            // Se estava em lavagem, marca o fim da lavagem
-            if (item.status === ProcessStatus.WASHING) {
-                updates.wash_finished_at = new Date().toISOString();
-                updates.wash_finished_by = currentUserEmail;
-                // IMPORTANTE: NÃO marca o adhesive_started_at agora.
-                // Isso fará o card ir para "Aguardando Adesivo" primeiro.
+            // Add standard timestamp/user fields based on status
+            if (newStatus === ProcessStatus.WASHING) {
+                updatePayload.wash_started_at = new Date().toISOString();
+            } else if (newStatus === ProcessStatus.ADHESIVE) {
+                updatePayload.wash_finished_at = new Date().toISOString();
+                updatePayload.wash_finished_by = user?.email;
+                // updatePayload.adhesive_started_at = new Date().toISOString(); // REMOVED: Must go to Queue first
+            } else if (newStatus === ProcessStatus.FINISHED) {
+                updatePayload.adhesive_finished_at = new Date().toISOString();
+                updatePayload.adhesive_finished_by = user?.email;
             }
-            // Se já estava na fase de Adesivo mas não tinha começado, agora começa
-            else if (item.status === ProcessStatus.ADHESIVE && !item.adhesive_started_at) {
-                updates.adhesive_started_at = new Date().toISOString();
+
+            // Merge extra data (Lupa details)
+            if (extraData) {
+                Object.assign(updatePayload, extraData);
             }
-        } else if (newStatus === ProcessStatus.FINISHED) {
-            updates.adhesive_finished_at = new Date().toISOString();
-            updates.adhesive_finished_by = currentUserEmail;
-        }
 
-        const { error } = await supabase
-            .schema('app_controle_prazo_qualidade')
-            .from('production_items')
-            .update(updates)
-            .eq('id', itemId);
+            // 1. Update Production Item
+            const { error: errorItem } = await supabase
+                .schema('app_controle_prazo_qualidade')
+                .from('production_items')
+                .update(updatePayload)
+                .eq('id', itemId);
 
-        if (error) {
+            if (errorItem) throw errorItem;
+
+            // 2. If FINISHED, also update the Warehouse Request
+            if (newStatus === ProcessStatus.FINISHED) {
+                // Logic linked to logic above
+            }
+
+            // Refresh data
+            fetchData();
+
+        } catch (error: any) {
             console.error("Erro ao atualizar status (detalhado):",
                 `Msg: ${error.message} | Code: ${error.code} | Hint: ${error.hint} | Details: ${error.details}`
             );
             alert("Falha ao salvar alteração. Verifique o console.");
-        } else {
-            fetchData();
         }
     };
 
