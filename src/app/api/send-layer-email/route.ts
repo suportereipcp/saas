@@ -25,11 +25,12 @@ export async function POST(request: Request) {
 
         // Recipients list
         const recipients = [
-            'mateus.paulista@suporterei.com.br',
-            'alcides.kobayashi@suporterei.com.br',
-            'rafael.fonseca@suporterei.com.br',
-            'adesivo@suporterei.com.br',
-            'michel.santos@suporterei.com.br'
+            //    'mateus.paulista@suporterei.com.br',
+            //    'alcides.kobayashi@suporterei.com.br',
+            //    'rafael.fonseca@suporterei.com.br',
+            //    'adesivo@suporterei.com.br',
+            //    'michel.santos@suporterei.com.br'
+            'mateuspaulista55@gmail.com'
         ];
 
         if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
