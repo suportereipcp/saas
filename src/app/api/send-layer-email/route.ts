@@ -57,12 +57,9 @@ export async function POST(request: Request) {
         const approvalLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/approve-layer?id=${id}&action=approve`;
         const rejectLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/approve-layer?id=${id}&action=reject`;
 
-        // Strategy: Send AS the authenticated user (system account) but Reply-To the actual user.
-        // Office 365 strictly forbids sending AS another user unless "Send As" is granted.
-        const systemEmail = process.env.SMTP_USER || 'nao-responda@suporterei.com.br';
-
-        // Attempt to format a friendly sender name: "User Email (via SaaS)"
-        const friendlySender = user_email ? `"${user_email}" <${systemEmail}>` : `"SaaS PCP" <${systemEmail}>`;
+        // Use clean sender format to improve deliverability (no spoofing)
+        const systemEmail = process.env.SMTP_USER || 'suportereipcp@gmail.com';
+        const cleanSender = `"SaaS PCP - Suporte Rei" <${systemEmail}>`;
 
         const htmlContent = `
       <div style="font-family: Arial, sans-serif; color: #333;">
@@ -90,7 +87,7 @@ export async function POST(request: Request) {
     `;
 
         const info = await transporter.sendMail({
-            from: friendlySender, // Shows "User Name <system@>" in some clients, or just System
+            from: cleanSender, // Clean sender format for better deliverability
             replyTo: user_email,  // Replies go to the user
             to: recipients.join(', '),
             subject: `[ALERTA] Camada Fora do Padrão - Item ${item_code} / OP ${op_number}`,
