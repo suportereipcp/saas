@@ -65,7 +65,12 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ items }) => {
                 wash_finished_by: item.wash_finished_by,
                 adhesive_finished_by: item.adhesive_finished_by,
                 statusLabel: 'N/A',
-                isLate: false
+                isLate: false,
+                op_number: item.op_number,
+                lupa_evaluator: item.lupa_evaluator,
+                lupa_status_start: item.lupa_status_start,
+                lupa_operator: item.lupa_operator,
+                lupa_status_end: item.lupa_status_end
             };
 
             if (activeFilters.process === 'WASHING') {
@@ -118,19 +123,20 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ items }) => {
 
             if (!row.arrivalAt) return false;
 
-            const refDate = new Date(row.arrivalAt);
+            // Normalize references to YYYY-MM-DD strings for consistent filtering
+            const refDateVal = new Date(row.arrivalAt);
+            const refDateStr = refDateVal.toLocaleDateString('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-');
+
             let dateMatch = true;
 
             if (activeFilters.start) {
-                const startDate = new Date(activeFilters.start);
-                startDate.setHours(0, 0, 0, 0);
-                if (refDate < startDate) dateMatch = false;
+                // activeFilters.start is YYYY-MM-DD
+                if (refDateStr < activeFilters.start) dateMatch = false;
             }
 
             if (activeFilters.end) {
-                const endDate = new Date(activeFilters.end);
-                endDate.setHours(23, 59, 59, 999);
-                if (refDate > endDate) dateMatch = false;
+                // activeFilters.end is YYYY-MM-DD
+                if (refDateStr > activeFilters.end) dateMatch = false;
             }
 
             return dateMatch;
@@ -228,26 +234,27 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ items }) => {
                         <thead className="bg-slate-50 text-slate-800 font-semibold uppercase tracking-wider text-xs sticky top-0 z-10">
                             <tr>
                                 <th className="px-6 py-3 border-b border-slate-200">ID / Ref.</th>
-                                <th className="px-6 py-3 border-b border-slate-200">Cálculo</th>
+                                <th className="px-6 py-3 border-b border-slate-200">OP</th>
                                 <th className="px-6 py-3 border-b border-slate-200">Chegada (Fila)</th>
                                 <th className="px-6 py-3 border-b border-slate-200">Início</th>
                                 <th className="px-6 py-3 border-b border-slate-200">Finalizado</th>
+                                <th className="px-6 py-3 border-b border-slate-200">Lupa Início</th>
+                                <th className="px-6 py-3 border-b border-slate-200">Lupa Fim</th>
                                 <th className="px-6 py-3 border-b border-slate-200">
                                     {activeFilters.process === 'ALL' ? 'Status Geral' : 'Status Prazo'}
                                 </th>
-                                <th className="px-6 py-3 border-b border-slate-200">Finalizado Por</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {!hasSearched ? (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-16 text-center">
+                                    <td colSpan={8} className="px-6 py-16 text-center">
                                         <p className="text-lg font-medium text-slate-600">Aguardando Filtro</p>
                                     </td>
                                 </tr>
                             ) : paginatedItems.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">
+                                    <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground">
                                         Nenhum registro encontrado.
                                     </td>
                                 </tr>
@@ -264,18 +271,39 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ items }) => {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <span className={cn(
-                                                "px-2 py-1 rounded text-xs font-bold border",
-                                                row.calculation_priority === 'Calculo 1'
-                                                    ? "bg-red-50 text-red-600 border-red-200"
-                                                    : "bg-slate-100 text-slate-700 border-slate-200"
-                                            )}>
-                                                {row.calculation_priority || '-'}
+                                            <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded">
+                                                {row.op_number || '-'}
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 font-mono text-xs text-slate-600">{formatDate(row.arrivalAt)}</td>
                                         <td className="px-6 py-4 font-mono text-xs text-slate-600">{formatDate(row.startedAt)}</td>
                                         <td className="px-6 py-4 font-mono text-xs text-slate-600">{formatDate(row.finishedAt)}</td>
+                                        <td className="px-6 py-4">
+                                            {row.lupa_evaluator ? (
+                                                <div className="flex flex-col text-xs">
+                                                    <span className="font-bold text-slate-700">{row.lupa_evaluator}</span>
+                                                    <span className={cn(
+                                                        "text-[10px] uppercase font-bold",
+                                                        row.lupa_status_start === 'APPROVED' ? "text-emerald-600" : "text-slate-400"
+                                                    )}>
+                                                        {row.lupa_status_start === 'APPROVED' ? 'Liberado' : row.lupa_status_start}
+                                                    </span>
+                                                </div>
+                                            ) : <span className="text-slate-300">-</span>}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            {row.lupa_operator ? (
+                                                <div className="flex flex-col text-xs">
+                                                    <span className="font-bold text-slate-700">{row.lupa_operator}</span>
+                                                    <span className={cn(
+                                                        "text-[10px] uppercase font-bold",
+                                                        row.lupa_status_end === 'APPROVED' ? "text-emerald-600" : "text-slate-400"
+                                                    )}>
+                                                        {row.lupa_status_end === 'APPROVED' ? 'Finalizado' : row.lupa_status_end}
+                                                    </span>
+                                                </div>
+                                            ) : <span className="text-slate-300">-</span>}
+                                        </td>
                                         <td className="px-6 py-4">
                                             <span className={`px-2 py-1 rounded-full text-xs font-bold flex items-center w-fit gap-1 ${row.isLate
                                                 ? 'bg-red-100 text-red-700 border border-red-200'
@@ -284,21 +312,6 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ items }) => {
                                                 {row.isLate ? <AlertCircle className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />}
                                                 {row.statusLabel}
                                             </span>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex flex-col gap-1">
-                                                {(activeFilters.process === 'WASHING' || activeFilters.process === 'ALL') && row.wash_finished_by && (
-                                                    <span className="text-[10px] text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 flex items-center gap-1">
-                                                        <span className="font-bold text-emerald-600">LAV:</span> {row.wash_finished_by.split('@')[0]}
-                                                    </span>
-                                                )}
-                                                {(activeFilters.process === 'ADHESIVE' || activeFilters.process === 'ALL') && row.adhesive_finished_by && (
-                                                    <span className="text-[10px] text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100 flex items-center gap-1">
-                                                        <span className="font-bold text-blue-600">ADE:</span> {row.adhesive_finished_by.split('@')[0]}
-                                                    </span>
-                                                )}
-                                                {!row.wash_finished_by && !row.adhesive_finished_by && <span className="text-slate-300">-</span>}
-                                            </div>
                                         </td>
                                     </tr>
                                 ))

@@ -35,6 +35,12 @@ export const TVDashboard: React.FC<TVDashboardProps> = ({ items, warehouseReques
     const [selectedFilters, setSelectedFilters] = useState<string[]>(['WASHING', 'ADHESIVE']);
     const [rotationIndex, setRotationIndex] = useState(0);
     const [showSettings, setShowSettings] = useState(false);
+    const [zoomLevel, setZoomLevel] = useState(1);
+
+    useEffect(() => {
+        const savedZoom = localStorage.getItem('tv_zoom_level');
+        if (savedZoom) setZoomLevel(Number(savedZoom));
+    }, []);
 
     // --- DATABASE SYNC ---
     useEffect(() => {
@@ -113,15 +119,10 @@ export const TVDashboard: React.FC<TVDashboardProps> = ({ items, warehouseReques
         const timeLeftMs = deadline - now;
         const minutesLeft = Math.floor(timeLeftMs / (1000 * 60));
 
-        let startRef = item.datasul_finished_at;
-        if (item.status === ProcessStatus.ADHESIVE && item.wash_finished_at) startRef = item.wash_finished_at;
-
-        const startTime = new Date(startRef).getTime();
-
-        // Total base de 2h para cálculo de preenchimento da barra
-        const totalThreshold = 2 * 60 * 60 * 1000;
-        const elapsed = now - startTime;
-        const percentUsed = Math.max(0, Math.min(1, elapsed / totalThreshold));
+        // Padrão de 240 minutos (4 horas) para 100% da barra
+        // Se faltam 240m ou mais, barra = 0%. Se faltam 0m, barra = 100%.
+        const MAX_MINUTES = 240;
+        const percentUsed = Math.max(0, Math.min(1, (MAX_MINUTES - minutesLeft) / MAX_MINUTES));
 
         const isLate = timeLeftMs <= 0;
         let colorStatus = 'emerald';
@@ -140,6 +141,18 @@ export const TVDashboard: React.FC<TVDashboardProps> = ({ items, warehouseReques
         ...getUrgencyInfo(item)
     })).sort((a, b) => a.timeLeftMs - b.timeLeftMs);
 
+    const getDetailedStatus = (item: ProductionItemWithDetails) => {
+        if (item.status === 'WASHING') {
+            if (!item.wash_started_at) return { dotColor: 'bg-amber-400', textColor: 'text-amber-600', label: 'Aguardando' };
+            return { dotColor: 'bg-emerald-500', textColor: 'text-emerald-600', label: 'Lavando' };
+        }
+        if (item.status === 'ADHESIVE') {
+            if (!item.adhesive_started_at) return { dotColor: 'bg-amber-400', textColor: 'text-amber-600', label: 'Aguardando' };
+            return { dotColor: 'bg-emerald-500', textColor: 'text-emerald-600', label: 'Aplicando' };
+        }
+        return { dotColor: 'bg-slate-300', textColor: 'text-slate-400', label: '-' };
+    };
+
     const warehouseItems = warehouseRequests
         .filter(r => {
             if (r.status !== 'PENDING') return false;
@@ -152,7 +165,10 @@ export const TVDashboard: React.FC<TVDashboardProps> = ({ items, warehouseReques
     const isWarehouseView = filter === 'PROFILE' || filter === 'HARDWARE';
 
     return (
-        <div className="fixed inset-0 bg-slate-50 z-40 flex flex-col font-sans select-none overflow-hidden text-slate-900">
+        <div
+            className="fixed inset-0 bg-slate-50 z-40 flex flex-col font-sans select-none overflow-hidden text-slate-900"
+            style={{ zoom: zoomLevel } as any}
+        >
             <header className="flex justify-between items-center p-6 border-b border-slate-200 shrink-0 bg-white/80 backdrop-blur-md shadow-sm">
                 <div className="flex items-center gap-4">
                     <Button variant="outline" size="icon" onClick={onBack} className="bg-white border-slate-200 hover:bg-slate-50 hover:text-slate-900">
@@ -214,6 +230,26 @@ export const TVDashboard: React.FC<TVDashboardProps> = ({ items, warehouseReques
                                                     <Label htmlFor={`filter-${f.id}`} className="text-sm font-medium cursor-pointer">{f.label}</Label>
                                                 </div>
                                             ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <Label htmlFor="zoom" className="text-sm font-bold text-slate-500 uppercase tracking-wider">Escala / Zoom (%)</Label>
+                                        <div className="flex items-center gap-3">
+                                            <Input
+                                                id="zoom"
+                                                type="number"
+                                                min="50"
+                                                max="150"
+                                                value={Math.round(zoomLevel * 100)}
+                                                onChange={(e) => {
+                                                    const val = Number(e.target.value) / 100;
+                                                    setZoomLevel(val);
+                                                    localStorage.setItem('tv_zoom_level', String(val));
+                                                }}
+                                                className="font-mono font-bold"
+                                            />
+                                            <span className="text-slate-400 text-sm font-medium">%</span>
                                         </div>
                                     </div>
 
@@ -292,19 +328,27 @@ export const TVDashboard: React.FC<TVDashboardProps> = ({ items, warehouseReques
                                     <span className="text-sm font-black bg-slate-100 text-slate-600 px-3 py-1.5 rounded-lg border border-slate-200 uppercase tracking-tighter shadow-sm">
                                         {item.status === 'WASHING' ? 'LAVAGEM' : item.status === 'ADHESIVE' ? 'ADESIVO' : item.status}
                                     </span>
-                                    <span className={cn(
-                                        "text-2xl font-black italic",
-                                        item.calculation_priority === 'Calculo 1' ? "text-red-600" : "text-slate-400"
-                                    )}>
-                                        {item.calculation_priority || ('#' + item.nr_solicitacao.toString().slice(-4))}
-                                    </span>
+                                    {/* Priority removed from header as requested */}
                                 </div>
 
                                 <div className="flex-1 flex flex-col justify-center">
                                     <h2 className="text-5xl font-black text-slate-900 mb-2 truncate leading-none tracking-tight">{item.it_codigo}</h2>
-                                    <p className="text-slate-500 text-lg flex items-center gap-2 font-bold">
-                                        <Hash className="w-5 h-5" /> {item.calculation_priority || item.nr_solicitacao} • Qtd: <strong className="text-slate-900 text-3xl ml-1">{item.quantity}</strong>
-                                    </p>
+                                    <div className="flex items-center gap-3">
+                                        {(() => {
+                                            const status = getDetailedStatus(item);
+                                            return (
+                                                <div className={cn("flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 border border-slate-200", status.textColor)}>
+                                                    <div className={cn("w-3 h-3 rounded-full animate-pulse", status.dotColor)} />
+                                                    <span className="text-lg font-bold uppercase tracking-wide">{status.label}</span>
+                                                </div>
+                                            );
+                                        })()}
+                                        <div className="flex items-center gap-1 text-slate-400">
+                                            <span>•</span>
+                                            <span className="text-lg font-bold">Qtd:</span>
+                                            <strong className="text-slate-900 text-3xl">{item.quantity}</strong>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div className="mt-auto bg-slate-50 p-4 rounded-xl border border-slate-100 shadow-inner">

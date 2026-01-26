@@ -7,6 +7,7 @@ WORKDIR /app
 # Copia dependências
 COPY package*.json ./
 RUN npm ci
+RUN ls -la node_modules/nodemailer
 
 # Copia o código fonte
 COPY . .
