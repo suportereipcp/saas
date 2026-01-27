@@ -4,13 +4,14 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { AGENT_SYSTEM_INSTRUCTION } from '@/lib/agent-config';
 import { catalogToolDefinition, performCatalogSearch, internetSearchToolDefinition, performInternetSearch, searchNotesToolDefinition, performNotesSearch } from '@/lib/gemini-tools';
 
+
 export async function POST(req: Request) {
     let apiKey = '';
 
     try {
         const body = await req.json();
         const { message } = body;
-
+        
         if (!message) {
             return NextResponse.json({ error: 'Message is required' }, { status: 400 });
         }

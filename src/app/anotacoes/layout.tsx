@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { NotebookPen, Archive, ArrowLeft, Bot, Tag, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useEffect } from "react";
 
 export default function NotesLayout({
     children,
@@ -12,6 +13,14 @@ export default function NotesLayout({
     children: React.ReactNode;
 }) {
     const pathname = usePathname();
+
+    // Clear persistence when leaving the "Anotações" app context
+    useEffect(() => {
+        return () => {
+             // This runs when the component unmounts (e.g., navigating to /portal)
+            localStorage.removeItem('notes_last_active');
+        };
+    }, []);
 
     const menuItems = [
         {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Mic, Send, Bot, Sparkles, Search, X, ImageIcon } from "lucide-react";
+import { Mic, Send, Bot, Sparkles, Search, X, ImageIcon, Volume2, VolumeX } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -197,6 +197,18 @@ export default function AssistantPage() {
         init();
     }, []);
 
+    const [isVoiceEnabled, setIsVoiceEnabled] = useState(false);
+
+    // TTS Helper
+    const speakText = (text: string) => {
+        if (typeof window !== 'undefined' && window.speechSynthesis) {
+            window.speechSynthesis.cancel(); // Stop previous
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'pt-BR';
+            window.speechSynthesis.speak(utterance);
+        }
+    };
+
     const handleSend = async () => {
         if (!inputValue.trim()) return;
         if (!userId) {
@@ -231,24 +243,130 @@ export default function AssistantPage() {
             }
 
             const data = await res.json();
-            setMessages(prev => [...prev, { role: 'assistant', content: data.reply || "Desculpe, não consegui processar sua resposta." }]);
+            const reply = data.reply || "Desculpe, não consegui processar sua resposta.";
+            
+            setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+
+            if (isVoiceEnabled) {
+                speakText(reply);
+            }
 
         } catch (error: any) {
             console.error("Chat Error:", error);
-            setMessages(prev => [...prev, { role: 'assistant', content: `Erro: ${error.message || "Tente novamente mais tarde."}` }]);
+            const errorMsg = `Erro: ${error.message || "Tente novamente mais tarde."}`;
+            setMessages(prev => [...prev, { role: 'assistant', content: errorMsg }]);
+            
+            if (isVoiceEnabled) {
+                speakText("Ocorreu um erro ao processar sua mensagem.");
+            }
         } finally {
             setIsLoading(false);
         }
     };
 
-    const toggleRecording = () => {
+    // Voice to Text Logic
+    const recognitionRef = useRef<any>(null);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+            if (SpeechRecognition) {
+                const recognition = new SpeechRecognition();
+                recognition.continuous = true;
+                recognition.interimResults = true;
+                recognition.lang = 'pt-BR';
+                
+                // Silence detection timer
+                let silenceTimer: NodeJS.Timeout;
+
+                const resetSilenceTimer = () => {
+                    clearTimeout(silenceTimer);
+                    silenceTimer = setTimeout(() => {
+                        recognition.stop();
+                        setIsRecording(false);
+                    }, 2500); // 2.5 seconds of silence = Stop
+                };
+
+                recognition.onstart = () => {
+                   resetSilenceTimer();
+                };
+
+                recognition.onresult = (event: any) => {
+                    resetSilenceTimer(); // Reset timer on speech detected
+                    
+                    let interimTranscript = '';
+                    let finalTranscript = '';
+
+                    for (let i = event.resultIndex; i < event.results.length; ++i) {
+                        if (event.results[i].isFinal) {
+                            finalTranscript += event.results[i][0].transcript;
+                        } else {
+                            interimTranscript += event.results[i][0].transcript;
+                        }
+                    }
+                    
+                    if (finalTranscript) {
+                         setInputValue(prev => prev + (prev ? ' ' : '') + finalTranscript);
+                    }
+                };
+
+                recognition.onerror = (event: any) => {
+                    console.error("Speech recognition error", event.error);
+                    setIsRecording(false);
+                    
+                    if (event.error === 'not-allowed') {
+                        alert("Permissão de microfone negada. Por favor, verifique as configurações do seu navegador e permita o acesso ao microfone.");
+                    } else if (event.error === 'no-speech') {
+                        // Ignore no-speech errors (common if user pauses)
+                    } else {
+                        alert("Erro no reconhecimento de voz: " + event.error);
+                    }
+                };
+
+                recognition.onend = () => {
+                    // Only auto-restart if we wanted to keep recording? 
+                    // Usually we let it stop if silence or user stopped.
+                    setIsRecording(false);
+                };
+
+                recognitionRef.current = recognition;
+            }
+        }
+    }, []);
+
+    const toggleRecording = async () => {
+        if (!recognitionRef.current) {
+            alert("Seu navegador não suporta reconhecimento de voz ou permissão negada.");
+            return;
+        }
+
         if (isRecording) {
+            recognitionRef.current.stop();
             setIsRecording(false);
-            setInputValue("Estou gravando um áudio para testar a transcrição da inteligência artificial...");
         } else {
-            setIsRecording(true);
+            try {
+                // EXPLICITLY REQUEST PERMISSION FIRST
+                // This forces the browser popup to appear if not already granted/denied
+                await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                recognitionRef.current.start();
+                setIsRecording(true);
+            } catch (err: any) {
+                console.error("Failed to start recording or permission denied:", err);
+                setIsRecording(false);
+
+                if (err.name === 'NotFoundError' || err.message?.includes('device not found')) {
+                    alert("Nenhum microfone encontrado. Verifique se o seu dispositivo possui um microfone conectado.");
+                } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                    alert("Acesso ao microfone negado. Por favor, permita o acesso na barra de endereços do navegador.");
+                } else {
+                    alert("Erro ao acessar o microfone: " + (err.message || "Erro desconhecido"));
+                }
+            }
         }
     };
+
+    const [isInputFocused, setIsInputFocused] = useState(false);
 
     return (
         <div className="flex flex-col h-full bg-slate-50">
@@ -261,6 +379,23 @@ export default function AssistantPage() {
                     <h1 className="text-xl font-bold text-slate-800">Jarvis</h1>
                     <p className="text-xs text-slate-500 font-medium">Sr Donizete, qual a sua dúvida?</p>
                 </div>
+
+                {/* Botão de Voz (TTS) */}
+                <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => {
+                        const newState = !isVoiceEnabled;
+                        setIsVoiceEnabled(newState);
+                        if (!newState) {
+                            window.speechSynthesis?.cancel(); // Silence immediately if turning off
+                        }
+                    }}
+                    className={`h-10 w-10 rounded-full ${isVoiceEnabled ? 'bg-emerald-100 text-emerald-600' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'}`}
+                    title={isVoiceEnabled ? "Desativar resposta por voz" : "Ativar resposta por voz"}
+                >
+                    {isVoiceEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
+                </Button>
 
                 {/* Botão de Busca */}
                 <Button
@@ -368,8 +503,10 @@ export default function AssistantPage() {
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                            placeholder={isRecording ? "Ouvindo..." : "Peça um resumo, busque uma anotação..."}
-                            className={`h-12 rounded-full pl-6 pr-12 text-[18px] placeholder:text-[18px] border-slate-200 bg-slate-50 focus-visible:ring-emerald-500 transition-all ${isRecording ? "border-red-300 bg-red-50 placeholder:text-red-400" : ""}`}
+                            onFocus={() => setIsInputFocused(true)}
+                            onBlur={() => setIsInputFocused(false)}
+                            placeholder={isInputFocused ? "" : (isRecording ? "Ouvindo..." : "Peça um resumo, busque uma anotação...")}
+                            className={`h-12 rounded-full pl-6 pr-12 text-lg md:text-lg placeholder:text-lg border-slate-200 bg-slate-50 focus-visible:ring-emerald-500 transition-all ${isRecording ? "border-red-300 bg-red-50 placeholder:text-red-400" : ""}`}
                             disabled={isRecording}
                         />
                         <Button
