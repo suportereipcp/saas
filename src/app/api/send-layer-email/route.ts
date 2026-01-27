@@ -55,10 +55,11 @@ export async function POST(request: Request) {
             }
         });
 
-        const approvalLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/approve-layer?id=${id}&action=approve`;
-        const rejectLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/approve-layer?id=${id}&action=reject`;
+        const appUrl = 'https://saas.pcpsuporterei.site';
+        const approvalLink = `${appUrl}/api/approve-layer?id=${id}&action=approve`;
+        const rejectLink = `${appUrl}/api/approve-layer?id=${id}&action=reject`;
 
-        console.log('🔗 Links gerados:', { approvalLink, rejectLink, appUrlEnv: process.env.NEXT_PUBLIC_APP_URL });
+        console.log('🔗 Links gerados (HARDCODED):', { approvalLink, rejectLink });
 
         // Use clean sender format to improve deliverability (no spoofing)
         const systemEmail = process.env.SMTP_USER || 'suportereipcp@gmail.com';
@@ -82,9 +83,10 @@ export async function POST(request: Request) {
 
         <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin-top: 30px;">
             <tr>
-                <td style="padding-right: 15px;">
+                <td>
                     <a href="${approvalLink}" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block; font-family: Arial, sans-serif;">APROVAR</a>
                 </td>
+                <td width="20" style="width: 20px;">&nbsp;</td>
                 <td>
                     <a href="${rejectLink}" style="background-color: #ef4444; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block; font-family: Arial, sans-serif;">REJEITAR</a>
                 </td>
