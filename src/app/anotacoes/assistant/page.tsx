@@ -200,16 +200,18 @@ export default function AssistantPage() {
     // TTS Logic
     const [isVoiceEnabled, setIsVoiceEnabled] = useState(false);
     
-    // We store the "Playlist" of promises. 
-    // Each item is a function that returns the audio blob (or null).
-    // This allows us to start fetching them, but handle playback sequentially.
-    const audioQueueRef = useRef<{ text: string, promise: Promise<Blob | null> }[]>([]);
+    // Queue now stores strings (sentences) to be processed
+    const textQueueRef = useRef<string[]>([]);
     const isPlayingRef = useRef(false);
     const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+    
+    // Cache for preloaded blobs: { index: Promise }
+    const preloadMapRef = useRef<Map<number, Promise<Blob | null>>>(new Map());
 
     const stopAudio = () => {
-        audioQueueRef.current = [];
+        textQueueRef.current = [];
         isPlayingRef.current = false;
+        preloadMapRef.current.clear();
         if (currentAudioRef.current) {
             currentAudioRef.current.pause();
             currentAudioRef.current = null;
@@ -219,11 +221,8 @@ export default function AssistantPage() {
 
     const normalizeForSpeech = (text: string) => {
         return text
-            // Remove markdown bold/italic (**text** or *text*)
             .replace(/\*{1,2}(.*?)\*{1,2}/g, '$1')
-            // Remove markdown links [text](url) -> text
             .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
-            // Expand abbreviations
             .replace(/\bSr\.\b|\bSr\b/g, 'Senhor')
             .replace(/\bSra\.\b|\bSra\b/g, 'Senhora')
             .replace(/\bDr\.\b|\bDr\b/g, 'Doutor')
@@ -232,75 +231,91 @@ export default function AssistantPage() {
             .replace(/\bvc\b/g, 'você')
             .replace(/\btbm\b/g, 'também')
             .replace(/\bn\b/g, 'não')
-            // Remove emojis (optional, usually good to silence them)
             .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}]/gu, '')
-            // Clean extra spaces
             .replace(/\s+/g, ' ')
             .trim();
     };
 
-    const fetchAudio = async (text: string): Promise<Blob | null> => {
-        try {
-            console.log("TTS: Pre-fetching:", text.slice(0, 15) + "...");
-            const response = await fetch('/api/tts', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text }),
-            });
+    const fetchAudio = async (text: string, index: number): Promise<Blob | null> => {
+        // Return existing promise if already fetching
+        if (preloadMapRef.current.has(index)) {
+             return preloadMapRef.current.get(index)!;
+        }
 
-            if (!response.ok) {
-                console.error(`TTS fetch failed for "${text.slice(0, 10)}..."`, response.status);
+        const fetchPromise = (async () => {
+            const start = performance.now();
+            console.log(`[TTS] Fetching Chunk ${index} (${text.length} chars): "${text.slice(0, 15)}..."`);
+            try {
+                const response = await fetch('/api/tts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text }),
+                });
+
+                if (!response.ok) {
+                    console.error(`[TTS] Fetch failed for chunk ${index}:`, response.status);
+                    return null;
+                }
+                const blob = await response.blob();
+                const elapsed = (performance.now() - start).toFixed(0);
+                console.log(`[TTS] Chunk ${index} ready in ${elapsed}ms. Size: ${blob.size}`);
+                return blob;
+            } catch (error) {
+                console.error(`[TTS] Network error chunk ${index}:`, error);
                 return null;
             }
-            return await response.blob();
-        } catch (error) {
-            console.error("TTS Network Error", error);
-            return null;
-        }
+        })();
+
+        preloadMapRef.current.set(index, fetchPromise);
+        return fetchPromise;
     };
 
-    const playNextInQueue = async () => {
+    const playNextChunk = async (chunkIndex: number) => {
         if (!isPlayingRef.current) return;
-
-        // Get next item
-        const nextItem = audioQueueRef.current.shift();
-        if (!nextItem) {
-            isPlayingRef.current = false;
-            console.log("TTS: Queue finished");
-            return; // Queue empty
+        
+        // Check if queue ended
+        if (chunkIndex >= textQueueRef.current.length) {
+             isPlayingRef.current = false;
+             console.log("[TTS] Playback finished.");
+             return;
         }
 
-        try {
-            // Wait for the download to finish (if not already)
-            const blob = await nextItem.promise;
+        // 1. Get Blob (should be preloading)
+        const text = textQueueRef.current[chunkIndex];
+        const blob = await fetchAudio(text, chunkIndex);
 
-            if (!blob || blob.size < 500) {
-                // Skip bad/empty audio
-                playNextInQueue(); 
-                return;
-            }
-
-            const url = URL.createObjectURL(blob);
-            const audio = new Audio(url);
-            currentAudioRef.current = audio;
-
-            audio.onended = () => {
-                URL.revokeObjectURL(url);
-                // Immediately play next
-                playNextInQueue();
-            };
-
-            audio.onerror = (e) => {
-                console.error("Audio Playback Error", e);
-                playNextInQueue();
-            };
-
-            await audio.play();
-
-        } catch (err) {
-            console.error("Playback Sequence Error", err);
-            playNextInQueue();
+        if (!blob || blob.size < 500) {
+            // Skip and continue
+            playNextChunk(chunkIndex + 1);
+            return;
         }
+
+        // 2. Play
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        currentAudioRef.current = audio;
+
+        audio.onended = () => {
+            URL.revokeObjectURL(url);
+            playNextChunk(chunkIndex + 1);
+        };
+        audio.onerror = (e) => {
+            console.error("[TTS] Audio Error", e);
+            playNextChunk(chunkIndex + 1);
+        };
+
+        const playPromise = audio.play();
+
+        // 3. BURST PRELOAD: Ensure next 2 chunks are fetching *while* this plays.
+        // This race conditioning ensures sound buffer overrides network latency.
+        if (chunkIndex + 1 < textQueueRef.current.length) {
+             fetchAudio(textQueueRef.current[chunkIndex + 1], chunkIndex + 1);
+        }
+        if (chunkIndex + 2 < textQueueRef.current.length) {
+             fetchAudio(textQueueRef.current[chunkIndex + 2], chunkIndex + 2);
+        }
+
+        await playPromise.catch(e => console.error("[TTS] Play failed", e));
     };
 
     const speakText = (text: string) => {
@@ -309,28 +324,17 @@ export default function AssistantPage() {
         const cleanText = normalizeForSpeech(text);
         if (!cleanText) return;
 
-        // 1. Split text into sentences for "streaming-like" low latency
-        // Matches periods, question marks, exclamation marks, newlines
-        // Keeps the delimiter with the sentence
-        const sentences = cleanText.match(/[^.!?\n]+[.!?\n]*/g) || [cleanText];
+        // V4: Single Stream Strategy (User Requested)
+        // No splitting, no chunking. Just one long stream.
+        // The browser handles buffering/streaming automatically via the GET URL.
         
-        const cleanSentences = sentences
-            .map(s => s.trim())
-            .filter(s => s.length > 1); // Avoid "." or empty chunks
-
-        if (cleanSentences.length === 0) return;
-
-        // 2. Start "Buffering" (Fetching) ALL chunks immediately (Parallel)
-        console.log(`TTS: Starting parallel fetch for ${cleanSentences.length} chunks`);
+        console.log(`[TTS] Single Stream: "${cleanText.slice(0, 30)}..."`);
         
-        audioQueueRef.current = cleanSentences.map(chunk => ({
-            text: chunk,
-            promise: fetchAudio(chunk) // Starts fetch NOW
-        }));
-
-        // 3. Start Playback Loop
+        textQueueRef.current = [cleanText];
         isPlayingRef.current = true;
-        playNextInQueue();
+        
+        // Start playing the one and only chunk
+        playNextChunk(0);
     };
 
     const handleSend = async () => {
