@@ -258,9 +258,10 @@ export function LupaModal({ mode, isOpen, onClose, onConfirm, initialOp }: LupaM
                             <Input
                                 id="code"
                                 value={code}
-                                onChange={(e) => setCode(e.target.value)}
+                                onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
                                 className="pl-10 font-bold text-slate-900 border-slate-200 focus-visible:ring-indigo-500"
-                                placeholder="Digite seu código..."
+                                placeholder="Digite seu código apenas números..."
+                                inputMode="numeric"
                             />
                             <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
                                 <Camera className="w-4 h-4" />
