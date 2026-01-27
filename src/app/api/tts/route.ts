@@ -1,9 +1,30 @@
 
 import { NextResponse } from 'next/server';
 
+// Helper to get params from URL or Body
+async function getParams(req: Request) {
+    if (req.method === 'GET') {
+        const { searchParams } = new URL(req.url);
+        return {
+            text: searchParams.get('text'),
+            voice: searchParams.get('voice'),
+            speed: searchParams.get('speed')
+        };
+    }
+    return await req.json();
+}
+
+export async function GET(req: Request) {
+    return handleTTS(req);
+}
+
 export async function POST(req: Request) {
+    return handleTTS(req);
+}
+
+async function handleTTS(req: Request) {
     try {
-        const { text } = await req.json();
+        const { text, voice, speed } = await getParams(req);
 
         if (!text) {
             return NextResponse.json({ error: 'Text is required' }, { status: 400 });
@@ -13,20 +34,11 @@ export async function POST(req: Request) {
         const apiKey = process.env.KOKORO_API_KEY;
 
         if (!baseUrl) {
-            console.error("KOKORO_BASE_URL not configured");
-            return NextResponse.json({ error: 'TTS Configuration Error: Missing Base URL' }, { status: 500 });
+             return NextResponse.json({ error: 'Configuration Error' }, { status: 500 });
         }
 
-        // Normalize URL: Remove trailing slash if present
-        if (baseUrl.endsWith('/')) {
-            baseUrl = baseUrl.slice(0, -1);
-        }
-
-        // Construct endpoint. 
-        // User confirmed base is .../api/v1, so we append /audio/speech
+        if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
         const endpoint = `${baseUrl}/audio/speech`;
-        
-        console.log(`TTS: Calling Endpoint: ${endpoint}`); // Debug Log
 
         const response = await fetch(endpoint, {
             method: 'POST',
@@ -37,28 +49,28 @@ export async function POST(req: Request) {
             body: JSON.stringify({
                 model: 'model_q8f16',
                 input: text,
-                voice: 'pf_dora', // Brazilian Portuguese Voice
+                voice: voice || 'pm_alex', 
                 response_format: 'mp3',
+                speed: parseFloat(speed as string) || 1.2
             }),
         });
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error(`Kokoro TTS Upstream Error (${response.status}):`, errorText);
-            return NextResponse.json({ 
-                error: `TTS Provider Error: ${response.status}`, 
-                details: errorText 
-            }, { status: response.status });
+            console.error(`Kokoro TTS Error (${response.status}):`, errorText);
+            return NextResponse.json({ error: errorText }, { status: response.status });
         }
 
-        const modalBlob = await response.blob();
-        return new NextResponse(modalBlob, {
-            headers: { 'Content-Type': 'audio/mpeg' },
+        // STREAMING RESPONSE: Pass the upstream stream directly to the client
+        return new NextResponse(response.body, {
+            headers: {
+                'Content-Type': 'audio/mpeg',
+                // Optional: 'Transfer-Encoding': 'chunked' is automatic usually
+            },
         });
 
     } catch (error: any) {
-        console.error("TTS Proxy Internal Error:", error);
-        // Log the text that caused the crash if possible (scope issue, but error message usually enough)
-        return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+        console.error("TTS Proxy Error:", error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
