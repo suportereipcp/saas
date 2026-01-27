@@ -76,18 +76,7 @@ export default async function PortalPage() {
         return userPermissions.has(app.code);
     });
 
-    // --- MOCK ANOTAÇÕES APP (TEMPORARY) ---
-    // This allows us to access the app without database migration for now.
-    const hasNotesApp = appsList.find(a => a.code === 'anotacoes');
-    if (!hasNotesApp) {
-        appsList.push({
-            code: 'anotacoes',
-            name: 'Caderno Inteligente',
-            description: 'Anotações Manuais com IA',
-            active: true,
-            created_at: new Date().toISOString()
-        });
-    }
+    // Mock removed - Now loaded from database (anotacoes)
 
     return (
         <div className="h-full relative w-full">

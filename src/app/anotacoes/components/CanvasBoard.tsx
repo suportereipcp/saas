@@ -1,15 +1,24 @@
 'use client';
 
-import { Tldraw, Editor, DefaultSizeStyle, DefaultDashStyle, getSnapshot } from 'tldraw';
+import { Tldraw, Editor, DefaultSizeStyle, DefaultDashStyle, DefaultColorStyle, DefaultFillStyle, getSnapshot } from 'tldraw';
 import 'tldraw/tldraw.css';
 import { Button } from '@/components/ui/button';
-import { Save, File, NotebookText, Palette, Pencil, Loader2 } from 'lucide-react';
-import { useState, useEffect, useCallback } from 'react';
+import { Save, File, NotebookText, Palette, Pencil, Loader2, X } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { TaggingModal } from './TaggingModal';
 import { cn } from '@/lib/utils';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
+    DialogClose
+} from '@/components/ui/dialog';
 
 // Mock removed, using real DB
 
@@ -72,6 +81,37 @@ export default function CanvasBoard() {
     const noteId = searchParams.get('noteId');
     const isEditing = !!noteId;
 
+    // --- PERSISTENCE: Save Active State ---
+    useEffect(() => {
+        // We are inside the editor, so we are "active".
+        // Save the current search string (e.g. "?new=true" or "?noteId=...")
+        const params = searchParams.toString();
+        if (params) {
+            localStorage.setItem('notes_last_active', params);
+        }
+    }, [searchParams]);
+
+    const handleDiscardClick = () => {
+        setIsDiscardDialogOpen(true);
+    };
+
+    const executeDiscard = () => {
+        // 0. Set Discarding Flag to prevent auto-save from writing back
+        isDiscardingRef.current = true;
+
+        // 1. Clear persistence
+        localStorage.removeItem('notes_last_active');
+        
+        // 2. Clear Local Draft content (since user explicitly discarded)
+        if (userId) {
+            const key = `draft_note_${userId}_new`; // We only allow discarding NEW notes via this button
+            localStorage.removeItem(key);
+        }
+
+        // 3. Navigate back
+        router.replace('/anotacoes');
+    };
+
 
 
     // State
@@ -83,6 +123,12 @@ export default function CanvasBoard() {
     const [currentTags, setCurrentTags] = useState<string[]>([]);
     const [currentTranscription, setCurrentTranscription] = useState("");
     const [userId, setUserId] = useState<string | null>(null);
+    
+    // Ref to track if we are currently discarding the note to prevent race conditions with auto-save
+    const isDiscardingRef = useRef(false);
+    
+    // State for Discard Confirmation Dialog
+    const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
 
     // Fetch User on Mount
     useEffect(() => {
@@ -123,7 +169,6 @@ export default function CanvasBoard() {
                     try {
                         const snapshot = JSON.parse(localDraft);
                         editor.loadSnapshot(snapshot);
-                        toast.info("Edições recentes recuperadas (não salvas).");
                         loadedFromDraft = true;
                     } catch (e) {
                         console.error("Error loading local draft:", e);
@@ -135,10 +180,12 @@ export default function CanvasBoard() {
                     editor.loadSnapshot(data.canvas_data as any);
                 }
 
-                // FIX: Enforce default styles (S and Solid) even after loading snapshot
+                // FIX: Enforce default styles (M, Draw, Black) even after loading snapshot
                 editor.run(() => {
-                    editor.setStyleForNextShapes(DefaultSizeStyle, 's');
-                    editor.setStyleForNextShapes(DefaultDashStyle, 'solid');
+                    editor.setStyleForNextShapes(DefaultSizeStyle, 'm');
+                    editor.setStyleForNextShapes(DefaultDashStyle, 'draw');
+                    editor.setStyleForNextShapes(DefaultColorStyle, 'black');
+                    editor.setStyleForNextShapes(DefaultFillStyle, 'none');
                     editor.setCurrentTool('draw');
                 });
             }
@@ -153,10 +200,12 @@ export default function CanvasBoard() {
     useEffect(() => {
         if (!editor) return;
 
-        // Set defaults: Size S, Dash Solid (Clean/Thin line)
+        // Set defaults: Size M, Dash Draw (Pen-like), Black, No Fill
         editor.run(() => {
-            editor.setStyleForNextShapes(DefaultSizeStyle, 's');
-            editor.setStyleForNextShapes(DefaultDashStyle, 'solid');
+            editor.setStyleForNextShapes(DefaultSizeStyle, 'm');
+            editor.setStyleForNextShapes(DefaultDashStyle, 'draw');
+            editor.setStyleForNextShapes(DefaultColorStyle, 'black');
+            editor.setStyleForNextShapes(DefaultFillStyle, 'none');
             editor.setCurrentTool('draw'); // Default to Pen
         });
 
@@ -191,7 +240,10 @@ export default function CanvasBoard() {
             cleanup();
             clearTimeout(timeout);
             // FORCE SAVE on unmount/dep change to capture last second edits
-            saveToStorage();
+            // BUT ONLY IF NOT DISCARDING
+            if (!isDiscardingRef.current) {
+                saveToStorage();
+            }
         };
     }, [editor, userId, noteId]);
 
@@ -203,15 +255,15 @@ export default function CanvasBoard() {
         const key = `draft_note_${userId}_new`;
         const localDraft = localStorage.getItem(key);
 
-        if (localDraft) {
-            try {
-                const snapshot = JSON.parse(localDraft);
-                editor.loadSnapshot(snapshot);
-                toast.info("Rascunho não salvo restaurado.");
-            } catch (e) {
-                console.error("Error restoring new note draft:", e);
-            }
-        }
+                if (localDraft) {
+                    try {
+                        const snapshot = JSON.parse(localDraft);
+                        editor.loadSnapshot(snapshot);
+                        // toast.info("Rascunho não salvo restaurado."); // Removed per user request
+                    } catch (e) {
+                        console.error("Error restoring new note draft:", e);
+                    }
+                }
     }, [editor, userId, noteId]);
 
     const handleSave = async (selectedTags: string[], transcriptionInputValue: string) => {
@@ -446,12 +498,27 @@ export default function CanvasBoard() {
                 </div>
             </div>
 
+            {/* Discard Button (Only for New Notes) - Above Save Button */}
+            {!isEditing && (
+                <div className="absolute bottom-44 right-6 z-50">
+                    <Button
+                        size="icon"
+                        className="h-14 w-14 rounded-full bg-red-100 text-red-600 hover:bg-red-200 hover:text-red-700 shadow-sm transition-all duration-300 hover:scale-110 group border border-red-200"
+                        onClick={handleDiscardClick}
+                        title="Descartar Rascunho"
+                    >
+                        <X className="w-6 h-6 transition-transform duration-300 group-hover:rotate-90" />
+                    </Button>
+                </div>
+            )}
+
             {/* Floating Action Button */}
             <div className="absolute bottom-28 right-6 z-50">
                 <Button
                     size="icon"
-                    className="h-16 w-16 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-700 hover:from-emerald-400 hover:to-emerald-600 text-white shadow-lg hover:shadow-emerald-500/50 transition-all duration-300 hover:scale-110 group ring-1 ring-white/20 ring-inset"
+                    className="h-14 w-14 rounded-full bg-emerald-100 text-emerald-600 hover:bg-emerald-200 hover:text-emerald-700 shadow-md transition-all duration-300 hover:scale-110 group border border-emerald-200"
                     onClick={() => setTaggingOpen(true)}
+                    title={isEditing ? "Salvar Alterações" : "Salvar Nova Nota"}
                 >
                     <Save className="w-7 h-7 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
                 </Button>
@@ -468,6 +535,31 @@ export default function CanvasBoard() {
                 onConfirm={handleSave}
                 onAutoTranscribe={handleAutoTranscribe}
             />
+
+            <Dialog open={isDiscardDialogOpen} onOpenChange={setIsDiscardDialogOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Descartar Anotação?</DialogTitle>
+                        <DialogDescription>
+                            Tem certeza que deseja descartar este rascunho? Esta ação não pode ser desfeita e todo o conteúdo desenhado será perdido.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="flex gap-2 sm:justify-end">
+                        <DialogClose asChild>
+                            <Button type="button" variant="outline">
+                                Cancelar
+                            </Button>
+                        </DialogClose>
+                        <Button 
+                            type="button" 
+                            variant="destructive" 
+                            onClick={executeDiscard}
+                        >
+                            Sim, descartar
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

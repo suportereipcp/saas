@@ -1,0 +1,4 @@
+--- SERVICE ROLE CHECK ---
+SR Success. Count: 1
+--- ANON/USER CHECK (Simulation) ---
+Anon Success (Dangerous!). Count: 0
