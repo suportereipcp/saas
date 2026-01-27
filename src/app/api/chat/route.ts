@@ -96,6 +96,13 @@ export async function POST(req: Request) {
                     role: msg.role === 'user' ? 'user' : 'model',
                     parts: [{ text: msg.content }]
                 }));
+
+                // Gemini REQUIREMENT: History must start with 'user' role.
+                // If the oldest message fetched is 'model', remove it.
+                if (history.length > 0 && history[0].role === 'model') {
+                    history.shift(); 
+                }
+                
                 console.log(`[RAG] Loaded ${history.length} past messages for context.`);
             }
         }
