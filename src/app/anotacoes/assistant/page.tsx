@@ -197,16 +197,140 @@ export default function AssistantPage() {
         init();
     }, []);
 
+    // TTS Logic
     const [isVoiceEnabled, setIsVoiceEnabled] = useState(false);
+    
+    // We store the "Playlist" of promises. 
+    // Each item is a function that returns the audio blob (or null).
+    // This allows us to start fetching them, but handle playback sequentially.
+    const audioQueueRef = useRef<{ text: string, promise: Promise<Blob | null> }[]>([]);
+    const isPlayingRef = useRef(false);
+    const currentAudioRef = useRef<HTMLAudioElement | null>(null);
 
-    // TTS Helper
-    const speakText = (text: string) => {
-        if (typeof window !== 'undefined' && window.speechSynthesis) {
-            window.speechSynthesis.cancel(); // Stop previous
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'pt-BR';
-            window.speechSynthesis.speak(utterance);
+    const stopAudio = () => {
+        audioQueueRef.current = [];
+        isPlayingRef.current = false;
+        if (currentAudioRef.current) {
+            currentAudioRef.current.pause();
+            currentAudioRef.current = null;
         }
+        window.speechSynthesis?.cancel();
+    };
+
+    const normalizeForSpeech = (text: string) => {
+        return text
+            // Remove markdown bold/italic (**text** or *text*)
+            .replace(/\*{1,2}(.*?)\*{1,2}/g, '$1')
+            // Remove markdown links [text](url) -> text
+            .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
+            // Expand abbreviations
+            .replace(/\bSr\.\b|\bSr\b/g, 'Senhor')
+            .replace(/\bSra\.\b|\bSra\b/g, 'Senhora')
+            .replace(/\bDr\.\b|\bDr\b/g, 'Doutor')
+            .replace(/\bDra\.\b|\bDra\b/g, 'Doutora')
+            .replace(/\bExmo\.\b/g, 'Excelentíssimo')
+            .replace(/\bvc\b/g, 'você')
+            .replace(/\btbm\b/g, 'também')
+            .replace(/\bn\b/g, 'não')
+            // Remove emojis (optional, usually good to silence them)
+            .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}]/gu, '')
+            // Clean extra spaces
+            .replace(/\s+/g, ' ')
+            .trim();
+    };
+
+    const fetchAudio = async (text: string): Promise<Blob | null> => {
+        try {
+            console.log("TTS: Pre-fetching:", text.slice(0, 15) + "...");
+            const response = await fetch('/api/tts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text }),
+            });
+
+            if (!response.ok) {
+                console.error(`TTS fetch failed for "${text.slice(0, 10)}..."`, response.status);
+                return null;
+            }
+            return await response.blob();
+        } catch (error) {
+            console.error("TTS Network Error", error);
+            return null;
+        }
+    };
+
+    const playNextInQueue = async () => {
+        if (!isPlayingRef.current) return;
+
+        // Get next item
+        const nextItem = audioQueueRef.current.shift();
+        if (!nextItem) {
+            isPlayingRef.current = false;
+            console.log("TTS: Queue finished");
+            return; // Queue empty
+        }
+
+        try {
+            // Wait for the download to finish (if not already)
+            const blob = await nextItem.promise;
+
+            if (!blob || blob.size < 500) {
+                // Skip bad/empty audio
+                playNextInQueue(); 
+                return;
+            }
+
+            const url = URL.createObjectURL(blob);
+            const audio = new Audio(url);
+            currentAudioRef.current = audio;
+
+            audio.onended = () => {
+                URL.revokeObjectURL(url);
+                // Immediately play next
+                playNextInQueue();
+            };
+
+            audio.onerror = (e) => {
+                console.error("Audio Playback Error", e);
+                playNextInQueue();
+            };
+
+            await audio.play();
+
+        } catch (err) {
+            console.error("Playback Sequence Error", err);
+            playNextInQueue();
+        }
+    };
+
+    const speakText = (text: string) => {
+        stopAudio();
+        
+        const cleanText = normalizeForSpeech(text);
+        if (!cleanText) return;
+
+        // 1. Split text into sentences for "streaming-like" low latency
+        // Matches periods, question marks, exclamation marks, newlines
+        // Keeps the delimiter with the sentence
+        const sentences = cleanText.match(/[^.!?\n]+[.!?\n]*/g) || [cleanText];
+        
+        const cleanSentences = sentences
+            .map(s => s.trim())
+            .filter(s => s.length > 1); // Avoid "." or empty chunks
+
+        if (cleanSentences.length === 0) return;
+
+        // 2. Start "Buffering" (Fetching) ALL chunks immediately (Parallel)
+        console.log(`TTS: Starting parallel fetch for ${cleanSentences.length} chunks`);
+        
+        audioQueueRef.current = cleanSentences.map(chunk => ({
+            text: chunk,
+            promise: fetchAudio(chunk) // Starts fetch NOW
+        }));
+
+        // 3. Start Playback Loop
+        isPlayingRef.current = true;
+        playNextInQueue();
     };
 
     const handleSend = async () => {
@@ -388,7 +512,7 @@ export default function AssistantPage() {
                         const newState = !isVoiceEnabled;
                         setIsVoiceEnabled(newState);
                         if (!newState) {
-                            window.speechSynthesis?.cancel(); // Silence immediately if turning off
+                            stopAudio();
                         }
                     }}
                     className={`h-10 w-10 rounded-full ${isVoiceEnabled ? 'bg-emerald-100 text-emerald-600' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'}`}
