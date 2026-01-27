@@ -58,6 +58,8 @@ export async function POST(request: Request) {
         const approvalLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/approve-layer?id=${id}&action=approve`;
         const rejectLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/approve-layer?id=${id}&action=reject`;
 
+        console.log('🔗 Links gerados:', { approvalLink, rejectLink, appUrlEnv: process.env.NEXT_PUBLIC_APP_URL });
+
         // Use clean sender format to improve deliverability (no spoofing)
         const systemEmail = process.env.SMTP_USER || 'suportereipcp@gmail.com';
         const cleanSender = `"SaaS PCP - Suporte Rei" <${systemEmail}>`;
@@ -78,10 +80,16 @@ export async function POST(request: Request) {
             <tr><td><strong>Responsável:</strong></td><td>${user_email || 'Não identificado'}</td></tr>
         </table>
 
-        <div style="margin-top: 30px;">
-            <a href="${approvalLink}" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin-right: 15px; font-weight: bold;">APROVAR</a>
-            <a href="${rejectLink}" style="background-color: #ef4444; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">REJEITAR</a>
-        </div>
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin-top: 30px;">
+            <tr>
+                <td style="padding-right: 15px;">
+                    <a href="${approvalLink}" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block; font-family: Arial, sans-serif;">APROVAR</a>
+                </td>
+                <td>
+                    <a href="${rejectLink}" style="background-color: #ef4444; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block; font-family: Arial, sans-serif;">REJEITAR</a>
+                </td>
+            </tr>
+        </table>
         
         <p style="margin-top: 30px; font-size: 12px; color: #999;">Este é um email automático do sistema SaaS PCP.</p>
       </div>
