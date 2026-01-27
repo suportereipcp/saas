@@ -153,6 +153,34 @@ export const TVDashboard: React.FC<TVDashboardProps> = ({ items, warehouseReques
         return { dotColor: 'bg-slate-300', textColor: 'text-slate-400', label: '-' };
     };
 
+    const getFormattedItemCode = (item: ProductionItemWithDetails) => {
+        // Se não for numérico (tem letras), retorna normal
+        if (/[a-zA-Z]/.test(item.it_codigo)) {
+            return item.it_codigo;
+        }
+
+        // Se for numérico, tenta extrair info da descrição
+        if (item.product_description) {
+            // Procura por qualquer ocorrencia de R- seguido de números e pontos
+            // Case insensitive (i)
+            // Ex: "Item (R-878.4 / JATEADO)" -> acha "R-878.4"
+            // Ex: "R-123.4 especial" -> acha "R-123.4"
+            const match = item.product_description.match(/(R-[\d\.]+)/i);
+
+            if (match && match[1]) {
+                const code = match[1].toUpperCase(); // Padroniza para maiúsculo
+                return (
+                    <span className="flex items-center gap-2 leading-none">
+                        <span>{item.it_codigo}</span>
+                        <span className="text-2xl text-slate-400 font-bold">({code})</span>
+                    </span>
+                );
+            }
+        }
+
+        return item.it_codigo;
+    };
+
     const warehouseItems = warehouseRequests
         .filter(r => {
             if (r.status !== 'PENDING') return false;
@@ -329,10 +357,21 @@ export const TVDashboard: React.FC<TVDashboardProps> = ({ items, warehouseReques
                                         {item.status === 'WASHING' ? 'LAVAGEM' : item.status === 'ADHESIVE' ? 'ADESIVO' : item.status}
                                     </span>
                                     {/* Priority removed from header as requested */}
+                                    <span className={cn(
+                                        "px-2 py-1 rounded-md text-[10px] font-bold border flex items-center gap-1 shadow-sm uppercase tracking-wide",
+                                        item.calculation_priority === 'Calculo 1'
+                                            ? "bg-red-50 text-red-600 border-red-200"
+                                            : "bg-white text-slate-400 border-slate-100"
+                                    )}>
+                                        <Hash className="w-3 h-3 opacity-50" />
+                                        {item.calculation_priority || item.nr_solicitacao}
+                                    </span>
                                 </div>
 
                                 <div className="flex-1 flex flex-col justify-center">
-                                    <h2 className="text-4xl font-black text-slate-900 mb-1 leading-none tracking-tight">{item.it_codigo}</h2>
+                                    <h2 className="text-4xl font-black text-slate-900 mb-1 leading-none tracking-tight break-all">
+                                        {getFormattedItemCode(item)}
+                                    </h2>
                                     <div className="flex items-center gap-3">
                                         {(() => {
                                             const status = getDetailedStatus(item);
