@@ -85,3 +85,57 @@
     @apply bg-background text-foreground cursor-default;
   }
 }
+
+@layer components {
+
+  /* Dashboard Theme Scope - Mapping to Global Variables */
+  .dashboard-theme {
+    /* Optional: If we want to force dark mode for dashboards even in light mode, we can hardcode dark values here.
+       BUT user asked to "replicate patterns". Assuming responsiveness to theme. */
+  }
+
+  /* Glassmorphism adaptation using global vars */
+  .glass-panel {
+    @apply bg-card/80 backdrop-blur-md border border-border/50 rounded-xl shadow-xl;
+  }
+
+  .glass-card {
+    @apply bg-card/60 backdrop-blur-sm border border-border/30 rounded-lg shadow-lg;
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent;
+  }
+
+  /* Custom Scrollbar for Dashboard */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-muted/20;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/30 rounded-full hover:bg-muted-foreground/50;
+  }
+}
+
+@layer utilities {
+  @keyframes soft-pulse {
+
+    0%,
+    100% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.8;
+    }
+  }
+
+  .animate-soft-pulse {
+    animation: soft-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+}
