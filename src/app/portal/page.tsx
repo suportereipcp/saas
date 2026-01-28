@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase-server";
-import { Bot, Package, Shield, Activity, NotebookPen } from "lucide-react";
+import { Bot, Package, Shield, Activity, NotebookPen, LayoutDashboard } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -15,6 +15,8 @@ const getAppIcon = (code: string) => {
             return Activity;
         case "anotacoes":
             return NotebookPen;
+        case "dashboards":
+            return LayoutDashboard;
         default:
             return Package; // Default icon
     }
@@ -31,6 +33,8 @@ const getAppHref = (code: string) => {
             return "/controle-prazo-qualidade";
         case "anotacoes":
             return "/anotacoes";
+        case "dashboards":
+            return "/dashboards";
         default:
             return `/${code}`;
     }
@@ -75,6 +79,9 @@ export default async function PortalPage() {
         // 3. Must have permission
         return userPermissions.has(app.code);
     });
+
+    // Manually push Dashboards app (Temporary until DB insert)
+
 
     // Mock removed - Now loaded from database (anotacoes)
 

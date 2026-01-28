@@ -116,8 +116,8 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ items }) => {
             if (!row) return false;
 
             const searchMatch =
-                row.nr_solicitacao.toString().includes(activeFilters.search) ||
-                row.it_codigo.toLowerCase().includes(activeFilters.search.toLowerCase());
+                (row.nr_solicitacao?.toString() || '').includes(activeFilters.search) ||
+                (row.it_codigo?.toLowerCase() || '').includes(activeFilters.search.toLowerCase());
 
             if (!searchMatch) return false;
 
