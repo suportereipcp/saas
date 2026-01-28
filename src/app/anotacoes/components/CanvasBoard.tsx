@@ -180,10 +180,10 @@ export default function CanvasBoard() {
                     editor.loadSnapshot(data.canvas_data as any);
                 }
 
-                // FIX: Enforce default styles (M, Draw, Black) even after loading snapshot
+                // FIX: Enforce default styles (S, Solid, Black) even after loading snapshot
                 editor.run(() => {
-                    editor.setStyleForNextShapes(DefaultSizeStyle, 'm');
-                    editor.setStyleForNextShapes(DefaultDashStyle, 'draw');
+                    editor.setStyleForNextShapes(DefaultSizeStyle, 's');
+                    editor.setStyleForNextShapes(DefaultDashStyle, 'solid');
                     editor.setStyleForNextShapes(DefaultColorStyle, 'black');
                     editor.setStyleForNextShapes(DefaultFillStyle, 'none');
                     editor.setCurrentTool('draw');
@@ -200,10 +200,10 @@ export default function CanvasBoard() {
     useEffect(() => {
         if (!editor) return;
 
-        // Set defaults: Size M, Dash Draw (Pen-like), Black, No Fill
+        // Set defaults: Size S, Dash Solid (Continuous), Black, No Fill
         editor.run(() => {
-            editor.setStyleForNextShapes(DefaultSizeStyle, 'm');
-            editor.setStyleForNextShapes(DefaultDashStyle, 'draw');
+            editor.setStyleForNextShapes(DefaultSizeStyle, 's');
+            editor.setStyleForNextShapes(DefaultDashStyle, 'solid');
             editor.setStyleForNextShapes(DefaultColorStyle, 'black');
             editor.setStyleForNextShapes(DefaultFillStyle, 'none');
             editor.setCurrentTool('draw'); // Default to Pen
