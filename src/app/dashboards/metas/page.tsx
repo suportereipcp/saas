@@ -23,7 +23,7 @@ export default function MetasPage() {
         try {
             setLoading(true);
             const { data, error } = await supabase
-                .schema('dashboards')
+                .schema('dashboards_pcp')
                 .from('metas')
                 .select('*')
                 .order('created_at', { ascending: false })
@@ -60,7 +60,7 @@ export default function MetasPage() {
     const handleSave = async () => {
         try {
             const { error } = await supabase
-                .schema('dashboards')
+                .schema('dashboards_pcp')
                 .from('metas')
                 .insert([{
                     meta_producao_anual: config.metaProducaoAnual,

@@ -8,9 +8,9 @@ import clsx from "clsx";
 import { motion, AnimatePresence } from "framer-motion";
 
 const navItems = [
-    { name: "Painel Principal", path: "/dashboards", icon: LayoutDashboard },
-    { name: "Produção", path: "/dashboards/producao", icon: BarChart3 },
-    { name: "Financeiro", path: "/dashboards/financeiro", icon: PieChart },
+    { name: "Painel 1 TV PCP", path: "/dashboards/pcp", icon: LayoutDashboard },
+    { name: "Painel 2 TV PCP", path: "/dashboards/producao", icon: BarChart3 },
+    { name: "Faturamento", path: "/dashboards/financeiro", icon: PieChart },
     { name: "Calendário", path: "/dashboards/calendario", icon: Calendar },
     { name: "Metas", path: "/dashboards/metas", icon: Target },
 ];
@@ -22,9 +22,9 @@ export function Sidebar() {
 
     return (
         <aside className="fixed bottom-0 left-0 xl:top-0 z-40 w-full h-16 xl:h-screen xl:w-20 flex flex-row xl:flex-col items-center justify-between xl:justify-start py-2 xl:py-8 bg-card/95 backdrop-blur-xl border-t xl:border-r xl:border-t-0 border-border/50 transition-all duration-300 xl:hover:w-64 group shadow-lg xl:shadow-none">
-            <div className="hidden xl:block mb-10 text-primary">
+            <Link href="/dashboards" className="hidden xl:block mb-10 text-primary hover:scale-110 transition-transform cursor-pointer">
                 <LayoutDashboard className="w-8 h-8" />
-            </div>
+            </Link>
 
             <nav className="flex-1 w-full flex flex-row xl:flex-col gap-1 xl:gap-4 px-2 justify-around xl:justify-start">
                 {navItems.map((item) => {

@@ -23,7 +23,9 @@ import {
     Hammer,
     Truck,
     LayoutDashboard,
-    Layers
+    Layers,
+    Calendar,
+    CalendarCheck,
 } from "lucide-react";
 import { SignOutButton } from "./sign-out-button";
 import { cn } from "@/lib/utils";
@@ -81,15 +83,17 @@ const getIcon = (name?: string) => {
         case 'truck': return Truck;
         case 'layout-dashboard': return LayoutDashboard;
         case 'layers': return Layers;
+        case 'calendar': return Calendar;
+        case 'calendar-check': return CalendarCheck;
         default: return Box;
     }
 }
 
 export function PortalSidebar({ userEmail, userName, links, ...props }: PortalSidebarProps) {
     const pathname = usePathname();
-    const navLinks = links || [
+    const navLinks = (pathname === '/dashboards') ? [] : (links || [
         { label: "Todos Aplicativos", href: "/portal", icon: "home" },
-    ];
+    ]);
 
     // Helper for initials
     const getInitials = (name?: string | null) => {
@@ -97,14 +101,15 @@ export function PortalSidebar({ userEmail, userName, links, ...props }: PortalSi
         return name.substring(0, 2).toUpperCase();
     }
 
+    // Dynamic Home Link: If in a dashboard subpage, go to Hub. Else go to Portal.
+    const homeLink = (pathname?.startsWith('/dashboards') && pathname !== '/dashboards') ? '/dashboards' : '/portal';
+
     return (
         <Sidebar collapsible="icon" {...props}>
             <SidebarHeader className="h-14 border-b p-0 group-data-[collapsible=icon]:h-auto">
                 <div className="flex w-full h-full items-center gap-2 px-4 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-2">
                     {/* Logo and Title Group */}
-                    <div
-                        className="flex flex-1 items-center gap-2"
-                    >
+                    <Link href="/dashboards" className="flex flex-1 items-center gap-2 cursor-pointer transition-opacity hover:opacity-80">
                         <div className="h-6 w-6 relative shrink-0 group-data-[collapsible=icon]:hidden">
                             <Image
                                 src={iconParams}
@@ -116,10 +121,10 @@ export function PortalSidebar({ userEmail, userName, links, ...props }: PortalSi
                         <span className="font-semibold text-sm whitespace-nowrap group-data-[collapsible=icon]:hidden">
                             SaaS PCP
                         </span>
-                    </div>
+                    </Link>
 
                     {/* Portal Icon / Action Button */}
-                    <Link href="/portal" title="Portal">
+                    <Link href={homeLink} title="Portal">
                         <div className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted transition-colors cursor-pointer">
                             <Building2 className="w-5 h-5 text-muted-foreground" />
                         </div>

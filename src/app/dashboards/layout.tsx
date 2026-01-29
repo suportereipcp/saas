@@ -5,10 +5,11 @@ import { SidebarLink } from "@/components/portal-sidebar";
 
 // Dashboard links
 const sidebarLinks: SidebarLink[] = [
-  { label: "Painel 1 TV PCP", href: "/dashboards", icon: "layout-dashboard" },
+  { label: "Painel 1 TV PCP", href: "/dashboards/pcp", icon: "layout-dashboard" },
   { label: "Painel 2 TV PCP", href: "/dashboards/producao", icon: "activity" },
   { label: "Faturamento", href: "/dashboards/financeiro", icon: "file" },
-  { label: "Calendário", href: "/dashboards/calendario", icon: "grid" },
+  { label: "Cal. Produção", href: "/dashboards/calendario-prod", icon: "calendar" },
+  { label: "Cal. Faturamento", href: "/dashboards/calendario-fatur", icon: "calendar-check" },
   { label: "Metas", href: "/dashboards/metas", icon: "box" },
 ];
 
