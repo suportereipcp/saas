@@ -5,7 +5,7 @@ import { createBrowserClient } from '@supabase/ssr';
 import { calculateWorkingDays } from "@/utils/paineis/calendar";
 import { startOfMonth, endOfMonth, isSameMonth, isYesterday, parseISO, format } from "date-fns";
 
-import { Target, TrendingUp, TrendingDown, Briefcase, Calendar, Percent, ArrowDown, ArrowUp } from "lucide-react";
+import { Target, TrendingUp, TrendingDown, Briefcase, Calendar, Percent, ArrowDown, ArrowUp, BarChart3, PieChart as PieChartIcon } from "lucide-react";
 import AnimatedCounter from "@/components/paineis/AnimatedCounter";
 import AnimatedProgressBar from "@/components/paineis/AnimatedProgressBar";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
@@ -19,6 +19,7 @@ export default function FinanceiroPage() {
 
     const [holidays, setHolidays] = useState<string[]>([]);
     const [halfDays, setHalfDays] = useState<string[]>([]);
+    const [dollarRate, setDollarRate] = useState<number>(6.00); // Default fallback
 
     // Financial Data State
     const [finStats, setFinStats] = useState({
@@ -37,6 +38,18 @@ export default function FinanceiroPage() {
     const [walletBreakdown, setWalletBreakdown] = useState<any[]>([]);
     const [dailyData, setDailyData] = useState<any[]>([]);
     const [mediaFatNecessaria, setMediaFatNecessaria] = useState<number>(0);
+
+    // Fetch Dollar Rate
+    useEffect(() => {
+        fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL')
+            .then(res => res.json())
+            .then(data => {
+                if (data.USDBRL && data.USDBRL.bid) {
+                    setDollarRate(Number(data.USDBRL.bid));
+                }
+            })
+            .catch(err => console.error("Error fetching dollar rate:", err));
+    }, []);
 
     // Fetch All Data
     useEffect(() => {
@@ -79,6 +92,15 @@ export default function FinanceiroPage() {
             const { data: meData } = await supabase
                 .schema('dashboards_pcp')
                 .from('carteira_me')
+                .select('*')
+                .order('id', { ascending: false })
+                .limit(1)
+                .single();
+
+            // 6. Metas (Latest)
+            const { data: metasData } = await supabase
+                .schema('dashboards_pcp')
+                .from('metas')
                 .select('*')
                 .order('id', { ascending: false })
                 .limit(1)
@@ -141,17 +163,36 @@ export default function FinanceiroPage() {
             const wb = [];
             if (miData) {
                 // Map fields to specific display logic
+                // Map fields to specific display logic
                 // Sum all for Total Carteira MI
                 const fields = ['sem_saldo', 'nao_alocado', 'faf_impressa', 'nao_efetivado', 'alocad_parcial', 'embarque_criado', 'pesagem_realizada', 'frete_analisado', 'pedido_separado', 'pedido_embalando_total', 'pedido_embalando_parcial'];
                 fields.forEach(f => totalMI += Number(miData[f] || 0));
 
                 // Specific Breakdown for "Desdobramento Carteira MI" Chart
-                wb.push({ name: 'NÃO EFETIVADO', value: Number(miData.nao_efetivado || 0), fill: '#ff8b94' });
-                wb.push({ name: 'SEM SALDO', value: Number(miData.sem_saldo || 0), fill: '#ffd3b6' });
-                wb.push({ name: 'EMBARQUE CRIADO', value: Number(miData.embarque_criado || 0), fill: '#a8e6cf' });
-                wb.push({ name: 'FAF IMPRESSA', value: Number(miData.faf_impressa || 0), fill: '#dcedc1' });
-                wb.push({ name: 'EMBALANDO', value: Number(miData.pedido_embalando_total || 0) + Number(miData.pedido_embalando_parcial || 0), fill: '#ffd3b6' });
-                wb.push({ name: 'PESAGEM REALIZADA', value: Number(miData.pesagem_realizada || 0), fill: '#dcedc1' });
+                // Use fetched metas
+                if (metasData) {
+                    setFinStats(prev => ({
+                        ...prev,
+                        metaMI: Number(metasData.meta_faturamento_int || 0),
+                        metaME: Number(metasData.meta_faturamento_ext || 0),
+                        metaGlobal: Number(metasData.meta_faturamento_int || 0) + Number(metasData.meta_faturamento_ext || 0)
+                    }));
+                }
+
+                // Specific Breakdown for "Desdobramento Carteira MI" Chart
+                // 1. Including ALL columns
+                // 2. Colors restricted to BLUE and GREEN shades only (as requested)
+                // 3. Dark text logic maintained
+                wb.push({ name: 'NÃO EFETIVADO', value: Number(miData.nao_efetivado || 0), fill: '#86efac' }); // Green 300
+                wb.push({ name: 'SEM SALDO', value: Number(miData.sem_saldo || 0), fill: '#4ade80' }); // Green 400
+                wb.push({ name: 'NÃO ALOCADO', value: Number(miData.nao_alocado || 0), fill: '#22c55e' }); // Green 500
+                wb.push({ name: 'ALOCADO PARCIAL', value: Number(miData.alocad_parcial || 0), fill: '#93c5fd' }); // Blue 300
+                wb.push({ name: 'EMBARQUE CRIADO', value: Number(miData.embarque_criado || 0), fill: '#60a5fa' }); // Blue 400
+                wb.push({ name: 'FAF IMPRESSA', value: Number(miData.faf_impressa || 0), fill: '#3b82f6' }); // Blue 500
+                wb.push({ name: 'FRETE ANALISADO', value: Number(miData.frete_analisado || 0), fill: '#2563eb' }); // Blue 600
+                wb.push({ name: 'PEDIDO SEPARADO', value: Number(miData.pedido_separado || 0), fill: '#bfdbfe' }); // Blue 200
+                wb.push({ name: 'EMBALANDO', value: Number(miData.pedido_embalando_total || 0) + Number(miData.pedido_embalando_parcial || 0), fill: '#60a5fa' }); // Blue 400
+                wb.push({ name: 'PESAGEM REALIZADA', value: Number(miData.pesagem_realizada || 0), fill: '#3b82f6' }); // Standard Blue
             }
             setWalletBreakdown(wb);
 
@@ -175,44 +216,81 @@ export default function FinanceiroPage() {
         };
 
         loadData();
-    }, [supabase]);
+
+        // Atualização automática a cada 1 minuto (polling)
+        const intervalId = setInterval(() => {
+            loadData(); // Recarrega dados em background
+        }, 60000); // 60 segundos
+
+        return () => {
+            clearInterval(intervalId);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Run only once on mount
+
+    // Advanced Calculations
+    const [calculations, setCalculations] = useState({
+        projecaoFat: 0,
+        projecaoPercent: 0,
+        mediaVendasNecessaria: 0,
+        mediaFatNecessaria: 0
+    });
 
     useEffect(() => {
-        // Mock "Falta Atingir" for Calculation
-        const faltaAtingir = 8762718.86;
         const now = new Date();
+        const monthStart = startOfMonth(now);
         const monthEnd = endOfMonth(now);
 
-        // Calculate Remaining Working Days including Today
-        // Note: Using now as start might exclude today if logic is strict, but usually acceptable for dashboard pacing
-        const remainingDays = calculateWorkingDays(now, monthEnd, holidays, halfDays, []);
+        // 1. Calculate Working Days
+        // Days Passed (from start of month up to yesterday for accurate pacing, or today if including today's partial)
+        // User logic: "Total Faturado / Dias Faturaveis (Passados)"
+        // Let's assume passed days = working days from Start to Yesterday. If today is 1st, 1 day? Or 0?
+        // Safe bet: Working Days from Start Month to NOW.
+        const totalWorkingDays = calculateWorkingDays(monthStart, monthEnd, holidays, halfDays, []);
+        const daysPassed = calculateWorkingDays(monthStart, now, holidays, halfDays, []); // Includes today if working day
+        const daysRemaining = Math.max(0, totalWorkingDays - daysPassed);
 
-        const media = remainingDays > 0 ? (faltaAtingir / remainingDays) : 0;
-        setMediaFatNecessaria(media);
-    }, [holidays, halfDays]);
+        // 2. Projeção Faturamento
+        // Logic: (FatMensal / DaysPassed) * DaysRemaining + FatMensal
+        // If DaysPassed is 0 (start of month), avoid infinity.
+        let projecaoR = 0;
+        if (daysPassed > 0) {
+            const dailyAvg = finStats.fatMensal / daysPassed;
+            projecaoR = (dailyAvg * daysRemaining) + finStats.fatMensal;
+        } else {
+            projecaoR = finStats.fatMensal; // Just what we have
+        }
 
-    // Pacing Calculation
-    useEffect(() => {
-        const faltaAtingir = Math.max(0, finStats.metaGlobal - finStats.fatMensal);
-        const now = new Date();
-        const monthEnd = endOfMonth(now);
-        const remainingDays = calculateWorkingDays(now, monthEnd, holidays, halfDays, []);
-        const media = remainingDays > 0 ? (faltaAtingir / remainingDays) : 0;
-        setMediaFatNecessaria(media);
-    }, [finStats.fatMensal, finStats.metaGlobal, holidays, halfDays]);
+        // 3. Projeção %
+        const projecaoP = finStats.metaGlobal > 0 ? (projecaoR / finStats.metaGlobal) * 100 : 0;
+
+        // 4. Média Fat. Necessária (Matches previous logic roughly, but using refined remaining days)
+        const faltaAtingirFat = Math.max(0, finStats.metaGlobal - finStats.fatMensal);
+        const mediaFat = daysRemaining > 0 ? (faltaAtingirFat / daysRemaining) : 0;
+
+        // 5. Média Vendas Necessária
+        // Logic: (MetaGlobal - CarteiraMI - FatMensal) / DiasRestantes
+        // If result < 0, then 0.
+        const gapVendas = finStats.metaGlobal - finStats.carteiraMI - finStats.fatMensal;
+        const mediaVendas = (daysRemaining > 0 && gapVendas > 0) ? (gapVendas / daysRemaining) : 0;
+
+        setCalculations({
+            projecaoFat: projecaoR,
+            projecaoPercent: projecaoP,
+            mediaFatNecessaria: mediaFat,
+            mediaVendasNecessaria: mediaVendas
+        });
+    }, [finStats, holidays, halfDays, dollarRate]);
 
     const cards = [
-        { label: "Falta Atingir", value: (finStats.metaGlobal - finStats.fatMensal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: Target, bg: "bg-[#a8e6cf]/20", border: "border-[#a8e6cf]", text: "text-[#374151]" },
-        // Projeção: (Fat / Realized) * TotalWorking? Or simplistic: Fat + (MediaNecessaria * Remaining)? 
-        // Let's use simpler Pace: (Fat / DaysPassed) * TotalDays
-        { label: "Projeção (R$)", value: "R$ --", icon: TrendingUp, bg: "bg-[#a8e6cf]/20", border: "border-[#a8e6cf]", text: "text-[#374151]" },
-        { label: "Projeção (%)", value: `${finStats.metaGlobal > 0 ? ((finStats.fatMensal / finStats.metaGlobal) * 100).toFixed(2) : 0}%`, icon: Percent, bg: "bg-[#ff8b94]/20", border: "border-[#ff8b94]", text: "text-[#374151]" },
-        { label: "Carteira Pedidos MI", value: finStats.carteiraMI.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: Briefcase, bg: "bg-[#a8e6cf]/20", border: "border-[#a8e6cf]", text: "text-[#374151]" },
-        { label: "Carteira Pedidos ME", value: finStats.carteiraME.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: Briefcase, bg: "bg-[#a8e6cf]/20", border: "border-[#a8e6cf]", text: "text-[#374151]" },
-        { label: "Faturamento Ontem", value: finStats.fatOntem.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: Calendar, bg: "bg-[#a8e6cf]/20", border: "border-[#a8e6cf]", text: "text-[#374151]" },
-        { label: "Média Fat. Necessária", value: mediaFatNecessaria.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: TrendingDown, bg: "bg-[#ff8b94]/20", border: "border-[#ff8b94]", text: "text-[#374151]" },
-        // Média Vendas Necessária: Similar logic for Sales Goal? Mock for now
-        { label: "Média Vendas Necessária", value: "R$ 0,00", icon: TrendingDown, bg: "bg-[#a8e6cf]/20", border: "border-[#a8e6cf]", text: "text-[#374151]" },
+        { label: "Falta Atingir", value: Math.max(0, finStats.metaGlobal - finStats.fatMensal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: Target, bg: "bg-white", border: "border-[#2563eb]", text: "text-[#374151]" },
+        { label: "Projeção (R$)", value: calculations.projecaoFat.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: TrendingUp, bg: "bg-white", border: "border-[#2563eb]", text: "text-[#374151]" },
+        { label: "Projeção (%)", value: `${calculations.projecaoPercent.toFixed(2)}%`, icon: Percent, bg: "bg-white", border: "border-[#ef4444]", text: "text-[#374151]" },
+        { label: "Carteira Pedidos MI", value: finStats.carteiraMI.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: Briefcase, bg: "bg-white", border: "border-[#2563eb]", text: "text-[#374151]" },
+        { label: "Carteira Pedidos ME", value: (finStats.carteiraME * dollarRate).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: Briefcase, bg: "bg-white", border: "border-[#2563eb]", text: "text-[#374151]" },
+        { label: "Faturamento Ontem", value: finStats.fatOntem.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: Calendar, bg: "bg-white", border: "border-[#2563eb]", text: "text-[#374151]" },
+        { label: "Média Fat. Necessária", value: calculations.mediaFatNecessaria.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: TrendingDown, bg: "bg-white", border: "border-[#ef4444]", text: "text-[#374151]" },
+        { label: "Média Vendas Necessária", value: calculations.mediaVendasNecessaria.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: TrendingDown, bg: "bg-white", border: "border-[#2563eb]", text: "text-[#374151]" },
     ];
 
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
@@ -239,13 +317,13 @@ export default function FinanceiroPage() {
             {/* Same Top Row */}
             <div className="shrink-0 h-auto xl:h-[140px] grid grid-cols-2 sm:grid-cols-4 2xl:grid-cols-8 gap-3 xl:gap-4">
                 {cards.map((card, idx) => (
-                    <div key={idx} className={`${card.bg} backdrop-blur border-l-4 ${card.border} rounded-xl p-2 xl:p-3 shadow-xl relative overflow-hidden group flex flex-col justify-between h-[100px] xl:h-full hover:scale-[1.02] transition-transform duration-300`}>
+                    <div key={idx} className={`${card.bg} backdrop-blur border-b-4 ${card.border} rounded-xl p-2 xl:p-3 shadow-lg relative overflow-hidden group flex flex-col justify-between h-[100px] xl:h-full hover:scale-[1.02] transition-transform duration-300`}>
                         <div className="flex justify-between items-start relative z-10 w-full">
-                            <span className="font-bold text-[10px] xl:text-[11px] 2xl:text-xs opacity-90 uppercase tracking-widest truncate pr-2 text-muted-foreground" title={card.label}>{card.label}</span>
-                            <card.icon className="w-4 h-4 xl:w-5 xl:h-5 shrink-0 opacity-80 text-primary" />
+                            <span className="font-bold text-xs xl:text-sm opacity-90 uppercase tracking-widest truncate pr-2 text-muted-foreground" title={card.label}>{card.label}</span>
+                            <card.icon className="w-5 h-5 xl:w-6 xl:h-6 shrink-0 opacity-80 text-primary" />
                         </div>
                         <div className="relative z-10">
-                            <span className="text-sm xl:text-base 2xl:text-lg font-bold tracking-tight block truncate drop-shadow-md text-[#374151]" title={card.value}>{card.value}</span>
+                            <span className="text-base xl:text-lg 2xl:text-xl font-bold tracking-tight block truncate drop-shadow-sm text-[#374151]" title={card.value}>{card.value}</span>
                         </div>
                     </div>
                 ))}
@@ -257,15 +335,15 @@ export default function FinanceiroPage() {
                 {/* LEFT: Daily Table (45%) */}
                 <div className="w-full xl:w-[45%] bg-card/95 backdrop-blur rounded-xl shadow-lg border border-border overflow-hidden flex flex-col h-[400px] xl:h-auto">
                     {/* ... Header ... */}
-                    <div className="bg-[#a8e6cf] text-[#374151] py-1 xl:py-2 px-2 xl:px-4 grid grid-cols-4 gap-2 font-bold text-[10px] xl:text-xs uppercase items-center sticky top-0 z-20 tracking-wide shadow-md cursor-pointer">
-                        <div className="flex items-center justify-center gap-2 hover:text-[#dcedc1] transition-colors" onClick={() => handleSort('date')}>
-                            Data {sortConfig?.key === 'date' && (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-[#374151]" /> : <ArrowDown className="w-3 h-3 text-[#374151]" />)}
+                    <div className="bg-[#2563eb] text-white py-2 xl:py-3 px-3 xl:px-4 grid grid-cols-4 gap-2 font-bold text-xs xl:text-sm uppercase items-center sticky top-0 z-20 tracking-wide shadow-md cursor-pointer">
+                        <div className="flex items-center justify-center gap-2 hover:text-[#bfdbfe] transition-colors" onClick={() => handleSort('date')}>
+                            Data {sortConfig?.key === 'date' && (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-white" /> : <ArrowDown className="w-3 h-3 text-white" />)}
                         </div>
-                        <div className="text-center hover:text-[#dcedc1] transition-colors flex justify-center gap-1" onClick={() => handleSort('fatNum')}>
-                            Faturamento {sortConfig?.key === 'fatNum' && (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-[#374151]" /> : <ArrowDown className="w-3 h-3 text-[#374151]" />)}
+                        <div className="text-center hover:text-[#bfdbfe] transition-colors flex justify-center gap-1" onClick={() => handleSort('fatNum')}>
+                            Faturamento {sortConfig?.key === 'fatNum' && (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-white" /> : <ArrowDown className="w-3 h-3 text-white" />)}
                         </div>
-                        <div className="text-center hover:text-[#dcedc1] transition-colors flex justify-center gap-1" onClick={() => handleSort('vendNum')}>
-                            Vendas {sortConfig?.key === 'vendNum' && (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-[#374151]" /> : <ArrowDown className="w-3 h-3 text-[#374151]" />)}
+                        <div className="text-center hover:text-[#bfdbfe] transition-colors flex justify-center gap-1" onClick={() => handleSort('vendNum')}>
+                            Vendas {sortConfig?.key === 'vendNum' && (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-white" /> : <ArrowDown className="w-3 h-3 text-white" />)}
                         </div>
                         <div className="text-center">+/-</div>
                     </div>
@@ -286,10 +364,10 @@ export default function FinanceiroPage() {
                         </table>
                     </div>
                     {/* ... Footer ... */}
-                    <div className="bg-[#a8e6cf] border-t border-border py-2 xl:py-3 px-2 xl:px-4 grid grid-cols-4 gap-2 text-[10px] xl:text-xs sticky bottom-0 z-20 shadow-[-10px]">
-                        <div className="font-bold text-[#374151] uppercase flex flex-col justify-center text-center"><span>Total</span><span>Média</span></div>
-                        <div className="text-center flex flex-col font-bold text-[#374151]"><span>{finStats.fatMensal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span><span>{(finStats.fatMensal / Math.max(1, dailyData.length)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
-                        <div className="text-center flex flex-col font-bold text-[#374151]"><span>{finStats.vendasMensal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span><span>{(finStats.vendasMensal / Math.max(1, dailyData.length)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
+                    <div className="bg-[#2563eb] text-white border-t border-border py-2 xl:py-3 px-2 xl:px-4 grid grid-cols-4 gap-2 text-xs xl:text-sm sticky bottom-0 z-20 shadow-[-10px]">
+                        <div className="font-bold text-white uppercase flex flex-col justify-center text-center"><span>Total</span><span>Média</span></div>
+                        <div className="text-center flex flex-col font-bold text-white"><span>{finStats.fatMensal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span><span>{(finStats.fatMensal / Math.max(1, dailyData.length)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
+                        <div className="text-center flex flex-col font-bold text-white"><span>{finStats.vendasMensal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span><span>{(finStats.vendasMensal / Math.max(1, dailyData.length)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
                         <div></div>
                     </div>
                 </div>
@@ -299,7 +377,9 @@ export default function FinanceiroPage() {
 
                     {/* UPPER: Desdobramento Faturamento (Linear Bars) */}
                     <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col h-[180px] xl:h-auto">
-                        <div className="bg-[#a8e6cf] text-[#374151] py-1 px-3 text-center font-bold text-[10px] xl:text-lg uppercase tracking-wide shadow-md">Desdobramento Faturamento</div>
+                        <div className="bg-[#2563eb] text-white py-1 px-3 text-center font-bold text-sm xl:text-lg uppercase tracking-wide shadow-md flex items-center justify-center gap-2">
+                            <PieChartIcon className="w-5 h-5 text-white" /> Desdobramento Faturamento
+                        </div>
                         <div className="flex-1 flex">
                             {/* Bar 1: Mercado Interno */}
                             <div className="flex-1 flex flex-col items-center justify-center p-2 border-r border-border">
@@ -310,11 +390,11 @@ export default function FinanceiroPage() {
                                     className="text-5xl xl:text-6xl font-black text-[#374151] drop-shadow-sm leading-none mb-1"
                                 />
                                 <div className="w-full max-w-[200px] xl:max-w-[80%]">
-                                    <AnimatedProgressBar value={finStats.metaMI > 0 ? (finStats.fatMI / finStats.metaMI) * 100 : 0} height="h-3 xl:h-4" />
+                                    <AnimatedProgressBar value={finStats.metaMI > 0 ? (finStats.fatMI / finStats.metaMI) * 100 : 0} height="h-3 xl:h-4" colorClass="bg-[#2563eb]" />
                                 </div>
-                                <div className="w-full max-w-[200px] xl:max-w-[80%] flex justify-between text-[9px] xl:text-sm text-muted-foreground mt-2 font-medium">
-                                    <span>Meta: {finStats.metaMI.toLocaleString('pt-BR', { notation: "compact" })}</span>
-                                    <span>{finStats.fatMI.toLocaleString('pt-BR', { notation: "compact" })}</span>
+                                <div className="w-full max-w-[200px] xl:max-w-[80%] flex justify-between text-[9px] xl:text-sm text-foreground mt-2 font-medium">
+                                    <span className="text-[#374151] font-bold">Meta: {finStats.metaMI.toLocaleString('pt-BR', { notation: "standard", maximumFractionDigits: 0 })}</span>
+                                    <span className="text-[#374151] font-bold">{finStats.fatMI.toLocaleString('pt-BR', { notation: "standard", maximumFractionDigits: 0 })}</span>
                                 </div>
                             </div>
                             {/* Bar 2: Mercado Externo */}
@@ -326,11 +406,11 @@ export default function FinanceiroPage() {
                                     className="text-5xl xl:text-6xl font-black text-[#374151] drop-shadow-sm leading-none mb-1"
                                 />
                                 <div className="w-full max-w-[200px] xl:max-w-[80%]">
-                                    <AnimatedProgressBar value={finStats.metaME > 0 ? (finStats.fatME / finStats.metaME) * 100 : 0} height="h-3 xl:h-4" />
+                                    <AnimatedProgressBar value={finStats.metaME > 0 ? (finStats.fatME / finStats.metaME) * 100 : 0} height="h-3 xl:h-4" colorClass="bg-[#2563eb]" />
                                 </div>
-                                <div className="w-full max-w-[200px] xl:max-w-[80%] flex justify-between text-[9px] xl:text-sm text-muted-foreground mt-2 font-medium">
-                                    <span>Meta: {finStats.metaME.toLocaleString('pt-BR', { notation: "compact" })}</span>
-                                    <span>{finStats.fatME.toLocaleString('pt-BR', { notation: "compact" })}</span>
+                                <div className="w-full max-w-[200px] xl:max-w-[80%] flex justify-between text-[9px] xl:text-sm text-foreground mt-2 font-medium">
+                                    <span className="text-[#374151] font-bold">Meta: {finStats.metaME.toLocaleString('pt-BR', { notation: "standard", maximumFractionDigits: 0 })}</span>
+                                    <span className="text-[#374151] font-bold">{finStats.fatME.toLocaleString('pt-BR', { notation: "standard", maximumFractionDigits: 0 })}</span>
                                 </div>
                             </div>
                         </div>
@@ -338,7 +418,9 @@ export default function FinanceiroPage() {
 
                     {/* MIDDLE: Faturamento Total (Linear Bar) */}
                     <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col h-[180px] xl:h-auto">
-                        <div className="bg-[#a8e6cf] text-[#374151] py-1 px-3 text-center font-bold text-[10px] xl:text-lg uppercase tracking-wide shadow-md">Faturamento Total</div>
+                        <div className="bg-[#2563eb] text-white py-1 px-3 text-center font-bold text-sm xl:text-lg uppercase tracking-wide shadow-md flex items-center justify-center gap-2">
+                            <BarChart3 className="w-5 h-5 text-white" /> Faturamento Total
+                        </div>
                         <div className="flex-1 flex flex-col items-center justify-center p-2">
                             <div className="flex flex-col items-center w-full">
                                 <AnimatedCounter
@@ -347,7 +429,7 @@ export default function FinanceiroPage() {
                                     className="text-6xl xl:text-7xl font-black text-[#374151] drop-shadow-md leading-none mb-1"
                                 />
                                 <div className="w-full max-w-[280px] xl:max-w-[90%] mb-2">
-                                    <AnimatedProgressBar value={(finStats.fatMensal / finStats.metaGlobal) * 100} height="h-4 xl:h-5" />
+                                    <AnimatedProgressBar value={(finStats.fatMensal / finStats.metaGlobal) * 100} height="h-4 xl:h-5" colorClass="bg-[#2563eb]" />
                                 </div>
                                 <div className="w-full max-w-[280px] xl:max-w-[90%] flex justify-between text-xs xl:text-base text-[#374151] font-bold px-1">
                                     <div className="flex flex-col items-start bg-muted px-3 py-1 rounded-lg border border-border">
@@ -365,18 +447,20 @@ export default function FinanceiroPage() {
 
                     {/* BOTTOM: Desdobramento Carteira MI (Bar Chart) */}
                     <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col h-[250px] xl:h-auto">
-                        <div className="bg-[#a8e6cf] text-[#374151] py-1 px-3 text-center font-bold text-[10px] xl:text-xs uppercase tracking-wide shadow-md">Desdobramento Carteira MI</div>
-                        <div className="flex-1 p-2 xl:p-3 flex flex-col justify-center gap-1 xl:gap-2">
+                        <div className="bg-[#2563eb] text-white py-1 px-3 text-center font-bold text-sm xl:text-base uppercase tracking-wide shadow-md flex items-center justify-center gap-2">
+                            <Briefcase className="w-4 h-4 text-white" /> Desdobramento Carteira MI
+                        </div>
+                        <div className="flex-1 p-2 xl:p-3 flex flex-col justify-start gap-1 xl:gap-2 overflow-y-auto max-h-[220px] custom-scrollbar">
                             {walletBreakdown.map((item: any, i: number) => (
                                 <div key={i} className="flex items-center text-[9px] xl:text-[10px]">
                                     <span className="w-24 xl:w-32 text-right pr-2 font-bold text-[#374151] truncate">{item.name}</span>
-                                    <div className="flex-1 h-4 xl:h-6 bg-muted/50 rounded-md overflow-hidden relative flex items-center shadow-inner">
+                                    <div className="flex-1 h-4 xl:h-6 bg-muted/50 rounded-md relative flex items-center shadow-inner">
                                         <div
-                                            style={{ width: `${Math.max((item.value / 6000000) * 100, 8)}%`, backgroundColor: item.fill }}
-                                            className={`h-full rounded-md shadow-md flex items-center justify-end px-1 xl:px-2`}
+                                            style={{ width: `${Math.max((item.value / 6000000) * 100, 0.5)}%`, backgroundColor: item.fill }}
+                                            className={`h-full rounded-md shadow-sm flex items-center justify-end px-1 xl:px-2 overflow-visible`}
                                         >
                                             {item.value > 0 && (
-                                                <span className="text-[#374151] font-bold text-[7px] xl:text-[9px] whitespace-nowrap">
+                                                <span className="text-[#374151] font-bold text-[7px] xl:text-[9px] whitespace-nowrap drop-shadow-sm transform translate-x-full pl-2 left-0 absolute">
                                                     {`R$ ${item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                                                 </span>
                                             )}

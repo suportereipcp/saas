@@ -108,7 +108,9 @@ export default function Home() {
             const { data: hist } = await supabase.schema('dashboards_pcp').from('historico_pedidos').select('*').order('data', { ascending: true });
             if (hist) {
                 setHistoricoData(hist.map((h: any) => ({
-                    data: new Date(h.data).toLocaleDateString('pt-BR').replace(/\//g, '-'),
+                    // Fix: Parse string directly to avoid Timezone offset
+                    // Assumes format YYYY-MM-DD from DB
+                    data: h.data ? h.data.split('-').reverse().join('-') : h.data,
                     qtd_ped: h.qtd_ped
                 })));
             }
@@ -181,18 +183,16 @@ export default function Home() {
 
         fetchData().catch(console.error);
 
-        // Setup Realtime subscription for updates (Optional: refresh on INSERT to webhook_logs or direct table updates)
-        const channel = supabase
-            .channel('dashboards_realtime')
-            .on('postgres_changes', { event: '*', schema: 'dashboards_pcp' }, () => {
-                fetchData();
-            })
-            .subscribe();
+        // Polling: atualiza a cada 1 minuto
+        const intervalId = setInterval(() => {
+            fetchData(); // Recarrega dados em background
+        }, 60000); // 1 minuto
 
         return () => {
-            supabase.removeChannel(channel);
+            clearInterval(intervalId);
         };
-    }, [supabase]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Run only once on mount
 
 
     // --- Sorting Logic ---
@@ -231,7 +231,7 @@ export default function Home() {
     const fmtNum = (n: number | undefined) => n ? n.toLocaleString('pt-BR') : '0';
 
     return (
-        <div className="flex flex-col h-screen gap-2 p-2 font-sans overflow-hidden bg-background">
+        <div className="flex flex-col min-h-screen xl:h-screen gap-2 p-2 font-sans overflow-y-auto xl:overflow-hidden bg-background pb-20 xl:pb-0">
             {/* TOP SECTION (68%) */}
             <div className="flex flex-col xl:flex-row gap-2 h-[68%] min-h-0">
                 {/* KPI Cards */}

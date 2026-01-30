@@ -1,5 +1,11 @@
--- Listar todas as tabelas que realmente existem no schema dashboards_pcp
-SELECT table_name 
-FROM information_schema.tables 
-WHERE table_schema = 'dashboards_pcp'
-ORDER BY table_name;
+-- Lista todas as tabelas do schema dashboards_pcp
+-- Cole este SQL no Supabase Studio para ver quais tabelas existem
+
+SELECT 
+    tablename as "Nome da Tabela"
+FROM 
+    pg_tables
+WHERE 
+    schemaname = 'dashboards_pcp'
+ORDER BY 
+    tablename;
