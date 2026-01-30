@@ -61,7 +61,7 @@ interface PortalSidebarProps extends React.ComponentProps<typeof Sidebar> {
     onClose?: () => void;
 }
 
-const getIcon = (name?: string) => {
+export const getIcon = (name?: string) => {
     switch (name) {
         case 'grid': return LayoutGrid;
         case 'settings': return Settings;

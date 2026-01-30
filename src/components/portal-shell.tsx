@@ -2,6 +2,7 @@
 "use client";
 
 import { PortalSidebar, SidebarLink } from "@/components/portal-sidebar";
+import { PortalMobileNav } from "@/components/portal-mobile-nav";
 import { DynamicBreadcrumb } from "@/components/dynamic-breadcrumb";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
@@ -34,10 +35,11 @@ export function PortalShell({ children, userEmail, userName, links, defaultOpen 
                         </div>
                     </header>
                 )}
-                <main className={`flex-1 ${hideHeader ? 'p-0' : 'p-4 md:p-8'} overflow-y-auto bg-muted/20`}>
+                <main className={`flex-1 ${hideHeader ? 'p-0' : 'p-4 md:p-8'} overflow-y-auto bg-muted/20 relative z-0 pb-20 lg:pb-0`}>
                     {children}
                 </main>
             </SidebarInset>
+            <PortalMobileNav links={links} />
         </SidebarProvider>
     );
 }

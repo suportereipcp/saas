@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Target, TrendingDown, TrendingUp, Clock, Activity, BarChart3, ArrowDown, ArrowUp, Minus, Box, Layers, Calendar, CheckCircle2, XCircle } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, Tooltip, LabelList } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, LabelList } from "recharts";
 import { calculateWorkingDays } from "@/utils/paineis/calendar";
 import { startOfYear, endOfYear, startOfMonth, endOfMonth, format, isSameMonth } from "date-fns";
 
@@ -41,10 +41,43 @@ export default function ProducaoPage() {
 
     const fmtNum = (n: number | undefined) => n ? n.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) : '0';
 
-    // Fetch All Data
+    const [estoqueRecebimento, setEstoqueRecebimento] = useState<any>(null); // Legacy, can remove
+    const [estoqueFundicao, setEstoqueFundicao] = useState<any>(null);
+    const [mediaPrensaInjetora, setMediaPrensaInjetora] = useState<any>(null);
+
+    // Calculate Max values for Bars scaling
+    const maxRecebido = Math.max((estoqueFundicao?.recebido_fundido || 0), (estoqueFundicao?.recebido_aluminio || 0), 1);
+    const maxEstoque = Math.max((estoqueFundicao?.fundido || estoqueFundicao?.estoque_fundido || 0), (estoqueFundicao?.aluminio || estoqueFundicao?.estoque_aluminio || 0), 1);
+
+    // Chart Data State for Media Prensa Injetora
+    const [mediaPrensaChartData, setMediaPrensaChartData] = useState([
+        { name: 'Injetora Rei', value: 0, fill: '#3b82f6' }, // Blue 500
+        { name: 'Injetora Rubber', value: 0, fill: '#60a5fa' }, // Blue 400
+        { name: 'Prensa Rei', value: 0, fill: '#22c55e' }, // Green 500
+        { name: 'Prensa Rubber', value: 0, fill: '#86efac' }, // Green 300
+    ]);
+
+    // Initial Data Load
     useEffect(() => {
         const loadData = async () => {
-            // 1. Calendar
+            // 0. Fetch Config / Sync Time
+            const { data: configData } = await supabase.schema('dashboards_pcp').from('config').select('*').limit(1).single();
+            if (configData) {
+                // ... config logic
+                const lastSync = configData.last_sync ? new Date(configData.last_sync) : new Date();
+                setSyncDate(lastSync.toLocaleDateString('pt-BR'));
+                setSyncTime(lastSync.toLocaleTimeString('pt-BR'));
+            }
+
+            // 0.5 Fetch Estoque Fundicao (contains both Estoque and Recebimento data)
+            const { data: estData } = await supabase.schema('dashboards_pcp').from('estoque_fundicao').select('*').order('id', { ascending: false }).limit(1).single();
+            if (estData) setEstoqueFundicao(estData);
+
+            // 0.6 Fetch Media Prensa Injetora
+            const { data: mediaPI } = await supabase.schema('dashboards_pcp').from('media_prensa_injetora').select('*').order('id', { ascending: false }).limit(1).single();
+            setMediaPrensaInjetora(mediaPI);
+
+            // 1. Fetch Holidays & Half Days
             const { data: calData } = await supabase
                 .schema('dashboards_pcp')
                 .from('calendario_prod')
@@ -79,7 +112,7 @@ export default function ProducaoPage() {
                 });
             }
 
-            console.log('📅 DEBUG: Holidays in calendar =', holidayDates.size, 'Half-days =', halfDayDates.size);
+
 
             // Count working days for MONTH (from month start to yesterday)
             const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -105,7 +138,7 @@ export default function ProducaoPage() {
                 realizedYearDB += halfDayDates.has(dateStr) ? 0.5 : 1;
             }
 
-            console.log('📅 DEBUG Realized Days: Month =', realizedMonthDB, 'Year =', realizedYearDB);
+
 
             // 2. Production Data (Acompanhamento Diario)
             const { data: prodData } = await supabase
@@ -169,14 +202,12 @@ export default function ProducaoPage() {
                     // But simplest is just map raw values.
                     // Note: user said "nao esta trazendo todos valores".
 
-                    // status logic: if prod < prod_prev_day ? 'down' : 'up'?
-                    // Since list is DESC, next item is previous day.
-                    const prevItem = sortedProdData[idx + 1];
+                    // Status Logic: < 30k (Red/Down), 30k-33k (Yellow/Neutral), > 33k (Green/Up)
+                    const val = Number(item.prod);
                     let status = 'neutral';
-                    if (prevItem) {
-                        if (Number(item.prod) < Number(prevItem.prod)) status = 'down';
-                        else if (Number(item.prod) > Number(prevItem.prod)) status = 'up';
-                    }
+                    if (val < 30000) status = 'down';
+                    else if (val > 33000) status = 'up';
+                    else status = 'neutral';
 
                     return {
                         date: item.data, // YYYY-MM-DD
@@ -197,6 +228,8 @@ export default function ProducaoPage() {
                 .schema('dashboards_pcp')
                 .from('metas')
                 .select('*')
+                .order('id', { ascending: false })
+                .limit(1)
                 .single();
 
             const metasDB = metasData;
@@ -205,7 +238,7 @@ export default function ProducaoPage() {
             // Working Days Logic
             // ... (keep existing logic but move here to centralize if cleaner, 
             // but for now keeping separate effect is fine, or merging)
-            setStats(prev => ({
+            setStats((prev: any) => ({
                 ...prev,
                 producaoMensal: prodMensal,
                 producaoAnual: prodAnual,
@@ -215,10 +248,20 @@ export default function ProducaoPage() {
                 vendMensalClosed: vendMensalClosed,
                 metaMensal: metasDB?.meta_producao_mensal || 280000,
                 metaAnual: metasDB?.meta_producao_anual || 8200000,
-                valorFechadoAnterior: savedMetas.valorFechadoAnterior || 0,
+                valorFechadoAnterior: metasDB.valor_fechado_anterior || 0,
                 realizedDaysMonth: realizedMonthDB,
                 realizedDaysYear: realizedYearDB,
             }));
+
+            if (mediaPI) {
+                const safeDays = Math.max(1, realizedMonthDB); // Use realizedMonthDB calculated above
+                setMediaPrensaChartData([
+                    { name: 'Injetora Rei', value: Math.round((Number(mediaPI.injetora_rei) || 0) / safeDays), fill: '#3b82f6' },
+                    { name: 'Injetora Rubber', value: Math.round((Number(mediaPI.injetora_rubber) || 0) / safeDays), fill: '#60a5fa' },
+                    { name: 'Prensa Rei', value: Math.round((Number(mediaPI.prensa_rei) || 0) / safeDays), fill: '#22c55e' },
+                    { name: 'Prensa Rubber', value: Math.round((Number(mediaPI.prensa_rubber) || 0) / safeDays), fill: '#86efac' },
+                ]);
+            }
 
             // Set Sync Time
             const nowTime = new Date();
@@ -227,7 +270,17 @@ export default function ProducaoPage() {
         };
 
         loadData();
-    }, [supabase]);
+
+        // Polling: atualiza a cada 1 minuto
+        const interval = setInterval(() => {
+            loadData(); // Recarrega dados em background
+        }, 60000);
+
+        return () => {
+            clearInterval(interval);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Run only once on mount
 
 
     useEffect(() => {
@@ -265,18 +318,15 @@ export default function ProducaoPage() {
     // DailyCapacity = MetaAnual / TotalWorkingDaysYear.
     // TargetThisMonth = DailyCapacity * WorkingDaysThisMonth.
 
-    const dailyCapacity = stats.workingDaysYear > 0 ? (stats.metaAnual / stats.workingDaysYear) : 0;
-    const dynamicMetaMensal = Math.round(dailyCapacity * stats.workingDaysMonth);
-
-    // Update the UI variables
-    const metaMensal = dynamicMetaMensal;
+    // Use configured annual meta for daily capacity calc if needed, but for monthly target use DB value directly as requested.
+    const metaMensal = stats.metaMensal;
     const atendidoMensal = stats.producaoMensal;
     const pctMensal = metaMensal > 0 ? (atendidoMensal / metaMensal) * 100 : 0;
     const dataMensal = [{ name: "Atendido", value: atendidoMensal }, { name: "Restante", value: Math.max(0, metaMensal - atendidoMensal) }];
 
     const metaAnual = stats.metaAnual;
-    // Atendido anual = Soma Produção Anual (Calculada do Banco)
-    const atendidoAnual = stats.producaoAnual;
+    // Atendido anual = Soma Produção Anual (Calculada do Banco) + Valor Fechado Anterior (Metas DB)
+    const atendidoAnual = stats.producaoAnual + stats.valorFechadoAnterior;
     const pctAnual = metaAnual > 0 ? (atendidoAnual / metaAnual) * 100 : 0;
     const dataAnual = [{ name: "Atendido", value: atendidoAnual }, { name: "Restante", value: Math.max(0, metaAnual - atendidoAnual) }];
 
@@ -339,18 +389,18 @@ export default function ProducaoPage() {
     const mediaVendAtual = stats.realizedDaysMonth > 0 ? stats.vendMensalClosed / stats.realizedDaysMonth : 0;
 
     const chartData = [
-        { name: 'Prod', value: Math.round(mediaMensalAtual), fill: '#2563eb' },
-        { name: 'Vend', value: Math.round(mediaVendAtual), fill: '#34d399' },
-        { name: 'Fat.', value: Math.round(mediaFatAtual), fill: '#86efac' },
+        { name: 'Prod', value: Math.round(mediaMensalAtual), fill: '#3b82f6' },
+        { name: 'Vend', value: Math.round(mediaVendAtual), fill: '#22c55e' },
+        { name: 'Fat.', value: Math.round(mediaFatAtual), fill: '#60a5fa' },
     ];
 
 
 
     return (
-        <div className="flex flex-col h-full w-full gap-4 p-4 overflow-auto xl:overflow-hidden font-sans">
+        <div className={`min-h-screen xl:h-screen w-full bg-[#f8f9fa] text-slate-800 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-y-auto xl:overflow-hidden flex flex-col pb-20 xl:pb-0`}>
 
-            {/* ================= TOP SECTION (42%) ================= */}
-            <div className="h-auto xl:h-[42%] flex flex-col xl:flex-row w-full gap-4 shrink-0">
+            {/* ================= TOP SECTION (38%) ================= */}
+            <div className="h-auto xl:h-[38%] flex flex-col xl:flex-row w-full gap-4 shrink-0 p-4">
 
                 {/* MENSAL SECTION */}
                 <div className="w-full xl:flex-1 flex flex-col xl:flex-row gap-4 pr-0 xl:pr-4 border-r-0 xl:border-r border-border/50">
@@ -383,7 +433,7 @@ export default function ProducaoPage() {
                             <Clock className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Meta de Produção Mensal - 01/2026
                         </div>
                         <div className="bg-muted/50 border-b border-border p-1 xl:p-2 flex justify-between px-2 xl:px-4 text-muted-foreground">
-                            <div className="text-center"><span className="text-[10px] xl:text-xs font-bold uppercase text-muted-foreground block">Dias Úteis</span><span className="text-xl xl:text-3xl font-bold text-foreground">{stats.workingDaysMonth}</span></div>
+                            <div className="text-center"><span className="text-[10px] xl:text-xs font-bold uppercase text-muted-foreground block">Dias Úteis</span><span className="text-xl xl:text-3xl font-bold text-[#374151]">{stats.workingDaysMonth}</span></div>
                             <div className="text-center"><span className="text-[10px] xl:text-xs font-bold uppercase text-muted-foreground block">Realizados</span><span className="text-xl xl:text-3xl font-bold text-foreground">{stats.realizedDaysMonth}</span></div>
                             <div className="text-center"><span className="text-[10px] xl:text-xs font-bold uppercase text-muted-foreground block">Restantes</span><span className="text-xl xl:text-3xl font-bold text-foreground">{Math.max(0, stats.workingDaysMonth - stats.realizedDaysMonth).toFixed(1)}</span></div>
                         </div>
@@ -402,9 +452,9 @@ export default function ProducaoPage() {
                                     <span className="text-2xl xl:text-3xl font-black text-[#374151]">{Math.round(pctMensal)}%</span>
                                 </div>
                             </div>
-                            <div className="flex flex-col items-center text-sm xl:text-base leading-tight mt-2">
-                                <div className="text-foreground font-bold">Meta: <span className="text-primary">{fmtNum(metaMensal)}</span></div>
-                                <div className="text-foreground font-bold">Atendido: <span className="text-blue-600">{fmtNum(atendidoMensal)}</span></div>
+                            <div className="flex flex-col items-center text-base xl:text-lg leading-tight mt-2">
+                                <div className="text-foreground font-bold">Meta: <span className="text-[#374151] text-lg xl:text-xl">{fmtNum(metaMensal)}</span></div>
+                                <div className="text-foreground font-bold">Atendido: <span className="text-blue-600 text-lg xl:text-xl">{fmtNum(atendidoMensal)}</span></div>
                             </div>
                         </div>
                     </div>
@@ -441,7 +491,7 @@ export default function ProducaoPage() {
                             <Clock className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Meta de Produção Anual - 2026
                         </div>
                         <div className="bg-muted/50 border-b border-border p-1 xl:p-2 flex justify-between px-2 xl:px-4 text-muted-foreground">
-                            <div className="text-center"><span className="text-[10px] xl:text-xs font-bold uppercase text-muted-foreground block">Dias Úteis</span><span className="text-xl xl:text-3xl font-bold text-foreground">{stats.workingDaysYear}</span></div>
+                            <div className="text-center"><span className="text-[10px] xl:text-xs font-bold uppercase text-muted-foreground block">Dias Úteis</span><span className="text-xl xl:text-3xl font-bold text-[#374151]">{stats.workingDaysYear}</span></div>
                             <div className="text-center"><span className="text-[10px] xl:text-xs font-bold uppercase text-muted-foreground block">Realizados</span><span className="text-xl xl:text-3xl font-bold text-foreground">{stats.realizedDaysYear}</span></div>
                             <div className="text-center"><span className="text-[10px] xl:text-xs font-bold uppercase text-muted-foreground block">Restantes</span><span className="text-xl xl:text-3xl font-bold text-foreground">{Math.max(0, stats.workingDaysYear - stats.realizedDaysYear)}</span></div>
                         </div>
@@ -460,9 +510,9 @@ export default function ProducaoPage() {
                                     <span className="text-2xl xl:text-3xl font-black text-[#374151]">{Math.round(pctAnual)}%</span>
                                 </div>
                             </div>
-                            <div className="flex flex-col items-center text-sm xl:text-base leading-tight mt-2">
-                                <div className="text-foreground font-bold">Meta: <span className="text-primary">{fmtNum(metaAnual)}</span></div>
-                                <div className="text-foreground font-bold">Atendido: <span className="text-blue-600">{fmtNum(atendidoAnual)}</span></div>
+                            <div className="flex flex-col items-center text-base xl:text-lg leading-tight mt-2">
+                                <div className="text-foreground font-bold">Meta: <span className="text-[#374151] text-lg xl:text-xl">{fmtNum(metaAnual)}</span></div>
+                                <div className="text-foreground font-bold">Atendido: <span className="text-blue-600 text-lg xl:text-xl">{fmtNum(atendidoAnual)}</span></div>
                             </div>
                         </div>
                     </div>
@@ -470,10 +520,10 @@ export default function ProducaoPage() {
             </div>
 
             {/* ================= BOTTOM SECTION (58%) ================= */}
-            <div className="flex-1 flex flex-col xl:flex-row w-full gap-2 px-3 xl:px-6 pb-2 min-h-0">
+            <div className="flex-1 flex flex-col xl:flex-row w-full gap-2 pb-2 min-h-0 pt-4 px-4">
 
                 {/* COLUMN 1: Acompanhamento Diário Table (Larger Width) */}
-                <div className="w-full xl:w-[40%] bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col max-h-[420px]">
+                <div className="w-full xl:w-[40%] bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col">
                     <div className="bg-[#2563eb] text-white py-1 xl:py-2 px-2 xl:px-4 grid grid-cols-4 gap-2 font-bold text-xs xl:text-sm uppercase items-center sticky top-0 z-20 tracking-wide shadow-md cursor-pointer">
                         <div className="flex items-center justify-center gap-2 hover:text-[#bfdbfe] transition-colors" onClick={() => handleSort('date')}>
                             <Activity className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Data {sortConfig?.key === 'date' && (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-white" /> : <ArrowDown className="w-3 h-3 text-white" />)}
@@ -499,15 +549,17 @@ export default function ProducaoPage() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-border/50">
-                                {sortedDailyData.slice(0, 11).map((row, i) => (
+                                {sortedDailyData.map((row, i) => (
                                     <tr key={i} className={`hover:bg-primary/5 transition-colors ${i % 2 === 0 ? 'bg-card' : 'bg-muted/20'}`}>
                                         <td className="p-2 xl:p-3 text-center font-bold text-[#374151] align-middle">{formatDate(row.date)}</td>
-                                        <td className="p-2 xl:p-3 text-center font-bold text-[#374151] flex items-center justify-center gap-2 h-full align-middle">
-                                            {row.prod}
-                                            <div className="flex items-center justify-center w-4 h-4">
-                                                {row.status === 'down' && <ArrowDown className="w-3 h-3 xl:w-4 xl:h-4 text-red-500" />}
-                                                {row.status === 'up' && <ArrowUp className="w-3 h-3 xl:w-4 xl:h-4 text-green-500" />}
-                                                {row.status === 'neutral' && <Minus className="w-3 h-3 xl:w-4 xl:h-4 text-yellow-500" />}
+                                        <td className="p-2 xl:p-3 text-center font-bold text-[#374151] align-middle">
+                                            <div className="flex items-center justify-center gap-2 h-full">
+                                                <span className="text-right w-16 xl:w-20">{row.prod}</span>
+                                                <div className="flex items-center justify-center w-4 h-4">
+                                                    {row.status === 'down' && <ArrowDown className="w-3 h-3 xl:w-4 xl:h-4 text-red-500" />}
+                                                    {row.status === 'up' && <ArrowUp className="w-3 h-3 xl:w-4 xl:h-4 text-green-500" />}
+                                                    {row.status === 'neutral' && <Minus className="w-3 h-3 xl:w-4 xl:h-4 text-yellow-500" />}
+                                                </div>
                                             </div>
                                         </td>
                                         <td className="p-2 xl:p-3 text-center font-medium text-[#374151] align-middle">{row.fat}</td>
@@ -520,30 +572,30 @@ export default function ProducaoPage() {
                 </div>
 
                 {/* COLUMN 2: Middle Charts */}
-                <div className="w-full xl:flex-1 flex flex-col gap-2 h-auto">
+                <div className="w-full xl:flex-1 flex flex-col gap-2 h-full">
                     {/* TOP CHART: Média Prensa x Injetora */}
-                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col h-[180px] xl:h-auto">
+                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col gap-1 h-[250px] xl:h-full min-h-0">
                         <div className="bg-[#2563eb] text-white py-1 xl:py-2 px-2 xl:px-3 text-center font-bold text-sm xl:text-base uppercase flex items-center justify-center gap-2 tracking-wide shadow-md">
                             <BarChart3 className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Média Prensa x Injetora
                         </div>
-                        <div className="flex-1 p-2 xl:p-3 flex flex-col justify-center gap-2">
-                            {[
-                                { label: 'Injetora Rei', val: '5.472', w: '30%', color: 'bg-[#60a5fa]' },
-                                { label: 'Injetora Rubber', val: '7.682', w: '45%', color: 'bg-[#bfdbfe]' },
-                                { label: 'Prensa Rei', val: '8.282', w: '50%', color: 'bg-[#86efac]' },
-                                { label: 'Prensa Rubber', val: '12.045', w: '80%', color: 'bg-[#ff8b94]' },
-                            ].map((item, idx) => (
-                                <div key={idx} className="flex items-center gap-2">
-                                    {item.label && <span className="w-24 xl:w-28 text-right text-xs xl:text-sm font-bold text-muted-foreground uppercase tracking-tight">{item.label}</span>}
-                                    {!item.label && <span className="w-24 xl:w-28"></span>}
-                                    <div style={{ width: item.w }} className={`h-6 xl:h-7 bg-gradient-to-r ${item.color} rounded-r-lg flex items-center px-2 text-[#374151] text-sm xl:text-lg font-bold shadow-md`}>
-                                        {item.val}
-                                    </div>
-                                </div>
-                            ))}
-                            <div className="mt-1 text-center text-xs xl:text-sm font-bold text-white border-t border-border pt-1">
-                                Média Diária: <span className="text-white text-base xl:text-lg drop-shadow-sm">33.481</span>
-                            </div>
+                        <div className="flex-1 p-2">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart layout="vertical" data={mediaPrensaChartData} margin={{ top: 0, right: 30, left: 10, bottom: 0 }}>
+                                    <XAxis type="number" hide />
+                                    <YAxis type="category" dataKey="name" width={110} tick={{ fill: '#374151', fontSize: 13, fontWeight: 700 }} tickLine={false} axisLine={false} />
+                                    <Tooltip
+                                        cursor={{ fill: 'rgba(168, 230, 207, 0.2)' }}
+                                        contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: '12px', border: '1px solid #2563eb', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', padding: '12px' }}
+                                        itemStyle={{ color: '#374151', fontWeight: 'bold' }}
+                                        labelStyle={{ display: 'none' }}
+                                        formatter={(value: any) => value?.toLocaleString('pt-BR')}
+                                    />
+                                    <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={32}>
+                                        {mediaPrensaChartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.fill} />)}
+                                        <LabelList dataKey="value" position="insideRight" offset={10} fill="#374151" fontSize={16} fontWeight="bold" formatter={(val: any) => val?.toLocaleString('pt-BR')} />
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
                         </div>
                     </div>
                     {/* BOTTOM CHART: Média Prod x Venda x Fat */}
@@ -554,12 +606,12 @@ export default function ProducaoPage() {
                         </div>
                         <div className="flex-1 p-2">
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                                <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 30 }}>
                                     <XAxis
                                         dataKey="name"
                                         axisLine={false}
                                         tickLine={false}
-                                        tick={{ fill: '#374151', fontSize: 14, fontWeight: 700 }}
+                                        tick={{ fill: '#374151', fontSize: 18, fontWeight: 700 }}
                                         dy={10}
                                     />
                                     <Tooltip
@@ -577,7 +629,7 @@ export default function ProducaoPage() {
                                     />
                                     <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                                         {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.fill} />)}
-                                        <LabelList dataKey="value" position="insideTop" offset={10} fill="#374151" fontSize={14} fontWeight="bold" formatter={(val: any) => val?.toLocaleString('pt-BR')} />
+                                        <LabelList dataKey="value" position="insideTop" offset={10} fill="#374151" fontSize={16} fontWeight="bold" formatter={(val: any) => val?.toLocaleString('pt-BR')} />
                                     </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
@@ -586,74 +638,90 @@ export default function ProducaoPage() {
                 </div>
 
                 {/* COLUMN 3: New Charts (Recebimento & Estoque) */}
-                <div className="w-full xl:flex-1 flex flex-col gap-2 h-auto">
+                <div className="w-full xl:flex-1 flex flex-col gap-2 h-full">
 
                     {/* CHART 1: Recebimento RAP */}
-                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col h-[180px] xl:h-auto">
-                        <div className="bg-[#2563eb] text-white py-1 xl:py-2 px-2 xl:px-3 text-center font-bold text-sm xl:text-base uppercase flex items-center justify-center gap-2 tracking-wide shadow-md">
+                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col gap-3 h-[180px] xl:h-auto">
+                        <div className="bg-[#2563eb] text-white py-1 xl:py-2 px-2 xl:px-3 text-center font-bold text-sm xl:text-base uppercase flex items-center justify-center gap-2 tracking-wide shadow-md shrink-0">
                             <Box className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Recebimento RAP
                         </div>
-                        <div className="flex-1 p-2 xl:p-3 flex flex-col justify-center gap-2">
+                        <div className="flex-1 p-2 xl:p-3 flex flex-col justify-center gap-2 pt-1">
                             <div className="flex items-center gap-3">
-                                <span className="w-16 text-right text-[10px] xl:text-xs font-bold text-[#374151] uppercase">Fundido</span>
-                                <div className="flex-1 h-8 xl:h-12 bg-[#60a5fa] rounded-lg flex items-center justify-center text-[#374151] font-bold text-lg xl:text-2xl shadow-lg">
-                                    44.693
+                                <span className="w-16 text-right text-xs xl:text-sm font-bold text-[#374151] uppercase">Fundido</span>
+                                <div className="flex-1 relative h-8 xl:h-12 bg-gray-100 rounded-lg overflow-hidden shadow-inner">
+                                    <div
+                                        style={{ width: `${Math.min(100, ((estoqueFundicao?.recebido_fundido || 0) / maxRecebido) * 100)}%` }}
+                                        className="absolute top-0 left-0 h-full bg-[#60a5fa] transition-all duration-500"
+                                    />
+                                    <div className="relative z-10 w-full h-full flex items-center justify-center text-[#374151] font-bold text-xl xl:text-3xl shadow-sm">
+                                        {fmtNum(estoqueFundicao?.recebido_fundido || 0)}
+                                    </div>
                                 </div>
                             </div>
                             <div className="flex items-center gap-3">
-                                <span className="w-16 text-right text-[10px] xl:text-xs font-bold text-[#374151] uppercase">Alumínio</span>
-                                <div className="flex items-center gap-2 w-full">
-                                    <div className="h-8 xl:h-12 w-[30%] bg-[#bfdbfe] rounded-lg shadow-md"></div>
-                                    <span className="text-[#374151] font-bold text-lg xl:text-2xl">15.883</span>
+                                <span className="w-16 text-right text-xs xl:text-sm font-bold text-[#374151] uppercase">Alumínio</span>
+                                <div className="flex-1 relative h-8 xl:h-12 bg-gray-100 rounded-lg overflow-hidden shadow-inner">
+                                    <div
+                                        style={{ width: `${Math.min(100, ((estoqueFundicao?.recebido_aluminio || 0) / maxRecebido) * 100)}%` }}
+                                        className="absolute top-0 left-0 h-full bg-[#bfdbfe] transition-all duration-500"
+                                    />
+                                    <div className="relative z-10 w-full h-full flex items-center justify-center text-[#374151] font-bold text-xl xl:text-3xl shadow-sm">
+                                        {fmtNum(estoqueFundicao?.recebido_aluminio || 0)}
+                                    </div>
                                 </div>
                             </div>
-                            <div className="text-center font-bold text-[#374151] mt-0 xl:mt-1 uppercase text-xs xl:text-sm">
-                                Total Recebido: <span className="text-xl xl:text-2xl text-[#374151] ml-1">60.576</span>
+                            <div className="text-center font-bold text-[#374151] mt-0 xl:mt-1 uppercase text-sm xl:text-base">
+                                Total Recebido: <span className="text-2xl xl:text-3xl text-[#374151] ml-1">{fmtNum((estoqueFundicao?.recebido_fundido || 0) + (estoqueFundicao?.recebido_aluminio || 0))}</span>
                             </div>
                         </div>
                     </div>
 
                     {/* CHART 2: Estoque Fund. x Alum. */}
-                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col h-[180px] xl:h-auto">
-                        <div className="bg-[#2563eb] text-white py-1 xl:py-2 px-2 xl:px-3 text-center font-bold text-sm xl:text-base uppercase flex items-center justify-center gap-2 tracking-wide shadow-md">
+                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col gap-3 h-[180px] xl:h-auto">
+                        <div className="bg-[#2563eb] text-white py-1 xl:py-2 px-2 xl:px-3 text-center font-bold text-sm xl:text-base uppercase flex items-center justify-center gap-2 tracking-wide shadow-md shrink-0">
                             <Layers className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Estoque Fund. x Alum.
                         </div>
-                        <div className="flex-1 p-2 xl:p-3 flex flex-col justify-center gap-2">
+                        <div className="flex-1 p-2 xl:p-3 flex flex-col justify-center gap-2 pt-1">
                             <div className="flex items-center gap-3">
-                                <span className="w-16 text-right text-[10px] xl:text-xs font-bold text-[#374151] uppercase">Fundido</span>
-                                <div className="flex-1 h-8 xl:h-12 bg-[#60a5fa] rounded-lg flex items-center justify-center text-[#374151] font-bold text-lg xl:text-2xl shadow-lg">
-                                    243.841
+                                <span className="w-16 text-right text-xs xl:text-sm font-bold text-[#374151] uppercase">Fundido</span>
+                                <div className="flex-1 relative h-8 xl:h-12 bg-gray-100 rounded-lg overflow-hidden shadow-inner">
+                                    <div
+                                        style={{ width: `${Math.min(100, ((estoqueFundicao?.fundido || estoqueFundicao?.estoque_fundido || 0) / maxEstoque) * 100)}%` }}
+                                        className="absolute top-0 left-0 h-full bg-[#60a5fa] transition-all duration-500"
+                                    />
+                                    <div className="relative z-10 w-full h-full flex items-center justify-center text-[#374151] font-bold text-xl xl:text-3xl shadow-sm">
+                                        {fmtNum(estoqueFundicao?.fundido || estoqueFundicao?.estoque_fundido || 0)}
+                                    </div>
                                 </div>
                             </div>
                             <div className="flex items-center gap-3">
-                                <span className="w-16 text-right text-[10px] xl:text-xs font-bold text-[#374151] uppercase">Alumínio</span>
-                                <div className="flex items-center gap-2 w-full">
-                                    <div className="h-8 xl:h-12 w-[20%] bg-[#bfdbfe] rounded-lg shadow-md"></div>
-                                    <span className="text-[#374151] font-bold text-lg xl:text-2xl">33.183</span>
+                                <span className="w-16 text-right text-xs xl:text-sm font-bold text-[#374151] uppercase">Alumínio</span>
+                                <div className="flex-1 relative h-8 xl:h-12 bg-gray-100 rounded-lg overflow-hidden shadow-inner">
+                                    <div
+                                        style={{ width: `${Math.min(100, ((estoqueFundicao?.aluminio || estoqueFundicao?.estoque_aluminio || 0) / maxEstoque) * 100)}%` }}
+                                        className="absolute top-0 left-0 h-full bg-[#bfdbfe] transition-all duration-500"
+                                    />
+                                    <div className="relative z-10 w-full h-full flex items-center justify-center text-[#374151] font-bold text-xl xl:text-3xl shadow-sm">
+                                        {fmtNum(estoqueFundicao?.aluminio || estoqueFundicao?.estoque_aluminio || 0)}
+                                    </div>
                                 </div>
                             </div>
-                            <div className="text-center font-bold text-[#374151] mt-0 xl:mt-1 uppercase text-xs xl:text-sm">
-                                Total Estoque: <span className="text-xl xl:text-2xl text-[#374151] ml-1">277.024</span>
+                            <div className="text-center font-bold text-[#374151] mt-0 xl:mt-1 uppercase text-sm xl:text-base">
+                                Total Estoque: <span className="text-2xl xl:text-3xl text-[#374151] ml-1">{fmtNum((estoqueFundicao?.fundido || estoqueFundicao?.estoque_fundido || 0) + (estoqueFundicao?.aluminio || estoqueFundicao?.estoque_aluminio || 0))}</span>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Footer Sync Bar */}
-            <div className="h-6 shrink-0 flex justify-center pb-2">
-                <div className="bg-muted text-[#2563eb] rounded-full px-6 flex items-center gap-4 text-[10px] uppercase font-bold tracking-widest shadow-2xl border border-border hover:border-primary transition-colors">
-                    <span className="opacity-70">ÚLTIMA SINCRONIZAÇÃO:</span>
-                    <div className="flex items-center gap-2 text-[#2563eb]">
-                        <Calendar className="w-3 h-3 text-[#2563eb]" />
-                        {syncDate}
-                    </div>
-                    <div className="flex items-center gap-2 text-[#2563eb]">
-                        <Clock className="w-3 h-3 text-[#2563eb]" />
-                        {syncTime}
-                    </div>
+            {/* Footer Sync Bar - Mobile Only as requested (No Calendar/Meta info) */}
+            <div className="w-full bg-[#1e1e1e] text-white py-1 px-4 flex justify-between items-center text-xs xl:hidden mt-2 rounded-t-lg">
+                <div className="flex gap-4">
+                    {/* Calendar/Meta info hidden per request, showing Sync status or static text */}
+                    <span>Última Sincronização: {syncDate} {syncTime}</span>
                 </div>
             </div>
+
         </div>
     );
 }
