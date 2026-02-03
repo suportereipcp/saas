@@ -54,8 +54,9 @@ export default async function DashboardsLayout({
       userEmail={user.email}
       userName={profile?.full_name}
       links={sidebarLinks}
-      defaultOpen={false}
+      defaultOpen={true}
       hideHeader={true}
+      fullWidth={true}
     >
       <div className="h-full w-full overflow-auto font-sans">
         {children}

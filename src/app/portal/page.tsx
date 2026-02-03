@@ -76,6 +76,9 @@ export default async function PortalPage() {
         // 2. 'admin' app is hidden
         if (app.code === 'admin') return false;
 
+        // 3. Remove 'dashboards' as per user request (sizing issue)
+        if (app.code === 'dashboards') return false;
+
         // 3. Must have permission
         return userPermissions.has(app.code);
     });
@@ -86,12 +89,12 @@ export default async function PortalPage() {
     // Mock removed - Now loaded from database (anotacoes)
 
     return (
-        <div className="h-full relative w-full">
+        <div className="relative w-full">
 
-            {/* Grid of Apps */}
-            <div className="max-w-7xl mx-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-8">
+            {/* Responsiveness: Responsive Grid for all breakpoints */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-4 md:gap-6 w-full">
                 {appsList.length === 0 ? (
-                    <div className="col-span-full py-12 text-muted-foreground text-center">
+                    <div className="col-span-full py-12 text-muted-foreground text-center w-full">
                         Nenhum aplicativo disponível no momento.
                     </div>
                 ) : (
@@ -103,9 +106,9 @@ export default async function PortalPage() {
                             <Link
                                 key={app.code}
                                 href={href}
-                                className="block group h-full no-underline"
+                                className="block group no-underline w-full"
                             >
-                                <Card className="h-full aspect-square flex flex-col hover:shadow-lg transition-all duration-200 hover:border-primary/50 group-hover:-translate-y-1">
+                                <Card className="aspect-square flex flex-col hover:shadow-lg transition-all duration-200 border-2 border-[#68D9A6] group-hover:-translate-y-1 bg-[#e1f2ea]">
                                     <div className="flex-1 flex items-center justify-center pt-2">
                                         <div className="p-3 bg-muted/50 rounded-full group-hover:bg-primary/10 transition-colors">
                                             <Icon size={36} strokeWidth={1.5} className="text-primary group-hover:text-primary transition-colors" />
@@ -123,9 +126,7 @@ export default async function PortalPage() {
                 )}
             </div>
 
-            <div className="absolute -bottom-12 right-0 text-xs text-muted-foreground opacity-60 font-medium">
-                Powered by PCP
-            </div>
+
         </div>
     );
 }

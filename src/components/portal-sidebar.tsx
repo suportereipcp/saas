@@ -26,6 +26,8 @@ import {
     Layers,
     Calendar,
     CalendarCheck,
+    ChevronLeft,
+    ChevronRight,
 } from "lucide-react";
 import { SignOutButton } from "./sign-out-button";
 import { cn } from "@/lib/utils";
@@ -47,6 +49,27 @@ import {
     SidebarSeparator,
     SidebarTrigger,
 } from "@/components/ui/sidebar"
+import { UserNav } from "@/components/user-nav";
+import { Button } from "@/components/ui/button";
+
+// Internal component for the custom trigger logic
+function CustomSidebarTrigger() {
+    const { toggleSidebar, state } = useSidebar();
+    const isCollapsed = state === "collapsed";
+
+    return (
+        <Button
+            onClick={toggleSidebar}
+            variant="ghost"
+            size="icon"
+            className="absolute -right-3 top-[-12px] h-6 w-6 rounded-full border bg-white shadow-md flex z-50 text-slate-500 hover:text-slate-900 hover:bg-slate-50 items-center justify-center hidden lg:flex"
+        >
+            {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
+        </Button>
+    );
+}
+
+
 
 export interface SidebarLink {
     label: string;
@@ -91,9 +114,24 @@ export const getIcon = (name?: string) => {
 
 export function PortalSidebar({ userEmail, userName, links, ...props }: PortalSidebarProps) {
     const pathname = usePathname();
-    const navLinks = (pathname === '/dashboards') ? [] : (links || [
+    const searchParams = useSearchParams(); // Fixed: Moved hook to top level
+    const { state } = useSidebar();
+    const isCollapsed = state === "collapsed";
+    
+    let navLinks = links || [
         { label: "Todos Aplicativos", href: "/portal", icon: "home" },
-    ]);
+    ];
+
+    // Special case for Dashboard Hub: Show specific Hub menu instead of sub-menus
+    if (pathname === '/dashboards') {
+        navLinks = [
+            { label: "Central de Dashboards", href: "/dashboards", icon: "layout-dashboard" }
+        ];
+    } else {
+        navLinks = links || [
+            { label: "Todos Aplicativos", href: "/portal", icon: "home" },
+        ];
+    }
 
     // Helper for initials
     const getInitials = (name?: string | null) => {
@@ -105,12 +143,11 @@ export function PortalSidebar({ userEmail, userName, links, ...props }: PortalSi
     const homeLink = (pathname?.startsWith('/dashboards') && pathname !== '/dashboards') ? '/dashboards' : '/portal';
 
     return (
-        <Sidebar collapsible="icon" {...props}>
-            <SidebarHeader className="h-14 border-b p-0 group-data-[collapsible=icon]:h-auto">
-                <div className="flex w-full h-full items-center gap-2 px-4 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-2">
-                    {/* Logo and Title Group */}
-                    <Link href="/dashboards" className="flex flex-1 items-center gap-2 cursor-pointer transition-opacity hover:opacity-80">
-                        <div className="h-6 w-6 relative shrink-0 group-data-[collapsible=icon]:hidden">
+        <Sidebar collapsible="icon" mode="relative" className="border-0 bg-[#68D9A6] rounded-xl md:rounded-2xl shadow-none md:shadow-md h-full ml-0 text-slate-900" {...props}>
+            <SidebarHeader className="h-16 relative z-10 p-4 mb-2">
+                <div className="flex w-full h-full items-center gap-3 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0">
+                    <Link href="/portal" className="flex items-center gap-3 transition-opacity hover:opacity-80">
+                        <div className="h-8 w-8 relative shrink-0">
                             <Image
                                 src={iconParams}
                                 alt="SaaS Logo"
@@ -118,24 +155,19 @@ export function PortalSidebar({ userEmail, userName, links, ...props }: PortalSi
                                 className="object-contain"
                             />
                         </div>
-                        <span className="font-semibold text-sm whitespace-nowrap group-data-[collapsible=icon]:hidden">
-                            SaaS PCP
-                        </span>
-                    </Link>
-
-                    {/* Portal Icon / Action Button */}
-                    <Link href={homeLink} title="Portal">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted transition-colors cursor-pointer">
-                            <Building2 className="w-5 h-5 text-muted-foreground" />
-                        </div>
+                        {!isCollapsed && (
+                            <span className="font-bold text-lg text-slate-900 whitespace-nowrap">
+                                SAAS PCP
+                            </span>
+                        )}
                     </Link>
                 </div>
             </SidebarHeader>
-            <SidebarContent>
-                <SidebarMenu className="gap-2 mt-2">
+
+            <SidebarContent className="relative z-10 px-3">
+                <SidebarMenu className="gap-1">
                     {navLinks.map((link) => {
                         const Icon = getIcon(link.icon);
-                        const searchParams = useSearchParams();
 
                         // Enhanced active state detection
                         let isActive = false;
@@ -144,7 +176,6 @@ export function PortalSidebar({ userEmail, userName, links, ...props }: PortalSi
                             const linkParams = new URLSearchParams(linkQuery);
 
                             if (pathname === linkPath) {
-                                // Check if all params in link match current params
                                 isActive = true;
                                 linkParams.forEach((value, key) => {
                                     if (searchParams.get(key) !== value) {
@@ -153,16 +184,10 @@ export function PortalSidebar({ userEmail, userName, links, ...props }: PortalSi
                                 });
                             }
                         } else {
-                            // Default behavior for path-only links
                             isActive = link.href === "/portal"
                                 ? pathname === link.href
                                 : pathname?.startsWith(link.href);
 
-                            // Special case: If we are in the module but have a 'view' param, 
-                            // the root module link (Dashboard) should NOT be active unless explicitly handled.
-                            // But usually base links shouldn't be active if a more specific "view" is active using query params.
-                            // We'll check if any search params exist when the link has none, BUT this might affect other apps.
-                            // For this specific module, let's keep it safe:
                             if (isActive && pathname?.includes('controle-prazo-qualidade') && searchParams.toString().length > 0 && link.href === '/controle-prazo-qualidade') {
                                 isActive = false;
                             }
@@ -174,20 +199,17 @@ export function PortalSidebar({ userEmail, userName, links, ...props }: PortalSi
                                     asChild
                                     isActive={isActive}
                                     tooltip={link.label}
-                                    className="group-data-[collapsible=icon]:mx-auto relative overflow-hidden"
+                                    className={cn(
+                                        "w-full justify-start gap-3 px-3 py-3 min-h-10 rounded-xl transition-all duration-200 overflow-hidden",
+                                        "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2 group-data-[collapsible=icon]:!w-full group-data-[collapsible=icon]:!h-10",
+                                        isActive 
+                                            ? "bg-[#18181B] text-white hover:bg-[#27272A] hover:text-white shadow-md font-semibold" 
+                                            : "text-black hover:bg-black/5 hover:text-black"
+                                    )}
                                 >
-                                    <Link
-                                        href={link.href}
-                                        className={cn(
-                                            "flex items-center gap-2 select-none",
-                                            isActive && "font-bold"
-                                        )}
-                                    >
-                                        {isActive && (
-                                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-primary rounded-r-full" />
-                                        )}
-                                        <Icon />
-                                        <span>{link.label}</span>
+                                    <Link href={link.href} className="flex items-center gap-3 font-medium">
+                                        <Icon className={cn("h-5 w-5")} />
+                                        {!isCollapsed && <span>{link.label}</span>}
                                     </Link>
                                 </SidebarMenuButton>
                             </SidebarMenuItem>
@@ -196,10 +218,23 @@ export function PortalSidebar({ userEmail, userName, links, ...props }: PortalSi
                 </SidebarMenu>
             </SidebarContent>
 
-            <SidebarTrigger
-                className="absolute -right-3 bottom-0 w-6 h-6 p-0 rounded-full border bg-sidebar border-sidebar-border shadow-sm hover:bg-sidebar-accent hover:text-sidebar-accent-foreground z-20 [&>svg]:w-3 [&>svg]:h-3"
-            />
-            <SidebarRail />
+            <SidebarFooter className="relative z-10 p-4 mt-auto border-t border-black/10 bg-white/5">
+                 {/* Custom Toggle Button - Absolute Positioned on the Border Line */}
+                 <CustomSidebarTrigger />
+
+                <div className="group-data-[collapsible=icon]:hidden">
+                    <UserNav userEmail={userEmail} userName={userName} />
+                </div>
+                {/* Collapsed State: Just Avatar (handled by UserNav but forced to center/hide text via CSS/Group logic if needed, but UserNav handles 'group-data-[collapsible=icon]:hidden' on text) */}
+                <div className="hidden group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
+                     <Avatar className="h-9 w-9 border-2 border-white/20">
+                        <AvatarFallback className="bg-purple-600 text-white font-bold">{getInitials(userName)}</AvatarFallback>
+                    </Avatar>
+                </div>
+            </SidebarFooter>
+            
+            
+
         </Sidebar >
     );
 }

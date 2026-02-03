@@ -99,9 +99,7 @@ export default function LoginPage() {
                 <InstallPrompt />
             </div>
 
-            <div className="absolute bottom-4 right-4 text-xs text-muted-foreground font-medium">
-                Powered by PCP
-            </div>
+
         </div>
     );
 }

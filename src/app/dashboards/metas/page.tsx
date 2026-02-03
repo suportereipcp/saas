@@ -93,7 +93,7 @@ export default function MetasPage() {
     }
 
     return (
-        <div className="flex flex-col h-full w-full p-6 gap-8 font-sans text-foreground max-w-5xl mx-auto relative">
+        <div className="flex flex-col h-full w-full p-0 gap-8 font-sans text-foreground max-w-5xl mx-auto relative">
 
             {/* Success Toast */}
             {showSuccess && (
@@ -103,17 +103,8 @@ export default function MetasPage() {
                 </div>
             )}
 
-            {/* Header */}
-            <div className="flex items-center justify-between bg-card/95 p-6 rounded-2xl border border-border backdrop-blur-md shadow-xl">
-                <div className="flex items-center gap-6">
-                    <div className="p-4 bg-primary/20 rounded-2xl text-primary border border-primary/30">
-                        <Target className="w-10 h-10" />
-                    </div>
-                    <div>
-                        <h1 className="text-4xl font-bold tracking-wide text-[#374151]">Definição de Metas</h1>
-                        <p className="text-muted-foreground text-lg mt-1">Configure os objetivos anuais e mensais para os indicadores.</p>
-                    </div>
-                </div>
+            {/* Header Toolbar */}
+            <div className="flex items-center justify-end bg-card/95 p-4 rounded-xl border border-border backdrop-blur-md shadow-sm">
                 <button
                     onClick={handleSave}
                     className="flex items-center gap-3 bg-[#34d399] hover:bg-[#2dba87] text-white px-8 py-4 rounded-xl font-bold text-lg transition-all shadow-lg hover:shadow-[#34d399]/30 active:scale-95 border border-[#34d399]/50"

@@ -397,10 +397,10 @@ export default function ProducaoPage() {
 
 
     return (
-        <div className={`min-h-screen xl:h-screen w-full bg-[#f8f9fa] text-slate-800 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-y-auto xl:overflow-hidden flex flex-col pb-20 xl:pb-0`}>
+        <div className={`h-full w-full bg-[#f8f9fa] text-slate-800 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-y-auto xl:overflow-hidden flex flex-col pb-20 xl:pb-0`}>
 
             {/* ================= TOP SECTION (38%) ================= */}
-            <div className="h-auto xl:h-[38%] flex flex-col xl:flex-row w-full gap-4 shrink-0 p-4">
+            <div className="h-auto xl:h-[38%] flex flex-col xl:flex-row w-full gap-4 shrink-0 p-0">
 
                 {/* MENSAL SECTION */}
                 <div className="w-full xl:flex-1 flex flex-col xl:flex-row gap-4 pr-0 xl:pr-4 border-r-0 xl:border-r border-border/50">
@@ -520,7 +520,7 @@ export default function ProducaoPage() {
             </div>
 
             {/* ================= BOTTOM SECTION (58%) ================= */}
-            <div className="flex-1 flex flex-col xl:flex-row w-full gap-2 pb-2 min-h-0 pt-4 px-4">
+            <div className="flex-1 flex flex-col xl:flex-row w-full gap-2 pb-2 min-h-0 pt-1 px-0">
 
                 {/* COLUMN 1: Acompanhamento Diário Table (Larger Width) */}
                 <div className="w-full xl:w-[40%] bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col">
