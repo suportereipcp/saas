@@ -28,6 +28,7 @@ import {
     CalendarCheck,
     ChevronLeft,
     ChevronRight,
+    Ticket,
 } from "lucide-react";
 import { SignOutButton } from "./sign-out-button";
 import { cn } from "@/lib/utils";
@@ -108,6 +109,7 @@ export const getIcon = (name?: string) => {
         case 'layers': return Layers;
         case 'calendar': return Calendar;
         case 'calendar-check': return CalendarCheck;
+        case 'ticket': return Ticket;
         default: return Box;
     }
 }
@@ -117,7 +119,7 @@ export function PortalSidebar({ userEmail, userName, links, ...props }: PortalSi
     const searchParams = useSearchParams(); // Fixed: Moved hook to top level
     const { state } = useSidebar();
     const isCollapsed = state === "collapsed";
-    
+
     let navLinks = links || [
         { label: "Todos Aplicativos", href: "/portal", icon: "home" },
     ];
@@ -202,8 +204,8 @@ export function PortalSidebar({ userEmail, userName, links, ...props }: PortalSi
                                     className={cn(
                                         "w-full justify-start gap-3 px-3 py-3 min-h-10 rounded-xl transition-all duration-200 overflow-hidden",
                                         "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2 group-data-[collapsible=icon]:!w-full group-data-[collapsible=icon]:!h-10",
-                                        isActive 
-                                            ? "bg-[#18181B] text-white hover:bg-[#27272A] hover:text-white shadow-md font-semibold" 
+                                        isActive
+                                            ? "bg-[#18181B] text-white hover:bg-[#27272A] hover:text-white shadow-md font-semibold"
                                             : "text-black hover:bg-black/5 hover:text-black"
                                     )}
                                 >
@@ -219,21 +221,21 @@ export function PortalSidebar({ userEmail, userName, links, ...props }: PortalSi
             </SidebarContent>
 
             <SidebarFooter className="relative z-10 p-4 mt-auto border-t border-black/10 bg-white/5">
-                 {/* Custom Toggle Button - Absolute Positioned on the Border Line */}
-                 <CustomSidebarTrigger />
+                {/* Custom Toggle Button - Absolute Positioned on the Border Line */}
+                <CustomSidebarTrigger />
 
                 <div className="group-data-[collapsible=icon]:hidden">
                     <UserNav userEmail={userEmail} userName={userName} />
                 </div>
                 {/* Collapsed State: Just Avatar (handled by UserNav but forced to center/hide text via CSS/Group logic if needed, but UserNav handles 'group-data-[collapsible=icon]:hidden' on text) */}
                 <div className="hidden group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
-                     <Avatar className="h-9 w-9 border-2 border-white/20">
+                    <Avatar className="h-9 w-9 border-2 border-white/20">
                         <AvatarFallback className="bg-purple-600 text-white font-bold">{getInitials(userName)}</AvatarFallback>
                     </Avatar>
                 </div>
             </SidebarFooter>
-            
-            
+
+
 
         </Sidebar >
     );
