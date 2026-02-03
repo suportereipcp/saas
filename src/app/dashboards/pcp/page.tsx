@@ -231,17 +231,17 @@ export default function Home() {
     const fmtNum = (n: number | undefined) => n ? n.toLocaleString('pt-BR') : '0';
 
     return (
-        <div className="flex flex-col min-h-screen xl:h-screen gap-2 p-2 font-sans overflow-y-auto xl:overflow-hidden bg-background pb-20 xl:pb-0">
-            {/* TOP SECTION (68%) */}
-            <div className="flex flex-col xl:flex-row gap-2 h-[68%] min-h-0">
+        <div className="flex flex-col h-full lg:overflow-hidden overflow-auto gap-1 p-0 font-sans bg-background pb-20 lg:pb-1">
+            {/* TOP SECTION (63%) */}
+            <div className="flex flex-col lg:flex-row gap-1 h-auto lg:h-[63%] min-h-0 shrink-0">
                 {/* KPI Cards */}
-                <div className="w-full xl:w-[320px] 2xl:w-[360px] flex flex-col gap-2 shrink-0 h-full">
-                    <div className="bg-[#2563eb] text-white p-2 rounded-lg text-center font-bold text-xl uppercase tracking-wider border-b-4 border-[#2563eb] shadow-lg flex items-center justify-center gap-2 shrink-0">
-                        <Truck className="w-6 h-6 text-white" />
-                        <span className="drop-shadow-md">Pedidos Mercado Interno</span>
+                <div className="w-full lg:w-[280px] xl:w-[320px] 2xl:w-[360px] flex flex-col gap-1 shrink-0 h-auto lg:h-full">
+                    <div className="bg-[#2563eb] text-white p-1 rounded-lg text-center font-bold text-lg lg:text-xl uppercase tracking-wider border-b-4 border-[#2563eb] shadow-lg flex items-center justify-center gap-2 shrink-0">
+                        <Truck className="w-5 h-5 lg:w-6 lg:h-6 text-white" />
+                        <span className="drop-shadow-md">Pedidos M. Interno</span>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-2 gap-1 flex-1 min-h-0">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 gap-1 flex-1 min-h-0">
                         {[
                             { label: 'Conferir', val: cardsData?.conferir, icon: CheckSquare, color: 'bg-[#2563eb] text-white', border: 'border-[#2563eb]' },
                             { label: 'Pendente', val: cardsData?.pendente, icon: Clock, color: 'bg-[#dc2626] text-white', border: 'border-[#b91c1c]', animate: true },
@@ -252,42 +252,42 @@ export default function Home() {
                             { label: 'Chegou Hoje', val: cardsData?.chegou_hoje, icon: PackagePlus, color: 'bg-yellow-400 text-[#374151]', border: 'border-yellow-500' },
                             { label: 'Total', val: cardsData?.total, icon: Box, color: 'bg-[#2563eb] text-white', border: 'border-[#2563eb]' },
                         ].map((card, idx) => (
-                            <div key={idx} className={`glass-card ${card.color} border ${card.border} p-0.5 xl:p-1 flex flex-col items-center justify-center text-center gap-0 hover:scale-[1.02] transition-transform duration-300 shadow-xl backdrop-blur-md ${card.animate ? 'animate-soft-pulse' : ''}`}>
+                            <div key={idx} className={`glass-card ${card.color} border ${card.border} p-0.5 flex flex-col items-center justify-center text-center gap-0 hover:scale-[1.02] transition-transform duration-300 shadow-xl backdrop-blur-md ${card.animate ? 'animate-soft-pulse' : ''}`}>
                                 <div className="flex items-center gap-1 mb-0">
-                                    <card.icon className="w-5 h-5 xl:w-6 xl:h-6 opacity-80" />
-                                    <span className="text-3xl xl:text-5xl 2xl:text-6xl font-bold tracking-tighter drop-shadow-lg">{fmtNum(card.val)}</span>
+                                    <card.icon className="w-4 h-4 lg:w-5 lg:h-5 opacity-80" />
+                                    <span className="text-2xl lg:text-4xl xl:text-5xl font-bold tracking-tighter drop-shadow-lg">{fmtNum(card.val)}</span>
                                 </div>
-                                <span className="font-semibold uppercase tracking-widest text-xs xl:text-sm 2xl:text-base opacity-90">{card.label}</span>
+                                <span className="font-semibold uppercase tracking-widest text-[10px] lg:text-xs xl:text-sm opacity-90">{card.label}</span>
                             </div>
                         ))}
                     </div>
                 </div>
 
                 {/* Right Tables/Charts */}
-                <div className="flex-1 flex flex-col gap-2 h-full overflow-hidden">
-                    <div className="h-[55%] flex flex-col xl:grid xl:grid-cols-3 gap-2 min-h-0">
+                <div className="flex-1 flex flex-col gap-1 h-auto lg:h-full overflow-hidden">
+                    <div className="h-[400px] lg:h-[52%] flex flex-col lg:grid lg:grid-cols-3 gap-1 min-h-0">
                         {/* Table Resumo */}
-                        <div className="flex flex-col bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border h-[200px] xl:h-full overflow-hidden">
-                            <div className="bg-[#2563eb] text-white py-1 px-2 text-center font-bold text-sm xl:text-base uppercase flex items-center justify-center gap-2 shrink-0 tracking-wide">
-                                <Package className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Resumo por Item
+                        <div className="flex flex-col bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border h-[200px] lg:h-full overflow-hidden">
+                            <div className="bg-[#2563eb] text-white py-0.5 px-2 text-center font-bold text-xs lg:text-sm uppercase flex items-center justify-center gap-2 shrink-0 tracking-wide">
+                                <Package className="w-4 h-4 text-white" /> Resumo por Item
                             </div>
                             <div className="flex-1 overflow-auto custom-scrollbar">
-                                <table className="w-full text-xs xl:text-base 2xl:text-lg text-[#374151] leading-tight font-sans">
-                                    <thead className="bg-[#2563eb] text-white sticky top-0 shadow-md z-10 text-xs xl:text-lg cursor-pointer">
+                                <table className="w-full text-xs lg:text-base xl:text-lg text-[#374151] leading-tight font-sans">
+                                    <thead className="bg-[#2563eb] text-white sticky top-0 shadow-md z-10 text-xs lg:text-base cursor-pointer">
                                         <tr>
-                                            <th className="p-1 xl:p-2 text-center font-medium hover:bg-[#bfdbfe]" onClick={() => handleSort('it_codigo', sortResumo, setSortResumo)}>Itens <SortIcon active={sortResumo?.key === 'it_codigo'} direction={sortResumo?.direction} /></th>
-                                            <th className="p-1 xl:p-2 text-center font-medium hover:bg-[#bfdbfe]" onClick={() => handleSort('qtd_pecas', sortResumo, setSortResumo)}>Qtd <SortIcon active={sortResumo?.key === 'qtd_pecas'} direction={sortResumo?.direction} /></th>
-                                            <th className="p-1 xl:p-2 text-center font-medium hover:bg-[#bfdbfe]" onClick={() => handleSort('qtd_pedidos', sortResumo, setSortResumo)}>Ped <SortIcon active={sortResumo?.key === 'qtd_pedidos'} direction={sortResumo?.direction} /></th>
-                                            <th className="p-1 xl:p-2 text-center font-medium hover:bg-[#bfdbfe]" onClick={() => handleSort('curva', sortResumo, setSortResumo)}>ABC <SortIcon active={sortResumo?.key === 'curva'} direction={sortResumo?.direction} /></th>
+                                            <th className="p-0.5 text-center font-medium hover:bg-[#bfdbfe]" onClick={() => handleSort('it_codigo', sortResumo, setSortResumo)}>Itens <SortIcon active={sortResumo?.key === 'it_codigo'} direction={sortResumo?.direction} /></th>
+                                            <th className="p-0.5 text-center font-medium hover:bg-[#bfdbfe]" onClick={() => handleSort('qtd_pecas', sortResumo, setSortResumo)}>Qtd <SortIcon active={sortResumo?.key === 'qtd_pecas'} direction={sortResumo?.direction} /></th>
+                                            <th className="p-0.5 text-center font-medium hover:bg-[#bfdbfe]" onClick={() => handleSort('qtd_pedidos', sortResumo, setSortResumo)}>Ped <SortIcon active={sortResumo?.key === 'qtd_pedidos'} direction={sortResumo?.direction} /></th>
+                                            <th className="p-0.5 text-center font-medium hover:bg-[#bfdbfe]" onClick={() => handleSort('curva', sortResumo, setSortResumo)}>ABC <SortIcon active={sortResumo?.key === 'curva'} direction={sortResumo?.direction} /></th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-border/50">
                                         {sortedResumo.map((row, i) => (
                                             <tr key={i} className={`hover:bg-primary/5 transition-colors ${i % 2 === 0 ? 'bg-card' : 'bg-muted/20'}`}>
-                                                <td className="p-1 xl:p-2 text-center font-bold text-[#374151] text-base xl:text-2xl">{row.it_codigo}</td>
-                                                <td className="p-1 xl:p-2 text-center font-sans font-bold text-[#374151] text-base xl:text-2xl">{fmtNum(row.qtd_pecas)}</td>
-                                                <td className="p-1 xl:p-2 text-center font-sans font-bold text-[#374151] text-base xl:text-2xl">{fmtNum(row.qtd_pedidos)}</td>
-                                                <td className="p-1 xl:p-2 text-center font-bold text-[#374151] bg-muted/50 mx-1 rounded text-base xl:text-xl">{row.curva}</td>
+                                                <td className="px-0.5 py-0 lg:py-0.5 text-center font-bold text-[#374151] text-sm lg:text-lg">{row.it_codigo}</td>
+                                                <td className="px-0.5 py-0 lg:py-0.5 text-center font-sans font-bold text-[#374151] text-sm lg:text-lg">{fmtNum(row.qtd_pecas)}</td>
+                                                <td className="px-0.5 py-0 lg:py-0.5 text-center font-sans font-bold text-[#374151] text-sm lg:text-lg">{fmtNum(row.qtd_pedidos)}</td>
+                                                <td className="px-0.5 py-0 lg:py-0.5 text-center font-bold text-[#374151] bg-muted/50 mx-1 rounded text-sm lg:text-lg">{row.curva}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -296,23 +296,23 @@ export default function Home() {
                         </div>
 
                         {/* Table Historico */}
-                        <div className="flex flex-col bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border h-[200px] xl:h-full overflow-hidden">
-                            <div className="bg-[#2563eb] text-white py-1 px-2 text-center font-bold text-sm xl:text-base uppercase flex items-center justify-center gap-2 shrink-0 tracking-wide">
-                                <Clock className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Histórico de Pedidos
+                        <div className="flex flex-col bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border h-[200px] lg:h-full overflow-hidden">
+                            <div className="bg-[#2563eb] text-white py-0.5 px-2 text-center font-bold text-xs lg:text-sm uppercase flex items-center justify-center gap-2 shrink-0 tracking-wide">
+                                <Clock className="w-4 h-4 text-white" /> Histórico de Pedidos
                             </div>
                             <div className="flex-1 overflow-auto custom-scrollbar">
-                                <table className="w-full text-xs xl:text-base 2xl:text-lg text-[#374151] leading-tight font-sans">
-                                    <thead className="bg-[#2563eb] text-white sticky top-0 shadow-md z-10 text-xs xl:text-lg cursor-pointer">
+                                <table className="w-full text-xs lg:text-base xl:text-lg text-[#374151] leading-tight font-sans">
+                                    <thead className="bg-[#2563eb] text-white sticky top-0 shadow-md z-10 text-xs lg:text-base cursor-pointer">
                                         <tr>
-                                            <th className="p-1 xl:p-2 text-center font-medium hover:bg-[#bfdbfe]" onClick={() => handleSort('data', sortHistorico, setSortHistorico)}>Data <SortIcon active={sortHistorico?.key === 'data'} direction={sortHistorico?.direction} /></th>
-                                            <th className="p-1 xl:p-2 text-center font-medium hover:bg-[#bfdbfe]" onClick={() => handleSort('qtd_ped', sortHistorico, setSortHistorico)}>Qtd <SortIcon active={sortHistorico?.key === 'qtd_ped'} direction={sortHistorico?.direction} /></th>
+                                            <th className="p-0.5 text-center font-medium hover:bg-[#bfdbfe]" onClick={() => handleSort('data', sortHistorico, setSortHistorico)}>Data <SortIcon active={sortHistorico?.key === 'data'} direction={sortHistorico?.direction} /></th>
+                                            <th className="p-0.5 text-center font-medium hover:bg-[#bfdbfe]" onClick={() => handleSort('qtd_ped', sortHistorico, setSortHistorico)}>Qtd <SortIcon active={sortHistorico?.key === 'qtd_ped'} direction={sortHistorico?.direction} /></th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-border/50">
                                         {sortedHistorico.map((row, i) => (
                                             <tr key={i} className={`hover:bg-primary/5 transition-colors ${i % 2 === 0 ? 'bg-card' : 'bg-muted/20'}`}>
-                                                <td className="p-1 xl:p-2 text-center font-bold text-[#374151] text-base xl:text-2xl">{row.data}</td>
-                                                <td className="p-1 xl:p-2 text-center font-bold text-[#374151] text-base xl:text-2xl">{row.qtd_ped}</td>
+                                                <td className="px-0.5 py-0 lg:py-0.5 text-center font-bold text-[#374151] text-sm lg:text-lg">{row.data}</td>
+                                                <td className="px-0.5 py-0 lg:py-0.5 text-center font-bold text-[#374151] text-sm lg:text-lg">{row.qtd_ped}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -321,27 +321,27 @@ export default function Home() {
                         </div>
 
                         {/* Table Performance */}
-                        <div className="flex flex-col bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border h-[200px] xl:h-full overflow-hidden">
-                            <div className="bg-[#2563eb] text-white py-1 px-2 text-center font-bold text-sm xl:text-base uppercase flex items-center justify-center gap-2 shrink-0 tracking-wide">
-                                <Clock className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Performance de Entrega
+                        <div className="flex flex-col bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border h-[200px] lg:h-full overflow-hidden">
+                            <div className="bg-[#2563eb] text-white py-0.5 px-2 text-center font-bold text-xs lg:text-sm uppercase flex items-center justify-center gap-2 shrink-0 tracking-wide">
+                                <Clock className="w-4 h-4 text-white" /> Performance de Entrega
                             </div>
                             <div className="flex-1 overflow-auto custom-scrollbar">
-                                <table className="w-full text-xs xl:text-base 2xl:text-lg text-[#374151] leading-tight font-sans">
-                                    <thead className="bg-[#2563eb] text-white sticky top-0 shadow-md z-10 text-xs xl:text-lg cursor-pointer">
+                                <table className="w-full text-xs lg:text-base xl:text-lg text-[#374151] leading-tight font-sans">
+                                    <thead className="bg-[#2563eb] text-white sticky top-0 shadow-md z-10 text-xs lg:text-base cursor-pointer">
                                         <tr>
-                                            <th className="p-1 xl:p-2 text-center font-medium hover:bg-[#bfdbfe]" onClick={() => handleSort('label', sortPerformance, setSortPerformance)}>Data <SortIcon active={sortPerformance?.key === 'label'} direction={sortPerformance?.direction} /></th>
-                                            <th className="p-1 xl:p-2 text-center font-medium hover:bg-[#bfdbfe]" onClick={() => handleSort('qtd', sortPerformance, setSortPerformance)}>Qtd <SortIcon active={sortPerformance?.key === 'qtd'} direction={sortPerformance?.direction} /></th>
-                                            <th className="p-1 xl:p-2 text-center font-medium hover:bg-[#bfdbfe]" onClick={() => handleSort('pctNum', sortPerformance, setSortPerformance)}>% <SortIcon active={sortPerformance?.key === 'pctNum'} direction={sortPerformance?.direction} /></th>
-                                            <th className="p-1 xl:p-2 text-center font-medium hover:bg-[#bfdbfe]" onClick={() => handleSort('acu', sortPerformance, setSortPerformance)}>Acu. <SortIcon active={sortPerformance?.key === 'acu'} direction={sortPerformance?.direction} /></th>
+                                            <th className="p-0.5 text-center font-medium hover:bg-[#bfdbfe]" onClick={() => handleSort('label', sortPerformance, setSortPerformance)}>Data <SortIcon active={sortPerformance?.key === 'label'} direction={sortPerformance?.direction} /></th>
+                                            <th className="p-0.5 text-center font-medium hover:bg-[#bfdbfe]" onClick={() => handleSort('qtd', sortPerformance, setSortPerformance)}>Qtd <SortIcon active={sortPerformance?.key === 'qtd'} direction={sortPerformance?.direction} /></th>
+                                            <th className="p-0.5 text-center font-medium hover:bg-[#bfdbfe]" onClick={() => handleSort('pctNum', sortPerformance, setSortPerformance)}>% <SortIcon active={sortPerformance?.key === 'pctNum'} direction={sortPerformance?.direction} /></th>
+                                            <th className="p-0.5 text-center font-medium hover:bg-[#bfdbfe]" onClick={() => handleSort('acu', sortPerformance, setSortPerformance)}>Acu. <SortIcon active={sortPerformance?.key === 'acu'} direction={sortPerformance?.direction} /></th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-border/50">
                                         {sortedPerformance.map((row, i) => (
                                             <tr key={i} className={`hover:bg-primary/5 transition-colors ${i % 2 === 0 ? 'bg-card' : 'bg-muted/20'}`}>
-                                                <td className="p-1 xl:p-2 text-center font-bold text-[#374151] text-base xl:text-2xl">{row.label}</td>
-                                                <td className="p-1 xl:p-2 text-center text-[#374151] font-bold text-base xl:text-2xl">{fmtNum(row.qtd)}</td>
-                                                <td className="p-1 xl:p-2 text-center text-[#374151] font-bold text-base xl:text-2xl">{row.pct}</td>
-                                                <td className="p-1 xl:p-2 text-center font-bold text-[#374151] text-base xl:text-2xl">{row.acu}</td>
+                                                <td className="px-0.5 py-0 lg:py-0.5 text-center font-bold text-[#374151] text-sm lg:text-lg">{row.label}</td>
+                                                <td className="px-0.5 py-0 lg:py-0.5 text-center text-[#374151] font-bold text-sm lg:text-lg">{fmtNum(row.qtd)}</td>
+                                                <td className="px-0.5 py-0 lg:py-0.5 text-center text-[#374151] font-bold text-sm lg:text-lg">{row.pct}</td>
+                                                <td className="px-0.5 py-0 lg:py-0.5 text-center font-bold text-[#374151] text-sm lg:text-lg">{row.acu}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -351,24 +351,24 @@ export default function Home() {
                     </div>
 
                     {/* Middle Row Charts - Fill remaining space */}
-                    <div className="flex-1 grid grid-cols-1 xl:grid-cols-2 gap-2 min-h-0">
+                    <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-1 min-h-0">
                         {/* Estoque Produtos Estratégicos */}
                         <div className="bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border flex flex-col h-full overflow-hidden">
-                            <div className="bg-[#2563eb] text-white py-1 px-2 text-center font-bold text-sm xl:text-base uppercase flex items-center justify-center gap-2 shrink-0 tracking-wide">
-                                <Package className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Estoque Produtos Estratégicos
+                            <div className="bg-[#2563eb] text-white py-0.5 px-2 text-center font-bold text-xs lg:text-sm uppercase flex items-center justify-center gap-2 shrink-0 tracking-wide">
+                                <Package className="w-4 h-4 text-white" /> Estoque Produtos Estratégicos
                             </div>
-                            <div className="flex-1 p-2 xl:p-4 flex flex-col justify-center gap-2 xl:gap-4">
+                            <div className="flex-1 p-1 lg:p-2 flex flex-col justify-center gap-1">
                                 {[
                                     { label: 'Prensado', val: estoqueEstrategico?.prensado, w: '40%', color: 'bg-[#60a5fa]' },
                                     { label: 'Adesivo', val: estoqueEstrategico?.adesivo, w: '30%', color: 'bg-[#bfdbfe]' },
                                     { label: 'Jato', val: estoqueEstrategico?.jato, w: '90%', color: 'bg-[#86efac]' },
                                 ].map((item, i) => (
-                                    <div key={i} className="flex items-center gap-2 xl:gap-3">
-                                        <span className="w-20 xl:w-24 text-right text-xs xl:text-sm font-bold text-[#374151] uppercase tracking-tight">{item.label}</span>
-                                        <div className="flex-1 h-6 xl:h-8 2xl:h-10 bg-muted/50 rounded-lg overflow-hidden relative shadow-inner">
-                                            <div style={{ width: item.w }} className={`h-full ${item.color} flex items-center justify-end pr-2 text-[#374151] text-[10px] xl:text-xs font-bold transition-all duration-1000 shadow-lg`}>
+                                    <div key={i} className="flex items-center gap-2">
+                                        <span className="w-20 lg:w-24 text-right text-xs lg:text-base font-bold text-[#374151] uppercase tracking-tight">{item.label}</span>
+                                        <div className="flex-1 h-6 lg:h-10 bg-muted/50 rounded-lg overflow-hidden relative shadow-inner">
+                                            <div style={{ width: item.w }} className={`h-full ${item.color} flex items-center justify-end pr-2 text-[#374151] text-[10px] lg:text-xs font-bold transition-all duration-1000 shadow-lg`}>
                                             </div>
-                                            <span className="absolute inset-y-0 left-2 flex items-center text-sm xl:text-xl font-bold text-[#374151] drop-shadow-md z-10">{fmtNum(item.val)}</span>
+                                            <span className="absolute inset-y-0 left-2 flex items-center text-sm lg:text-xl font-bold text-[#374151] drop-shadow-md z-10">{fmtNum(item.val)}</span>
                                         </div>
                                     </div>
                                 ))}
@@ -377,12 +377,12 @@ export default function Home() {
 
                         {/* Qtd Pedidos Recebidos Chart */}
                         <div className="bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border flex flex-col h-full overflow-hidden">
-                            <div className="bg-[#2563eb] text-white py-1 px-2 text-center font-bold text-sm xl:text-base uppercase flex items-center justify-center gap-2 shrink-0 tracking-wide">
-                                <Package className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Qtd Pedidos Recebidos
+                            <div className="bg-[#2563eb] text-white py-0.5 px-2 text-center font-bold text-xs lg:text-sm uppercase flex items-center justify-center gap-2 shrink-0 tracking-wide">
+                                <Package className="w-4 h-4 text-white" /> Qtd Pedidos Recebidos
                             </div>
-                            <div className="flex-1 p-2">
+                            <div className="flex-1 p-1">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <AreaChart data={pedidosRecebidos} margin={{ top: 30, right: 30, left: 30, bottom: 25 }}>
+                                    <AreaChart data={pedidosRecebidos} margin={{ top: 20, right: 10, left: 10, bottom: 5 }}>
                                         <defs>
                                             <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
                                                 <stop offset="5%" stopColor="#2563eb" stopOpacity={0.8} />
@@ -390,7 +390,7 @@ export default function Home() {
                                             </linearGradient>
                                         </defs>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12, fontWeight: 700 }} dy={10} />
+                                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 700 }} dy={5} />
                                         <Tooltip
                                             contentStyle={{ backgroundColor: 'hsl(var(--card))', color: 'hsl(var(--card-foreground))', borderRadius: '8px', border: '1px solid hsl(var(--border))', backdropFilter: 'blur(4px)' }}
                                             itemStyle={{ color: 'hsl(var(--foreground))', fontSize: 12 }}
@@ -401,7 +401,7 @@ export default function Home() {
                                                 dataKey="val"
                                                 position="top"
                                                 content={({ x, y, value }: any) => (
-                                                    <text x={x} y={y} dy={-10} fill="#374151" textAnchor="middle" className="text-sm xl:text-4xl font-bold">
+                                                    <text x={x} y={y} dy={-5} fill="#374151" textAnchor="middle" className="text-sm lg:text-2xl font-bold">
                                                         {value}
                                                     </text>
                                                 )}
@@ -416,22 +416,22 @@ export default function Home() {
             </div>
 
             {/* BOTTOM SECTION: Balanceamento (Remaining Space) */}
-            <div className="flex-1 grid grid-cols-1 xl:grid-cols-2 gap-2 min-h-0">
+            <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-1 min-h-0">
                 {/* Balanceamento de Estoque Acabado */}
                 <div className="bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border flex flex-col h-full overflow-hidden">
-                    <div className="bg-[#2563eb] text-white py-1 px-2 text-center font-bold text-sm xl:text-base uppercase flex items-center justify-center gap-2 shrink-0 tracking-wide">
-                        <Layers className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Balanceamento de Estoque Acabado
+                    <div className="bg-[#2563eb] text-white py-0.5 px-2 text-center font-bold text-xs lg:text-sm uppercase flex items-center justify-center gap-2 shrink-0 tracking-wide">
+                        <Layers className="w-4 h-4 text-white" /> Balanceamento de Estoque Acabado
                     </div>
-                    <div className="flex-1 p-2 xl:p-4 flex flex-col justify-center gap-2 xl:gap-3">
+                    <div className="flex-1 p-1 lg:p-2 flex flex-col justify-center gap-1">
                         {[
                             { label: 'Carteira Ped.', val: balancoAcabado?.carteira_pedidos, w: '25%', color: 'bg-[#60a5fa]' },
                             { label: 'Estoque Total', val: balancoAcabado?.estoque_total, w: '95%', color: 'bg-[#bfdbfe]' },
                             { label: 'Estoque Disp.', val: balancoAcabado?.estoque_disponivel, w: '80%', color: 'bg-[#86efac]' },
                         ].map((item, i) => (
-                            <div key={i} className="flex items-center gap-2 xl:gap-3">
-                                <span className="w-24 xl:w-32 text-right text-xs xl:text-sm font-bold text-[#374151] uppercase">{item.label}</span>
-                                <div className="flex-1 h-8 xl:h-10 bg-muted/50 rounded-md overflow-hidden relative shadow-inner">
-                                    <div style={{ width: item.w }} className={`h-full ${item.color} flex items-center px-2 xl:px-4 text-[#374151] text-sm xl:text-xl font-bold shadow-lg`}>
+                            <div key={i} className="flex items-center gap-2">
+                                <span className="w-20 lg:w-24 text-right text-xs lg:text-base font-bold text-[#374151] uppercase">{item.label}</span>
+                                <div className="flex-1 h-8 lg:h-12 bg-muted/50 rounded-md overflow-hidden relative shadow-inner">
+                                    <div style={{ width: item.w }} className={`h-full ${item.color} flex items-center px-2 lg:px-4 text-[#374151] text-sm lg:text-2xl font-bold shadow-lg`}>
                                         {fmtNum(item.val)}
                                     </div>
                                 </div>
@@ -442,23 +442,23 @@ export default function Home() {
 
                 {/* Balanceamento Curva ABC */}
                 <div className="bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border flex flex-col h-full overflow-hidden">
-                    <div className="bg-[#2563eb] text-white py-1 px-2 text-center font-bold text-sm xl:text-base uppercase flex items-center justify-center gap-2 shrink-0 tracking-wide">
-                        <AlignLeft className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Balanceamento do Estoque com Curva A B C
+                    <div className="bg-[#2563eb] text-white py-0.5 px-2 text-center font-bold text-xs lg:text-sm uppercase flex items-center justify-center gap-2 shrink-0 tracking-wide">
+                        <AlignLeft className="w-4 h-4 text-white" /> Balanceamento do Estoque com Curva A B C
                     </div>
-                    <div className="flex-1 flex flex-col">
-                        <table className="w-full text-xs xl:text-base 2xl:text-lg text-[#374151] h-full font-sans">
-                            <thead className="bg-[#2563eb] text-white">
+                    <div className="flex-1 flex flex-col overflow-auto">
+                        <table className="w-full text-xs lg:text-base xl:text-lg text-[#374151] h-full font-sans">
+                            <thead className="bg-[#2563eb] text-white sticky top-0">
                                 <tr>
-                                    <th className="p-1 xl:p-2 text-center font-medium">Curva</th>
-                                    <th className="p-1 xl:p-2 text-center font-medium">0-15</th>
-                                    <th className="p-1 xl:p-2 text-center font-medium">15-30</th>
-                                    <th className="p-1 xl:p-2 text-center font-medium">30-60</th>
-                                    <th className="p-1 xl:p-2 text-center font-medium">60-120</th>
-                                    <th className="p-1 xl:p-2 text-center font-medium">&gt;120</th>
-                                    <th className="p-1 xl:p-2 text-center font-medium border-l border-border/50 bg-[#2563eb]">Total</th>
+                                    <th className="p-0.5 text-center font-medium">Curva</th>
+                                    <th className="p-0.5 text-center font-medium">0-15</th>
+                                    <th className="p-0.5 text-center font-medium">15-30</th>
+                                    <th className="p-0.5 text-center font-medium">30-60</th>
+                                    <th className="p-0.5 text-center font-medium">60-120</th>
+                                    <th className="p-0.5 text-center font-medium">&gt;120</th>
+                                    <th className="p-0.5 text-center font-medium border-l border-border/50 bg-[#2563eb]">Total</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-border/50 text-center font-black text-sm xl:text-xl">
+                            <tbody className="divide-y divide-border/50 text-center font-black text-xs lg:text-lg">
                                 {balancoCurva.map((row) => {
                                     // Calculate >120 as Total - (Sum of others)
                                     const calcAcima120 = (row.total || 0) - ((row.d0_15 || 0) + (row.d15_30 || 0) + (row.d15_60 || 0) + (row.d60_120 || 0));
@@ -475,14 +475,13 @@ export default function Home() {
                                         </tr>
                                     );
                                 })}
-                                <tr className="bg-muted text-[#374151] border-t-2 border-border text-base xl:text-2xl">
+                                <tr className="bg-muted text-[#374151] border-t-2 border-border text-sm lg:text-xl">
                                     {/* Footer Totals */}
                                     <td className="font-black">Total</td>
                                     <td>{fmtNum(balancoCurva.reduce((acc, r) => acc + (r.d0_15 || 0), 0))}</td>
                                     <td>{fmtNum(balancoCurva.reduce((acc, r) => acc + (r.d15_30 || 0), 0))}</td>
                                     <td>{fmtNum(balancoCurva.reduce((acc, r) => acc + (r.d15_60 || 0), 0))}</td>
                                     <td>{fmtNum(balancoCurva.reduce((acc, r) => acc + (r.d60_120 || 0), 0))}</td>
-                                    {/* Calculate Total for >120 column based on the calculated logic */}
                                     <td>{fmtNum(balancoCurva.reduce((acc, r) => {
                                         const calc = (r.total || 0) - ((r.d0_15 || 0) + (r.d15_30 || 0) + (r.d15_60 || 0) + (r.d60_120 || 0));
                                         return acc + calc;
@@ -496,15 +495,15 @@ export default function Home() {
             </div>
 
             {/* Footer Sync Bar */}
-            <div className="h-6 shrink-0 flex justify-center pb-2">
-                <div className="bg-muted text-[#2563eb] rounded-full px-6 flex items-center gap-4 text-[10px] uppercase font-bold tracking-widest shadow-2xl border border-border hover:border-primary transition-colors">
-                    <span className="opacity-70">ÚLTIMA SINCRONIZAÇÃO:</span>
-                    <div className="flex items-center gap-2 text-[#2563eb]">
-                        <Calendar className="w-3 h-3 text-[#2563eb]" />
+            <div className="h-6 shrink-0 flex justify-center pb-0 lg:pb-0.5">
+                <div className="bg-muted text-[#2563eb] rounded-full px-4 lg:px-6 flex items-center gap-2 lg:gap-4 text-[9px] lg:text-[10px] uppercase font-bold tracking-widest shadow-2xl border border-border hover:border-primary transition-colors cursor-default">
+                    <span className="opacity-70">ÚLTIMA ATUALIZAÇÃO:</span>
+                    <div className="flex items-center gap-1 lg:gap-2 text-[#2563eb]">
+                        <Calendar className="w-2.5 h-2.5 lg:w-3 lg:h-3 text-[#2563eb]" />
                         {syncDate}
                     </div>
-                    <div className="flex items-center gap-2 text-[#2563eb]">
-                        <Clock className="w-3 h-3 text-[#2563eb]" />
+                    <div className="flex items-center gap-1 lg:gap-2 text-[#2563eb]">
+                        <Clock className="w-2.5 h-2.5 lg:w-3 lg:h-3 text-[#2563eb]" />
                         {syncTime}
                     </div>
                 </div>

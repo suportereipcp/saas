@@ -313,7 +313,7 @@ export default function FinanceiroPage() {
     }, [dailyData, sortConfig]);
 
     return (
-        <div className="flex flex-col h-full w-full gap-4 p-4 overflow-auto xl:overflow-hidden font-sans">
+        <div className="flex flex-col h-full w-full gap-4 p-0 overflow-auto xl:overflow-hidden font-sans">
             {/* Same Top Row */}
             <div className="shrink-0 h-auto xl:h-[140px] grid grid-cols-2 sm:grid-cols-4 2xl:grid-cols-8 gap-3 xl:gap-4">
                 {cards.map((card, idx) => (

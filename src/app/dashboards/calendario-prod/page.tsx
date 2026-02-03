@@ -228,7 +228,7 @@ export default function CalendarioPage() {
     }
 
     return (
-        <div className="flex flex-col h-full w-full p-4 gap-4 font-sans text-foreground overflow-hidden relative">
+        <div className="flex flex-col h-full w-full p-0 gap-4 font-sans text-foreground overflow-hidden relative">
 
             {/* Success Toast */}
             {showSuccess && (
@@ -240,14 +240,7 @@ export default function CalendarioPage() {
 
             {/* Header Compact */}
             <div className="flex items-center justify-between bg-card p-3 rounded-2xl border border-border backdrop-blur-md shadow-lg shrink-0">
-                <div className="flex items-center gap-4">
-                    <div className="p-2 bg-primary/20 rounded-xl text-primary">
-                        <CalendarIcon className="w-6 h-6" />
-                    </div>
-                    <div>
-                        <h1 className="text-2xl font-bold tracking-wide text-[#374151]">Definição de Calendário (Produção)</h1>
-                    </div>
-                </div>
+
                 {/* Calendar Controls */}
                 <div className="flex items-center justify-center gap-4">
                     <button onClick={prevMonth} className="p-1 hover:bg-muted rounded-full transition-colors"><ChevronLeft className="w-6 h-6 text-foreground" /></button>
