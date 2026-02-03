@@ -259,7 +259,17 @@ export default function CanvasBoard() {
                     try {
                         const snapshot = JSON.parse(localDraft);
                         editor.loadSnapshot(snapshot);
-                        // toast.info("Rascunho não salvo restaurado."); // Removed per user request
+                        
+                        // FIX: Enforce default styles (S, Solid, Black) after restoring draft
+                        editor.run(() => {
+                            editor.setStyleForNextShapes(DefaultSizeStyle, 's');
+                            editor.setStyleForNextShapes(DefaultDashStyle, 'solid');
+                            editor.setStyleForNextShapes(DefaultColorStyle, 'black');
+                            editor.setStyleForNextShapes(DefaultFillStyle, 'none');
+                            editor.setCurrentTool('draw');
+                        });
+                        
+                        // toast.info("Rascunho não salvo restaurado."); 
                     } catch (e) {
                         console.error("Error restoring new note draft:", e);
                     }
