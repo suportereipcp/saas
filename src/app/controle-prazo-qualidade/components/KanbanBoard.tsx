@@ -203,8 +203,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ items, onUpdateStatus,
     };
 
     const filteredItems = items.filter(item =>
-        item.it_codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.nr_solicitacao.toString().includes(searchTerm) ||
+        item.it_codigo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.nr_solicitacao?.toString().includes(searchTerm) ||
         (item.product_description?.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 

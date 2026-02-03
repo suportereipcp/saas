@@ -243,7 +243,11 @@ function ControleQualidadeContent() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50/50">
+        <div className={`bg-slate-50/50 ${
+            (view === 'WASHING_STATION' || view === 'ADHESIVE_STATION') 
+            ? 'h-screen overflow-hidden flex flex-col' 
+            : 'min-h-screen'
+        }`}>
             {view === 'DASHBOARD' && (
                 <DashboardPanel
                     items={itemsWithDetails}
