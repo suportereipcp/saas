@@ -29,6 +29,7 @@ import {
     ChevronLeft,
     ChevronRight,
     Ticket,
+    ClipboardList,
 } from "lucide-react";
 import { SignOutButton } from "./sign-out-button";
 import { cn } from "@/lib/utils";
@@ -110,6 +111,7 @@ export const getIcon = (name?: string) => {
         case 'calendar': return Calendar;
         case 'calendar-check': return CalendarCheck;
         case 'ticket': return Ticket;
+        case 'clipboard-list': return ClipboardList;
         default: return Box;
     }
 }
@@ -186,7 +188,7 @@ export function PortalSidebar({ userEmail, userName, links, ...props }: PortalSi
                                 });
                             }
                         } else {
-                            isActive = link.href === "/portal"
+                            isActive = (link.href === "/portal" || link.href === "/inventario-rotativo")
                                 ? pathname === link.href
                                 : pathname?.startsWith(link.href);
 

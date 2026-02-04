@@ -18,6 +18,7 @@ type User = {
     is_super_admin: boolean | null;
     created_at: string;
     sector?: string | null;
+    centro_custo?: string | null;
     authorized_apps?: string[];
 };
 
@@ -95,6 +96,7 @@ export function UserList({ users, currentUserId, allApps }: { users: User[], cur
                                 <TableRow>
                                     <TableHead className="pl-4">Nome</TableHead>
                                     <TableHead>Setor</TableHead>
+                                    <TableHead>C. Custo</TableHead>
                                     <TableHead>Email</TableHead>
                                     <TableHead>Apps</TableHead>
                                     <TableHead>Tipo</TableHead>
@@ -112,6 +114,9 @@ export function UserList({ users, currentUserId, allApps }: { users: User[], cur
                                             </TableCell>
                                             <TableCell className="text-muted-foreground uppercase text-xs font-semibold">
                                                 {user.sector || "-"}
+                                            </TableCell>
+                                            <TableCell className="text-xs text-muted-foreground">
+                                                {user.centro_custo || "-"}
                                             </TableCell>
                                             <TableCell>{user.email}</TableCell>
                                             <TableCell>
@@ -285,6 +290,19 @@ function UserDialog({
                                 placeholder={mode === "edit" ? "Deixe em branco para manter" : ""}
                             />
                         </div>
+
+                    <div className="grid grid-cols-1 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="centroCusto">Centro de Custo</Label>
+                            <Input
+                                id="centroCusto"
+                                name="centroCusto"
+                                defaultValue={user?.centro_custo || ""}
+                                placeholder="Ex: 3210302, 9999999 (separar por vírgula)"
+                            />
+                            <p className="text-xs text-muted-foreground">Opcional. Para múltiplos centros, separe por vírgula.</p>
+                        </div>
+                    </div>
                     </div>
 
                     <div className="flex items-center space-x-2 py-2 border rounded-md p-3 bg-muted/20">

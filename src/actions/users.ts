@@ -42,6 +42,7 @@ export async function createUser(prevState: ActionState, formData: FormData): Pr
                     full_name: fullName,
                     is_super_admin: isSuperAdmin,
                     sector: sector, // Add sector
+                    centro_custo: formData.get("centroCusto") as string | null, // Add centro_custo
                 })
                 .select()
                 .single();
@@ -85,7 +86,8 @@ export async function updateUser(prevState: ActionState, formData: FormData): Pr
 
     // appCodes logic
     const appCodesJson = formData.get("appCodes") as string;
-    console.log("updateUser payload:", { userId, email, fullName, sector, isSuperAdmin, appCodesJson });
+    const centroCusto = formData.get("centroCusto") as string | null;
+    console.log("updateUser payload:", { userId, email, fullName, sector, centroCusto, isSuperAdmin, appCodesJson });
 
     let appCodes: string[] | null = null;
     if (appCodesJson) {
@@ -118,6 +120,9 @@ export async function updateUser(prevState: ActionState, formData: FormData): Pr
         // Check filtering for null/undef if sector wasn't passed, but formData.get returns string or null.
         // If it's empty string we might want to save it as null or empty string.
         if (sector !== undefined) profileUpdates.sector = sector;
+
+        const centroCusto = formData.get("centroCusto") as string | null;
+        if (centroCusto !== undefined) profileUpdates.centro_custo = centroCusto;
 
         profileUpdates.is_super_admin = isSuperAdmin;
 
