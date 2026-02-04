@@ -81,6 +81,7 @@ export interface Database {
                     is_super_admin: boolean | null
                     created_at: string
                     sector: string | null
+                    centro_custo: string | null
                 }
                 Insert: {
                     id: string
@@ -90,6 +91,7 @@ export interface Database {
                     is_super_admin?: boolean | null
                     created_at?: string
                     sector?: string | null
+                    centro_custo?: string | null
                 }
                 Update: {
                     id?: string
@@ -99,6 +101,7 @@ export interface Database {
                     is_super_admin?: boolean | null
                     created_at?: string
                     sector?: string | null
+                    centro_custo?: string | null
                 }
                 Relationships: [
                     {
@@ -129,6 +132,39 @@ export interface Database {
                     key?: string
                     value?: string
                     description?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
+                Relationships: []
+            }
+            inventario_rotativo: {
+                Row: {
+                    id: string
+                    it_codigo: string
+                    qtd_fisica: number[] | null
+                    contado: boolean | null
+                    dt_contagem: string | null
+                    centro_custo: string | null
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    it_codigo: string
+                    qtd_fisica?: number[] | null
+                    contado?: boolean | null
+                    dt_contagem?: string | null
+                    centro_custo?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    it_codigo?: string
+                    qtd_fisica?: number[] | null
+                    contado?: boolean | null
+                    dt_contagem?: string | null
+                    centro_custo?: string | null
                     created_at?: string
                     updated_at?: string
                 }
