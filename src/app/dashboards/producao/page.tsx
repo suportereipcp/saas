@@ -57,6 +57,12 @@ export default function ProducaoPage() {
         { name: 'Prensa Rubber', value: 0, fill: '#86efac' }, // Green 300
     ]);
 
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
     // Initial Data Load
     useEffect(() => {
         const loadData = async () => {
@@ -341,7 +347,7 @@ export default function ProducaoPage() {
 
     // Dynamic Averages (Using CLOSED Data: Up to Yesterday)
     const mediaMensalAtual = stats.realizedDaysMonth > 0 ? stats.producaoMensalClosed / stats.realizedDaysMonth : 0;
-    const mediaAnualAtual = stats.realizedDaysYear > 0 ? stats.producaoAnualClosed / stats.realizedDaysYear : 0;
+    const mediaAnualAtual = stats.realizedDaysYear > 0 ? (stats.producaoAnualClosed + stats.valorFechadoAnterior) / stats.realizedDaysYear : 0;
 
     // Logic for Colors & Icons
     const MediaIconMensal = mediaMensalAtual >= mediaNecessaria ? CheckCircle2 : XCircle;
@@ -397,29 +403,29 @@ export default function ProducaoPage() {
 
 
     return (
-        <div className={`h-full w-full bg-[#f8f9fa] text-slate-800 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-y-auto xl:overflow-hidden flex flex-col pb-20 xl:pb-0`}>
+        <div className={`flex flex-col min-h-screen xl:h-screen w-full bg-[#f8f9fa] text-slate-800 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-y-auto xl:overflow-hidden pb-32 xl:pb-0`}>
 
             {/* ================= TOP SECTION (38%) ================= */}
-            <div className="h-auto xl:h-[38%] flex flex-col xl:flex-row w-full gap-4 shrink-0 p-0">
+            <div className="h-auto xl:h-[38%] flex flex-col xl:flex-row w-full gap-4 shrink-0 px-2 xl:px-0">
 
                 {/* MENSAL SECTION */}
                 <div className="w-full xl:flex-1 flex flex-col xl:flex-row gap-4 pr-0 xl:pr-4 border-r-0 xl:border-r border-border/50">
-                    <div className="w-full xl:w-[300px] 2xl:w-[340px] grid grid-cols-2 sm:grid-cols-3 xl:flex xl:flex-col gap-2 xl:gap-3 shrink-0 h-auto xl:h-full justify-center">
-                        <div className="bg-[#2563eb] rounded-xl p-1 xl:p-2 text-white shadow-lg relative overflow-hidden group flex-1 flex flex-col justify-center min-h-[40px] xl:min-h-[50px]">
+                    <div className="w-full xl:w-[300px] 2xl:w-[340px] grid grid-cols-1 sm:grid-cols-3 xl:flex xl:flex-col gap-2 xl:gap-3 shrink-0 h-auto xl:h-full justify-center">
+                        <div className="bg-[#2563eb] rounded-xl p-3 xl:p-2 text-white shadow-lg relative overflow-hidden group flex-1 flex flex-col justify-center min-h-[60px] xl:min-h-[50px]">
                             <div className="absolute top-0 right-0 p-2 xl:p-3 opacity-20"><Target className="w-8 h-8 xl:w-12 xl:h-12 text-white" /></div>
                             <div className="relative z-10 flex flex-col">
                                 <span className="font-semibold text-xs xl:text-sm opacity-90 mb-0 xl:mb-1 uppercase tracking-wider text-white">Falta Meta Mensal</span>
                                 <span className="text-2xl xl:text-4xl 2xl:text-5xl font-bold tracking-tight drop-shadow-md text-white">{fmtNum(Math.max(0, metaMensal - atendidoMensal))}</span>
                             </div>
                         </div>
-                        <div className="bg-[#3b82f6] rounded-xl p-1 xl:p-2 text-white shadow-lg relative overflow-hidden group flex-1 flex flex-col justify-center min-h-[40px] xl:min-h-[50px]">
+                        <div className="bg-[#3b82f6] rounded-xl p-3 xl:p-2 text-white shadow-lg relative overflow-hidden group flex-1 flex flex-col justify-center min-h-[60px] xl:min-h-[50px]">
                             <div className="absolute top-0 right-0 p-2 xl:p-3 opacity-20"><TrendingDown className="w-8 h-8 xl:w-12 xl:h-12 text-white" /></div>
                             <div className="relative z-10 flex flex-col">
                                 <span className="font-semibold text-xs xl:text-sm opacity-90 mb-0 xl:mb-1 uppercase tracking-wider text-white">Média Prod. Atual</span>
                                 <span className="text-2xl xl:text-4xl 2xl:text-5xl font-bold tracking-tight drop-shadow-md text-white">{fmtNum(mediaMensalAtual)}</span>
                             </div>
                         </div>
-                        <div className={`${statusMensalColor} rounded-xl p-1 xl:p-2 text-white shadow-lg relative overflow-hidden group flex-1 flex flex-col justify-center min-h-[40px] xl:min-h-[50px] transition-colors duration-500`}>
+                        <div className={`${statusMensalColor} rounded-xl p-3 xl:p-2 text-white shadow-lg relative overflow-hidden group flex-1 flex flex-col justify-center min-h-[60px] xl:min-h-[50px] transition-colors duration-500`}>
                             <div className="absolute top-0 right-0 p-2 xl:p-3 opacity-20"><MediaIconMensal className="w-8 h-8 xl:w-12 xl:h-12 text-white" /></div>
                             <div className="relative z-10 flex flex-col">
                                 <span className="font-semibold text-xs xl:text-sm opacity-90 mb-0 xl:mb-1 uppercase tracking-wider text-white">Média Prod. Necessária</span>
@@ -430,7 +436,7 @@ export default function ProducaoPage() {
 
                     <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-md border border-border overflow-hidden flex flex-col h-[280px] xl:h-auto">
                         <div className="bg-[#2563eb] text-white p-1 xl:p-2 text-center font-bold text-sm xl:text-base uppercase flex items-center justify-center gap-2 tracking-widest shadow-md z-10">
-                            <Clock className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Meta de Produção Mensal - 01/2026
+                            <Clock className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Meta de Produção Mensal - {format(new Date(), 'MM/yyyy')}
                         </div>
                         <div className="bg-muted/50 border-b border-border p-1 xl:p-2 flex justify-between px-2 xl:px-4 text-muted-foreground">
                             <div className="text-center"><span className="text-[10px] xl:text-xs font-bold uppercase text-muted-foreground block">Dias Úteis</span><span className="text-xl xl:text-3xl font-bold text-[#374151]">{stats.workingDaysMonth}</span></div>
@@ -462,22 +468,22 @@ export default function ProducaoPage() {
 
                 {/* ANUAL SECTION */}
                 <div className="w-full xl:flex-1 flex flex-col xl:flex-row gap-4 pl-0 xl:pl-2">
-                    <div className="w-full xl:w-[300px] 2xl:w-[340px] grid grid-cols-2 sm:grid-cols-3 xl:flex xl:flex-col gap-3 shrink-0 h-auto xl:h-full justify-center">
-                        <div className="bg-[#2563eb] rounded-xl p-1 xl:p-2 text-white shadow-lg relative overflow-hidden group flex-1 flex flex-col justify-center min-h-[40px] xl:min-h-[50px]">
+                    <div className="w-full xl:w-[300px] 2xl:w-[340px] grid grid-cols-1 sm:grid-cols-3 xl:flex xl:flex-col gap-2 xl:gap-3 shrink-0 h-auto xl:h-full justify-center">
+                        <div className="bg-[#2563eb] rounded-xl p-3 xl:p-2 text-white shadow-lg relative overflow-hidden group flex-1 flex flex-col justify-center min-h-[60px] xl:min-h-[50px]">
                             <div className="absolute top-0 right-0 p-2 xl:p-3 opacity-20"><Target className="w-8 h-8 xl:w-12 xl:h-12 text-white" /></div>
                             <div className="relative z-10 flex flex-col">
                                 <span className="font-semibold text-xs xl:text-sm opacity-90 mb-0 xl:mb-1 uppercase tracking-wider text-white">Falta Meta Anual</span>
                                 <span className="text-2xl xl:text-4xl 2xl:text-5xl font-bold tracking-tight drop-shadow-md text-white">{fmtNum(Math.max(0, metaAnual - atendidoAnual))}</span>
                             </div>
                         </div>
-                        <div className="bg-[#3b82f6] rounded-xl p-1 xl:p-2 text-white shadow-lg relative overflow-hidden group flex-1 flex flex-col justify-center min-h-[40px] xl:min-h-[50px]">
+                        <div className="bg-[#3b82f6] rounded-xl p-3 xl:p-2 text-white shadow-lg relative overflow-hidden group flex-1 flex flex-col justify-center min-h-[60px] xl:min-h-[50px]">
                             <div className="absolute top-0 right-0 p-2 xl:p-3 opacity-20"><TrendingDown className="w-8 h-8 xl:w-12 xl:h-12 text-white" /></div>
                             <div className="relative z-10 flex flex-col">
                                 <span className="font-semibold text-xs xl:text-sm opacity-90 mb-0 xl:mb-1 uppercase tracking-wider text-white">Média Prod. Anual Atual</span>
                                 <span className="text-2xl xl:text-4xl 2xl:text-5xl font-bold tracking-tight drop-shadow-md text-white">{fmtNum(mediaAnualAtual)}</span>
                             </div>
                         </div>
-                        <div className={`${statusAnualColor} rounded-xl p-1 xl:p-2 text-white shadow-lg relative overflow-hidden group flex-1 flex flex-col justify-center min-h-[40px] xl:min-h-[50px] transition-colors duration-500`}>
+                        <div className={`${statusAnualColor} rounded-xl p-3 xl:p-2 text-white shadow-lg relative overflow-hidden group flex-1 flex flex-col justify-center min-h-[60px] xl:min-h-[50px] transition-colors duration-500`}>
                             <div className="absolute top-0 right-0 p-2 xl:p-3 opacity-20"><MediaIconAnual className="w-8 h-8 xl:w-12 xl:h-12 text-white" /></div>
                             <div className="relative z-10 flex flex-col">
                                 <span className="font-semibold text-xs xl:text-sm opacity-90 mb-0 xl:mb-1 uppercase tracking-wider text-white">Média Prod. Anual Necessária</span>
@@ -486,9 +492,9 @@ export default function ProducaoPage() {
                         </div>
                     </div>
 
-                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-md border border-border overflow-hidden flex flex-col h-[280px] xl:h-auto">
+                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-md border border-border overflow-hidden flex flex-col h-auto min-h-[280px] xl:h-auto">
                         <div className="bg-[#2563eb] text-white p-1 xl:p-2 text-center font-bold text-sm xl:text-base uppercase flex items-center justify-center gap-2 tracking-widest shadow-md z-10">
-                            <Clock className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Meta de Produção Anual - 2026
+                            <Clock className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Meta de Produção Anual - {isMounted ? format(new Date(), 'yyyy') : '...'}
                         </div>
                         <div className="bg-muted/50 border-b border-border p-1 xl:p-2 flex justify-between px-2 xl:px-4 text-muted-foreground">
                             <div className="text-center"><span className="text-[10px] xl:text-xs font-bold uppercase text-muted-foreground block">Dias Úteis</span><span className="text-xl xl:text-3xl font-bold text-[#374151]">{stats.workingDaysYear}</span></div>
@@ -520,7 +526,7 @@ export default function ProducaoPage() {
             </div>
 
             {/* ================= BOTTOM SECTION (58%) ================= */}
-            <div className="flex-1 flex flex-col xl:flex-row w-full gap-2 pb-2 min-h-0 pt-1 px-0">
+            <div className="h-auto xl:flex-1 flex flex-col xl:flex-row w-full gap-2 pb-2 min-h-0 pt-1 px-2 xl:px-0">
 
                 {/* COLUMN 1: Acompanhamento Diário Table (Larger Width) */}
                 <div className="w-full xl:w-[40%] bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col">
@@ -572,76 +578,84 @@ export default function ProducaoPage() {
                 </div>
 
                 {/* COLUMN 2: Middle Charts */}
-                <div className="w-full xl:flex-1 flex flex-col gap-2 h-full">
+                <div className="w-full xl:flex-1 flex flex-col gap-2 h-auto xl:h-full">
                     {/* TOP CHART: Média Prensa x Injetora */}
-                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col gap-1 h-[250px] xl:h-full min-h-0">
+                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col gap-1 h-[300px] xl:h-full">
                         <div className="bg-[#2563eb] text-white py-1 xl:py-2 px-2 xl:px-3 text-center font-bold text-sm xl:text-base uppercase flex items-center justify-center gap-2 tracking-wide shadow-md">
                             <BarChart3 className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Média Prensa x Injetora
                         </div>
-                        <div className="flex-1 p-2">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart layout="vertical" data={mediaPrensaChartData} margin={{ top: 0, right: 30, left: 10, bottom: 0 }}>
-                                    <XAxis type="number" hide />
-                                    <YAxis type="category" dataKey="name" width={110} tick={{ fill: '#374151', fontSize: 13, fontWeight: 700 }} tickLine={false} axisLine={false} />
-                                    <Tooltip
-                                        cursor={{ fill: 'rgba(168, 230, 207, 0.2)' }}
-                                        contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: '12px', border: '1px solid #2563eb', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', padding: '12px' }}
-                                        itemStyle={{ color: '#374151', fontWeight: 'bold' }}
-                                        labelStyle={{ display: 'none' }}
-                                        formatter={(value: any) => value?.toLocaleString('pt-BR')}
-                                    />
-                                    <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={32}>
-                                        {mediaPrensaChartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.fill} />)}
-                                        <LabelList dataKey="value" position="insideRight" offset={10} fill="#374151" fontSize={16} fontWeight="bold" formatter={(val: any) => val?.toLocaleString('pt-BR')} />
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
+                        <div className="w-full h-[250px] xl:h-full xl:flex-1 p-2">
+                            {isMounted ? (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart layout="vertical" data={mediaPrensaChartData} margin={{ top: 0, right: 30, left: 10, bottom: 0 }}>
+                                        <XAxis type="number" hide />
+                                        <YAxis type="category" dataKey="name" width={110} tick={{ fill: '#374151', fontSize: 13, fontWeight: 700 }} tickLine={false} axisLine={false} />
+                                        <Tooltip
+                                            cursor={{ fill: 'rgba(168, 230, 207, 0.2)' }}
+                                            contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: '12px', border: '1px solid #2563eb', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', padding: '12px' }}
+                                            itemStyle={{ color: '#374151', fontWeight: 'bold' }}
+                                            labelStyle={{ display: 'none' }}
+                                            formatter={(value: any) => value?.toLocaleString('pt-BR')}
+                                        />
+                                        <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={32}>
+                                            {mediaPrensaChartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.fill} />)}
+                                            <LabelList dataKey="value" position="insideRight" offset={10} fill="#374151" fontSize={16} fontWeight="bold" formatter={(val: any) => val?.toLocaleString('pt-BR')} />
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <div className="flex h-full items-center justify-center text-muted-foreground">Carregando...</div>
+                            )}
                         </div>
                     </div>
                     {/* BOTTOM CHART: Média Prod x Venda x Fat */}
-                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col h-[180px] xl:h-auto">
+                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col h-[250px] xl:h-auto">
                         <div className="bg-[#2563eb] text-white py-1 px-3 text-center font-bold text-sm xl:text-base uppercase tracking-wide shadow-md">
                             <BarChart3 className="w-4 h-4 xl:w-5 xl:h-5 inline-block mr-2 text-white" />
                             Média Prod x Venda x Fat
                         </div>
-                        <div className="flex-1 p-2">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 30 }}>
-                                    <XAxis
-                                        dataKey="name"
-                                        axisLine={false}
-                                        tickLine={false}
-                                        tick={{ fill: '#374151', fontSize: 18, fontWeight: 700 }}
-                                        dy={10}
-                                    />
-                                    <Tooltip
-                                        cursor={{ fill: 'rgba(168, 230, 207, 0.2)' }}
-                                        contentStyle={{
-                                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                                            borderRadius: '12px',
-                                            border: '1px solid #2563eb',
-                                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                                            padding: '12px'
-                                        }}
-                                        itemStyle={{ color: '#374151', fontWeight: 'bold' }}
-                                        labelStyle={{ color: '#0f3460', fontWeight: 'bold' }}
-                                        formatter={(value: any) => value?.toLocaleString('pt-BR')}
-                                    />
-                                    <Bar dataKey="value" radius={[6, 6, 0, 0]}>
-                                        {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.fill} />)}
-                                        <LabelList dataKey="value" position="insideTop" offset={10} fill="#374151" fontSize={16} fontWeight="bold" formatter={(val: any) => val?.toLocaleString('pt-BR')} />
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
+                        <div className="w-full h-[200px] xl:h-full xl:flex-1 p-2">
+                            {isMounted ? (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 30 }}>
+                                        <XAxis
+                                            dataKey="name"
+                                            axisLine={false}
+                                            tickLine={false}
+                                            tick={{ fill: '#374151', fontSize: 18, fontWeight: 700 }}
+                                            dy={10}
+                                        />
+                                        <Tooltip
+                                            cursor={{ fill: 'rgba(168, 230, 207, 0.2)' }}
+                                            contentStyle={{
+                                                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                                                borderRadius: '12px',
+                                                border: '1px solid #2563eb',
+                                                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                                                padding: '12px'
+                                            }}
+                                            itemStyle={{ color: '#374151', fontWeight: 'bold' }}
+                                            labelStyle={{ color: '#0f3460', fontWeight: 'bold' }}
+                                            formatter={(value: any) => value?.toLocaleString('pt-BR')}
+                                        />
+                                        <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                                            {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.fill} />)}
+                                            <LabelList dataKey="value" position="insideTop" offset={10} fill="#374151" fontSize={16} fontWeight="bold" formatter={(val: any) => val?.toLocaleString('pt-BR')} />
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <div className="flex h-full items-center justify-center text-muted-foreground">Carregando...</div>
+                            )}
                         </div>
                     </div>
                 </div>
 
                 {/* COLUMN 3: New Charts (Recebimento & Estoque) */}
-                <div className="w-full xl:flex-1 flex flex-col gap-2 h-full">
+                <div className="w-full xl:flex-1 flex flex-col gap-2 h-auto xl:h-full">
 
                     {/* CHART 1: Recebimento RAP */}
-                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col gap-3 h-[180px] xl:h-auto">
+                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col gap-3 h-auto min-h-[180px] xl:h-auto">
                         <div className="bg-[#2563eb] text-white py-1 xl:py-2 px-2 xl:px-3 text-center font-bold text-sm xl:text-base uppercase flex items-center justify-center gap-2 tracking-wide shadow-md shrink-0">
                             <Box className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Recebimento RAP
                         </div>
@@ -677,7 +691,7 @@ export default function ProducaoPage() {
                     </div>
 
                     {/* CHART 2: Estoque Fund. x Alum. */}
-                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col gap-3 h-[180px] xl:h-auto">
+                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col gap-3 h-auto min-h-[180px] xl:h-auto">
                         <div className="bg-[#2563eb] text-white py-1 xl:py-2 px-2 xl:px-3 text-center font-bold text-sm xl:text-base uppercase flex items-center justify-center gap-2 tracking-wide shadow-md shrink-0">
                             <Layers className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Estoque Fund. x Alum.
                         </div>
@@ -715,7 +729,7 @@ export default function ProducaoPage() {
             </div>
 
             {/* Footer Sync Bar - Mobile Only as requested (No Calendar/Meta info) */}
-            <div className="w-full bg-[#1e1e1e] text-white py-1 px-4 flex justify-between items-center text-xs xl:hidden mt-2 rounded-t-lg">
+            <div className="w-full bg-[#1e1e1e] text-white py-2 px-4 flex justify-between items-center text-xs xl:hidden mt-4 mb-4 rounded-lg shadow-md mx-2 w-[calc(100%-1rem)]">
                 <div className="flex gap-4">
                     {/* Calendar/Meta info hidden per request, showing Sync status or static text */}
                     <span>Última Sincronização: {syncDate} {syncTime}</span>

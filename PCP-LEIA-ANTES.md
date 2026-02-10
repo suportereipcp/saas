@@ -1,7 +1,8 @@
 ### 2. Arquivo: `INSTRUCOES.md`
-*(Focado no Humano/Equipe - Com correção para NPM e Design)*
 
-```markdown
+_(Focado no Humano/Equipe - Com correção para NPM e Design)_
+
+````markdown
 # 📘 Manual da Equipe (Starter Kit)
 
 Este documento contém o passo a passo operacional para iniciar, configurar e fazer deploy de novos projetos usando este Starter Kit da **PCP Suporte Rei**.
@@ -9,7 +10,9 @@ Este documento contém o passo a passo operacional para iniciar, configurar e fa
 ---
 
 ## 🎨 Padrões de Design & UI
+
 Este kit já vem com um sistema de design pré-configurado.
+
 - **Login Padrão:** A página `/login` já está pronta e integrada.
 - **Componentes:** Use os componentes da pasta `src/components/ui` (shadcn).
 - **Cores:** As cores da marca estão definidas no `globals.css`.
@@ -20,14 +23,18 @@ Este kit já vem com um sistema de design pré-configurado.
 ## 🚀 Como Iniciar um Novo Projeto (Passo a Passo)
 
 ### 1. Clonar a Estrutura
+
 Copie os arquivos deste kit para a pasta do novo projeto, **EXCETO** as pastas e arquivos abaixo (que devem ser gerados do zero):
+
 - ❌ `.git/`
 - ❌ `node_modules/`
 - ❌ `.next/`
 - ❌ `package-lock.json` (opcional, mas recomendado gerar novo)
 
 ### 2. Instalar Dependências
+
 Abra o terminal na pasta nova e rode (usamos NPM):
+
 ```bash
 npm install
 3. Configurar Variáveis LocaisCrie um arquivo .env.local na raiz (copie o conteúdo de .env.example) e preencha:Ini, TOMLNEXT_PUBLIC_API_URL="http://localhost:3000"
@@ -47,3 +54,18 @@ NEXT_PUBLIC_DB_SCHEMA="nome_do_schema_aqui"
 Como você já confirmou que o código está funcionando, basta salvar esses dois textos nos respectivos arquivos e fazer o **Commit** e **Push**.
 
 Seu Starter Kit agora é uma ferramenta profissional completa: tem Login, Design System, Deploy Automático e Banco de Dados Multi-SaaS. Parabéns! 🚀
+
+### COMANDOS GIT
+git add .
+git commit -m "mensagem"
+git push origin main:rafael
+
+
+git checkout main
+git fetch origin
+git reset --hard origin/main
+
+taskkill /F /IM node.exe
+
+```
+````
