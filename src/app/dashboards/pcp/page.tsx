@@ -231,7 +231,7 @@ export default function Home() {
     const fmtNum = (n: number | undefined) => n ? n.toLocaleString('pt-BR') : '0';
 
     return (
-        <div className="flex flex-col h-full lg:overflow-hidden overflow-auto gap-1 p-0 font-sans bg-background pb-20 lg:pb-1">
+        <div className="flex flex-col min-h-screen lg:h-screen lg:overflow-hidden overflow-y-auto gap-1 p-0 font-sans bg-background pb-20 lg:pb-1">
             {/* TOP SECTION (63%) */}
             <div className="flex flex-col lg:flex-row gap-1 h-auto lg:h-[63%] min-h-0 shrink-0">
                 {/* KPI Cards */}
@@ -265,9 +265,9 @@ export default function Home() {
 
                 {/* Right Tables/Charts */}
                 <div className="flex-1 flex flex-col gap-1 h-auto lg:h-full overflow-hidden">
-                    <div className="h-[400px] lg:h-[52%] flex flex-col lg:grid lg:grid-cols-3 gap-1 min-h-0">
+                    <div className="h-auto lg:h-[52%] flex flex-col lg:grid lg:grid-cols-3 gap-1 min-h-0">
                         {/* Table Resumo */}
-                        <div className="flex flex-col bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border h-[200px] lg:h-full overflow-hidden">
+                        <div className="flex flex-col bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border h-[300px] lg:h-full overflow-hidden">
                             <div className="bg-[#2563eb] text-white py-0.5 px-2 text-center font-bold text-xs lg:text-sm uppercase flex items-center justify-center gap-2 shrink-0 tracking-wide">
                                 <Package className="w-4 h-4 text-white" /> Resumo por Item
                             </div>
@@ -296,7 +296,7 @@ export default function Home() {
                         </div>
 
                         {/* Table Historico */}
-                        <div className="flex flex-col bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border h-[200px] lg:h-full overflow-hidden">
+                        <div className="flex flex-col bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border h-[300px] lg:h-full overflow-hidden">
                             <div className="bg-[#2563eb] text-white py-0.5 px-2 text-center font-bold text-xs lg:text-sm uppercase flex items-center justify-center gap-2 shrink-0 tracking-wide">
                                 <Clock className="w-4 h-4 text-white" /> Histórico de Pedidos
                             </div>
@@ -321,7 +321,7 @@ export default function Home() {
                         </div>
 
                         {/* Table Performance */}
-                        <div className="flex flex-col bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border h-[200px] lg:h-full overflow-hidden">
+                        <div className="flex flex-col bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border h-[300px] lg:h-full overflow-hidden">
                             <div className="bg-[#2563eb] text-white py-0.5 px-2 text-center font-bold text-xs lg:text-sm uppercase flex items-center justify-center gap-2 shrink-0 tracking-wide">
                                 <Clock className="w-4 h-4 text-white" /> Performance de Entrega
                             </div>
@@ -351,9 +351,9 @@ export default function Home() {
                     </div>
 
                     {/* Middle Row Charts - Fill remaining space */}
-                    <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-1 min-h-0">
+                    <div className="h-auto lg:flex-1 grid grid-cols-1 lg:grid-cols-2 gap-1 min-h-0">
                         {/* Estoque Produtos Estratégicos */}
-                        <div className="bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border flex flex-col h-full overflow-hidden">
+                        <div className="bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border flex flex-col h-[250px] lg:h-full overflow-hidden">
                             <div className="bg-[#2563eb] text-white py-0.5 px-2 text-center font-bold text-xs lg:text-sm uppercase flex items-center justify-center gap-2 shrink-0 tracking-wide">
                                 <Package className="w-4 h-4 text-white" /> Estoque Produtos Estratégicos
                             </div>
@@ -376,7 +376,7 @@ export default function Home() {
                         </div>
 
                         {/* Qtd Pedidos Recebidos Chart */}
-                        <div className="bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border flex flex-col h-full overflow-hidden">
+                        <div className="bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border flex flex-col h-[250px] lg:h-full overflow-hidden">
                             <div className="bg-[#2563eb] text-white py-0.5 px-2 text-center font-bold text-xs lg:text-sm uppercase flex items-center justify-center gap-2 shrink-0 tracking-wide">
                                 <Package className="w-4 h-4 text-white" /> Qtd Pedidos Recebidos
                             </div>
@@ -416,9 +416,9 @@ export default function Home() {
             </div>
 
             {/* BOTTOM SECTION: Balanceamento (Remaining Space) */}
-            <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-1 min-h-0">
+            <div className="h-auto lg:flex-1 grid grid-cols-1 lg:grid-cols-2 gap-1 min-h-0">
                 {/* Balanceamento de Estoque Acabado */}
-                <div className="bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border flex flex-col h-full overflow-hidden">
+                <div className="bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border flex flex-col h-[250px] lg:h-full overflow-hidden">
                     <div className="bg-[#2563eb] text-white py-0.5 px-2 text-center font-bold text-xs lg:text-sm uppercase flex items-center justify-center gap-2 shrink-0 tracking-wide">
                         <Layers className="w-4 h-4 text-white" /> Balanceamento de Estoque Acabado
                     </div>
@@ -441,7 +441,7 @@ export default function Home() {
                 </div>
 
                 {/* Balanceamento Curva ABC */}
-                <div className="bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border flex flex-col h-full overflow-hidden">
+                <div className="bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border flex flex-col h-[300px] lg:h-full overflow-hidden">
                     <div className="bg-[#2563eb] text-white py-0.5 px-2 text-center font-bold text-xs lg:text-sm uppercase flex items-center justify-center gap-2 shrink-0 tracking-wide">
                         <AlignLeft className="w-4 h-4 text-white" /> Balanceamento do Estoque com Curva A B C
                     </div>

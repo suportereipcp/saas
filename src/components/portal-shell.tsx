@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { PortalSidebar, SidebarLink } from "@/components/portal-sidebar";
 import { PortalMobileNav } from "@/components/portal-mobile-nav";
 import { SidebarInset, SidebarProvider, useSidebar } from "@/components/ui/sidebar";
@@ -28,6 +28,17 @@ function MobileTrigger() {
 }
 
 export function PortalShell({ children, userEmail, userName, links, defaultOpen = true, hideHeader = false, fullWidth = false }: PortalShellProps) {
+    // Hydration fix: SidebarProvider uses local storage which mismatches server defaultOpen=true
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
+    if (!isMounted) {
+        return <div className="h-screen w-full bg-slate-100 animate-pulse" />;
+    }
+
     return (
         <SidebarProvider defaultOpen={defaultOpen} className="bg-slate-100 p-2 md:p-3 gap-2 md:gap-3 h-screen overflow-hidden">
             <Suspense fallback={<div className="w-[--sidebar-width] bg-[#68D9A6] h-full" />}>

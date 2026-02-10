@@ -36,7 +36,7 @@ export function UserNav({ userEmail, userName }: UserNavProps) {
                     </span>
                     {/* Avatar on the Right */}
                     <Avatar className="h-9 w-9 border-2 border-white/20">
-                        <AvatarImage src="/avatars/01.png" alt={userName || "User"} />
+                        <AvatarImage src="" alt={userName || "User"} />
                         <AvatarFallback className="bg-purple-600 text-white font-bold">{initials}</AvatarFallback>
                     </Avatar>
                 </button>
