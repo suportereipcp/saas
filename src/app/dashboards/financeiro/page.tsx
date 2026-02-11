@@ -5,7 +5,7 @@ import { createBrowserClient } from '@supabase/ssr';
 import { calculateWorkingDays } from "@/utils/paineis/calendar";
 import { startOfMonth, endOfMonth, isSameMonth, isYesterday, parseISO, format } from "date-fns";
 
-import { Target, TrendingUp, TrendingDown, Briefcase, Calendar, Percent, ArrowDown, ArrowUp, BarChart3, PieChart as PieChartIcon } from "lucide-react";
+import { Target, TrendingUp, TrendingDown, Briefcase, Calendar, Percent, ArrowDown, ArrowUp, BarChart3, PieChart as PieChartIcon, DollarSign, CheckCircle2 } from "lucide-react";
 import AnimatedCounter from "@/components/paineis/AnimatedCounter";
 import AnimatedProgressBar from "@/components/paineis/AnimatedProgressBar";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
@@ -282,15 +282,27 @@ export default function FinanceiroPage() {
         });
     }, [finStats, holidays, halfDays, dollarRate]);
 
+    const mediaFatAtualVal = dailyData.length > 0 ? finStats.fatMensal / dailyData.length : 0;
+
+    // Abbreviated currency formatter (e.g., R$ 12,8M)
+    const fmtShort = (v: number) => {
+        const abs = Math.abs(v);
+        if (abs >= 1_000_000) return `R$ ${(v / 1_000_000).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M`;
+        if (abs >= 1_000) return `R$ ${(v / 1_000).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}K`;
+        return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    };
+    const fmtFull = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
     const cards = [
-        { label: "Falta Atingir", value: Math.max(0, finStats.metaGlobal - finStats.fatMensal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: Target, bg: "bg-white", border: "border-[#2563eb]", text: "text-[#374151]" },
-        { label: "Projeção (R$)", value: calculations.projecaoFat.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: TrendingUp, bg: "bg-white", border: "border-[#2563eb]", text: "text-[#374151]" },
+        { label: "Meta de Fat.", value: fmtFull(finStats.metaGlobal), icon: DollarSign, bg: "bg-white", border: "border-[#2563eb]", text: "text-[#374151]" },
+        { label: "Realizado", value: fmtFull(finStats.fatMensal), icon: CheckCircle2, bg: "bg-white", border: "border-[#22c55e]", text: "text-[#374151]" },
+        { label: "Falta Atingir", value: fmtFull(Math.max(0, finStats.metaGlobal - finStats.fatMensal)), icon: Target, bg: "bg-white", border: "border-[#ef4444]", text: "text-[#374151]" },
+        { label: "Projeção (R$)", value: fmtFull(calculations.projecaoFat), icon: TrendingUp, bg: "bg-white", border: "border-[#2563eb]", text: "text-[#374151]" },
         { label: "Projeção (%)", value: `${calculations.projecaoPercent.toFixed(2)}%`, icon: Percent, bg: "bg-white", border: "border-[#ef4444]", text: "text-[#374151]" },
-        { label: "Carteira Pedidos MI", value: finStats.carteiraMI.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: Briefcase, bg: "bg-white", border: "border-[#2563eb]", text: "text-[#374151]" },
-        { label: "Carteira Pedidos ME", value: (finStats.carteiraME * dollarRate).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: Briefcase, bg: "bg-white", border: "border-[#2563eb]", text: "text-[#374151]" },
-        { label: "Faturamento Ontem", value: finStats.fatOntem.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: Calendar, bg: "bg-white", border: "border-[#2563eb]", text: "text-[#374151]" },
-        { label: "Média Fat. Necessária", value: calculations.mediaFatNecessaria.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: TrendingDown, bg: "bg-white", border: "border-[#ef4444]", text: "text-[#374151]" },
-        { label: "Média Vendas Necessária", value: calculations.mediaVendasNecessaria.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: TrendingDown, bg: "bg-white", border: "border-[#2563eb]", text: "text-[#374151]" },
+        { label: "Méd. Fat. Atual", value: fmtFull(mediaFatAtualVal), icon: BarChart3, bg: "bg-white", border: "border-[#2563eb]", text: "text-[#374151]" },
+        { label: "Méd. Fat. Nec.", value: fmtFull(calculations.mediaFatNecessaria), icon: TrendingDown, bg: "bg-white", border: "border-[#ef4444]", text: "text-[#374151]" },
+        { label: "Fat. Ontem", value: fmtFull(finStats.fatOntem), icon: Calendar, bg: "bg-white", border: "border-[#2563eb]", text: "text-[#374151]" },
+        { label: "Méd. Vend. Nec.", value: fmtFull(calculations.mediaVendasNecessaria), icon: TrendingDown, bg: "bg-white", border: "border-[#2563eb]", text: "text-[#374151]" },
     ];
 
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
@@ -313,167 +325,202 @@ export default function FinanceiroPage() {
     }, [dailyData, sortConfig]);
 
     return (
-        <div className="flex flex-col h-full w-full gap-4 p-0 overflow-auto xl:overflow-hidden font-sans">
-            {/* Same Top Row */}
-            <div className="shrink-0 h-auto xl:h-[140px] grid grid-cols-2 sm:grid-cols-4 2xl:grid-cols-8 gap-3 xl:gap-4">
-                {cards.map((card, idx) => (
-                    <div key={idx} className={`${card.bg} backdrop-blur border-b-4 ${card.border} rounded-xl p-2 xl:p-3 shadow-lg relative overflow-hidden group flex flex-col justify-between h-[100px] xl:h-full hover:scale-[1.02] transition-transform duration-300`}>
-                        <div className="flex justify-between items-start relative z-10 w-full">
-                            <span className="font-bold text-xs xl:text-sm opacity-90 uppercase tracking-widest truncate pr-2 text-muted-foreground" title={card.label}>{card.label}</span>
-                            <card.icon className="w-5 h-5 xl:w-6 xl:h-6 shrink-0 opacity-80 text-primary" />
+        <div className="flex flex-col xl:grid xl:grid-cols-[45%_1fr] xl:grid-rows-[auto_1fr] h-full w-full gap-3 p-0 overflow-auto xl:overflow-hidden font-sans">
+
+            {/* ================= 1. CARDS (top-left on xl) ================= */}
+            <div className="xl:col-start-1 xl:row-start-1 shrink-0">
+                <div className="grid grid-cols-2 xl:grid-cols-3 gap-2 xl:gap-3 content-start">
+                    {cards.map((card, idx) => (
+                        <div key={idx} className={`${card.bg} backdrop-blur border-b-4 ${card.border} rounded-xl p-2 xl:p-4 shadow-lg relative overflow-hidden group flex flex-col justify-between min-h-[72px] xl:min-h-0 xl:h-auto hover:scale-[1.02] transition-transform duration-300`}>
+                            <div className="flex justify-between items-start relative z-10 w-full">
+                                <span className="font-bold text-[10px] xl:text-sm opacity-90 uppercase tracking-wider truncate pr-1 text-muted-foreground" title={card.label}>{card.label}</span>
+                                <card.icon className="w-4 h-4 xl:w-6 xl:h-6 shrink-0 opacity-80 text-primary" />
+                            </div>
+                            <div className="relative z-10">
+                                <span className="text-sm xl:text-lg 2xl:text-xl font-bold tracking-tight block truncate drop-shadow-sm text-[#374151]" title={card.value}>{card.value}</span>
+                            </div>
                         </div>
-                        <div className="relative z-10">
-                            <span className="text-base xl:text-lg 2xl:text-xl font-bold tracking-tight block truncate drop-shadow-sm text-[#374151]" title={card.value}>{card.value}</span>
-                        </div>
-                    </div>
-                ))}
+                    ))}
+                </div>
             </div>
 
-            {/* BOTTOM START */}
-            <div className="flex-1 flex flex-col xl:flex-row gap-4 min-h-0 h-auto">
+            {/* ================= RIGHT COLUMN: All charts (xl: col 2, spans full height) ================= */}
+            <div className="xl:col-start-2 xl:row-start-1 xl:row-span-2 flex flex-col gap-3 xl:h-full xl:min-h-0 xl:overflow-hidden">
 
-                {/* LEFT: Daily Table (45%) */}
-                <div className="w-full xl:w-[45%] bg-card/95 backdrop-blur rounded-xl shadow-lg border border-border overflow-hidden flex flex-col h-[400px] xl:h-auto">
-                    {/* ... Header ... */}
-                    <div className="bg-[#2563eb] text-white py-2 xl:py-3 px-3 xl:px-4 grid grid-cols-4 gap-2 font-bold text-xs xl:text-sm uppercase items-center sticky top-0 z-20 tracking-wide shadow-md cursor-pointer">
-                        <div className="flex items-center justify-center gap-2 hover:text-[#bfdbfe] transition-colors" onClick={() => handleSort('date')}>
-                            Data {sortConfig?.key === 'date' && (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-white" /> : <ArrowDown className="w-3 h-3 text-white" />)}
+            {/* Desdobramento Faturamento */}
+            <div className="shrink-0 xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col">
+                <div className="bg-[#2563eb] text-white py-1 px-3 text-center font-bold text-xs xl:text-lg uppercase tracking-wide shadow-md flex items-center justify-center gap-2">
+                    <PieChartIcon className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Desdobramento Faturamento
+                </div>
+                <div className="flex-1 flex">
+                    {/* Bar 1: Mercado Interno */}
+                    <div className="flex-1 flex flex-col items-center justify-center p-2 xl:p-3 border-r border-border">
+                        <span className="text-[#374151] font-bold text-[10px] xl:text-lg mb-0.5 xl:mb-1 uppercase tracking-tight">Mercado Interno</span>
+                        <AnimatedCounter
+                            value={finStats.metaMI > 0 ? (finStats.fatMI / finStats.metaMI) * 100 : 0}
+                            format="percent"
+                            className="text-3xl xl:text-5xl font-black text-[#374151] drop-shadow-sm leading-none mb-0.5 xl:mb-1"
+                        />
+                        <div className="w-full max-w-[140px] xl:max-w-[80%]">
+                            <AnimatedProgressBar value={finStats.metaMI > 0 ? (finStats.fatMI / finStats.metaMI) * 100 : 0} height="h-2 xl:h-4" colorClass="bg-[#2563eb]" />
                         </div>
-                        <div className="text-center hover:text-[#bfdbfe] transition-colors flex justify-center gap-1" onClick={() => handleSort('fatNum')}>
-                            Faturamento {sortConfig?.key === 'fatNum' && (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-white" /> : <ArrowDown className="w-3 h-3 text-white" />)}
+                        <div className="w-full max-w-[140px] xl:max-w-[80%] flex justify-between text-[8px] xl:text-sm text-foreground mt-1 xl:mt-2 font-medium">
+                            <span className="text-[#374151] font-bold">Meta: {finStats.metaMI.toLocaleString('pt-BR', { notation: "standard", maximumFractionDigits: 0 })}</span>
+                            <span className="text-[#374151] font-bold">{finStats.fatMI.toLocaleString('pt-BR', { notation: "standard", maximumFractionDigits: 0 })}</span>
                         </div>
-                        <div className="text-center hover:text-[#bfdbfe] transition-colors flex justify-center gap-1" onClick={() => handleSort('vendNum')}>
-                            Vendas {sortConfig?.key === 'vendNum' && (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-white" /> : <ArrowDown className="w-3 h-3 text-white" />)}
-                        </div>
-                        <div className="text-center">+/-</div>
                     </div>
-                    <div className="flex-1 overflow-auto custom-scrollbar bg-card">
-                        <table className="w-full text-xs xl:text-sm text-[#374151] font-sans">
-                            <tbody className="divide-y divide-border/50">
-                                {sortedTableData.map((row, i) => (
-                                    <tr key={i} className={`hover:bg-primary/5 transition-colors ${i % 2 === 0 ? 'bg-card' : 'bg-muted/20'}`}>
-                                        <td className="py-1 xl:py-2 px-2 xl:px-4 text-center font-bold text-[#374151]">{row.date}</td>
-                                        <td className="py-1 xl:py-2 px-2 xl:px-4 text-center font-medium text-[#374151]">{row.fat}</td>
-                                        <td className="py-1 xl:py-2 px-2 xl:px-4 text-center font-medium text-[#374151]">{row.vend}</td>
-                                        <td className="py-1 xl:py-2 px-2 xl:px-4 text-center flex justify-center">
-                                            {row.trend === 'up' ? <ArrowUp className="w-3 h-3 xl:w-4 xl:h-4 text-green-500" /> : <ArrowDown className="w-3 h-3 xl:w-4 xl:h-4 text-destructive" />}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                    {/* ... Footer ... */}
-                    <div className="bg-[#2563eb] text-white border-t border-border py-2 xl:py-3 px-2 xl:px-4 grid grid-cols-4 gap-2 text-xs xl:text-sm sticky bottom-0 z-20 shadow-[-10px]">
-                        <div className="font-bold text-white uppercase flex flex-col justify-center text-center"><span>Total</span><span>Média</span></div>
-                        <div className="text-center flex flex-col font-bold text-white"><span>{finStats.fatMensal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span><span>{(finStats.fatMensal / Math.max(1, dailyData.length)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
-                        <div className="text-center flex flex-col font-bold text-white"><span>{finStats.vendasMensal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span><span>{(finStats.vendasMensal / Math.max(1, dailyData.length)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
-                        <div></div>
+                    {/* Bar 2: Mercado Externo */}
+                    <div className="flex-1 flex flex-col items-center justify-center p-2 xl:p-3">
+                        <span className="text-[#374151] font-bold text-[10px] xl:text-lg mb-0.5 xl:mb-1 uppercase tracking-tight">Mercado Externo</span>
+                        <AnimatedCounter
+                            value={finStats.metaME > 0 ? (finStats.fatME / finStats.metaME) * 100 : 0}
+                            format="percent"
+                            className="text-3xl xl:text-5xl font-black text-[#374151] drop-shadow-sm leading-none mb-0.5 xl:mb-1"
+                        />
+                        <div className="w-full max-w-[140px] xl:max-w-[80%]">
+                            <AnimatedProgressBar value={finStats.metaME > 0 ? (finStats.fatME / finStats.metaME) * 100 : 0} height="h-2 xl:h-4" colorClass="bg-[#2563eb]" />
+                        </div>
+                        <div className="w-full max-w-[140px] xl:max-w-[80%] flex justify-between text-[8px] xl:text-sm text-foreground mt-1 xl:mt-2 font-medium">
+                            <span className="text-[#374151] font-bold">Meta: {finStats.metaME.toLocaleString('pt-BR', { notation: "standard", maximumFractionDigits: 0 })}</span>
+                            <span className="text-[#374151] font-bold">{finStats.fatME.toLocaleString('pt-BR', { notation: "standard", maximumFractionDigits: 0 })}</span>
+                        </div>
                     </div>
                 </div>
+            </div>
 
-                {/* RIGHT: Charts (55%) */}
-                <div className="w-full xl:flex-1 flex flex-col gap-3 h-auto">
-
-                    {/* UPPER: Desdobramento Faturamento (Linear Bars) */}
-                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col h-[180px] xl:h-auto">
-                        <div className="bg-[#2563eb] text-white py-1 px-3 text-center font-bold text-sm xl:text-lg uppercase tracking-wide shadow-md flex items-center justify-center gap-2">
-                            <PieChartIcon className="w-5 h-5 text-white" /> Desdobramento Faturamento
+            {/* Faturamento Total */}
+            <div className="shrink-0 xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col">
+                <div className="bg-[#2563eb] text-white py-1 px-3 text-center font-bold text-xs xl:text-lg uppercase tracking-wide shadow-md flex items-center justify-center gap-2">
+                    <BarChart3 className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Faturamento Total
+                </div>
+                <div className="flex-1 flex flex-col items-center justify-center p-2 xl:p-3">
+                    <div className="flex flex-col items-center w-full">
+                        <AnimatedCounter
+                            value={(finStats.fatMensal / finStats.metaGlobal) * 100}
+                            format="percent"
+                            className="text-4xl xl:text-6xl font-black text-[#374151] drop-shadow-md leading-none mb-1"
+                        />
+                        <div className="w-full max-w-[240px] xl:max-w-[80%] mb-2">
+                            <AnimatedProgressBar value={(finStats.fatMensal / finStats.metaGlobal) * 100} height="h-3 xl:h-5" colorClass="bg-[#2563eb]" />
                         </div>
-                        <div className="flex-1 flex">
-                            {/* Bar 1: Mercado Interno */}
-                            <div className="flex-1 flex flex-col items-center justify-center p-2 border-r border-border">
-                                <span className="text-[#374151] font-bold text-xs xl:text-lg mb-1 uppercase tracking-tight">Mercado Interno</span>
-                                <AnimatedCounter
-                                    value={finStats.metaMI > 0 ? (finStats.fatMI / finStats.metaMI) * 100 : 0}
-                                    format="percent"
-                                    className="text-5xl xl:text-6xl font-black text-[#374151] drop-shadow-sm leading-none mb-1"
-                                />
-                                <div className="w-full max-w-[200px] xl:max-w-[80%]">
-                                    <AnimatedProgressBar value={finStats.metaMI > 0 ? (finStats.fatMI / finStats.metaMI) * 100 : 0} height="h-3 xl:h-4" colorClass="bg-[#2563eb]" />
-                                </div>
-                                <div className="w-full max-w-[200px] xl:max-w-[80%] flex justify-between text-[9px] xl:text-sm text-foreground mt-2 font-medium">
-                                    <span className="text-[#374151] font-bold">Meta: {finStats.metaMI.toLocaleString('pt-BR', { notation: "standard", maximumFractionDigits: 0 })}</span>
-                                    <span className="text-[#374151] font-bold">{finStats.fatMI.toLocaleString('pt-BR', { notation: "standard", maximumFractionDigits: 0 })}</span>
-                                </div>
+                        <div className="w-full max-w-[260px] xl:max-w-[80%] flex justify-between text-[10px] xl:text-base text-[#374151] font-bold px-1 gap-2">
+                            <div className="flex flex-col items-start bg-muted px-2 xl:px-3 py-1 rounded-lg border border-border min-w-0">
+                                <span className="text-[8px] xl:text-xs text-muted-foreground uppercase">Meta Global</span>
+                                <span className="text-[10px] xl:text-sm font-bold text-[#374151] truncate">{finStats.metaGlobal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                             </div>
-                            {/* Bar 2: Mercado Externo */}
-                            <div className="flex-1 flex flex-col items-center justify-center p-2">
-                                <span className="text-[#374151] font-bold text-xs xl:text-lg mb-1 uppercase tracking-tight">Mercado Externo</span>
-                                <AnimatedCounter
-                                    value={finStats.metaME > 0 ? (finStats.fatME / finStats.metaME) * 100 : 0}
-                                    format="percent"
-                                    className="text-5xl xl:text-6xl font-black text-[#374151] drop-shadow-sm leading-none mb-1"
-                                />
-                                <div className="w-full max-w-[200px] xl:max-w-[80%]">
-                                    <AnimatedProgressBar value={finStats.metaME > 0 ? (finStats.fatME / finStats.metaME) * 100 : 0} height="h-3 xl:h-4" colorClass="bg-[#2563eb]" />
-                                </div>
-                                <div className="w-full max-w-[200px] xl:max-w-[80%] flex justify-between text-[9px] xl:text-sm text-foreground mt-2 font-medium">
-                                    <span className="text-[#374151] font-bold">Meta: {finStats.metaME.toLocaleString('pt-BR', { notation: "standard", maximumFractionDigits: 0 })}</span>
-                                    <span className="text-[#374151] font-bold">{finStats.fatME.toLocaleString('pt-BR', { notation: "standard", maximumFractionDigits: 0 })}</span>
-                                </div>
+                            <div className="flex flex-col items-end bg-[#a8e6cf]/20 px-2 xl:px-3 py-1 rounded-lg border border-[#a8e6cf]/50 min-w-0">
+                                <span className="text-[8px] xl:text-xs text-[#374151] uppercase">Realizado</span>
+                                <span className="text-[10px] xl:text-sm font-bold text-[#374151] truncate">{finStats.fatMensal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
 
-                    {/* MIDDLE: Faturamento Total (Linear Bar) */}
-                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col h-[180px] xl:h-auto">
-                        <div className="bg-[#2563eb] text-white py-1 px-3 text-center font-bold text-sm xl:text-lg uppercase tracking-wide shadow-md flex items-center justify-center gap-2">
-                            <BarChart3 className="w-5 h-5 text-white" /> Faturamento Total
-                        </div>
-                        <div className="flex-1 flex flex-col items-center justify-center p-2">
-                            <div className="flex flex-col items-center w-full">
-                                <AnimatedCounter
-                                    value={(finStats.fatMensal / finStats.metaGlobal) * 100}
-                                    format="percent"
-                                    className="text-6xl xl:text-7xl font-black text-[#374151] drop-shadow-md leading-none mb-1"
-                                />
-                                <div className="w-full max-w-[280px] xl:max-w-[90%] mb-2">
-                                    <AnimatedProgressBar value={(finStats.fatMensal / finStats.metaGlobal) * 100} height="h-4 xl:h-5" colorClass="bg-[#2563eb]" />
-                                </div>
-                                <div className="w-full max-w-[280px] xl:max-w-[90%] flex justify-between text-xs xl:text-base text-[#374151] font-bold px-1">
-                                    <div className="flex flex-col items-start bg-muted px-3 py-1 rounded-lg border border-border">
-                                        <span className="text-[10px] xl:text-xs text-muted-foreground uppercase">Meta Global</span>
-                                        <AnimatedCounter value={finStats.metaGlobal} format="currency" className="text-[#374151]" decimals={2} />
-                                    </div>
-                                    <div className="flex flex-col items-end bg-[#a8e6cf]/20 px-3 py-1 rounded-lg border border-[#a8e6cf]/50 text-[#374151]">
-                                        <span className="text-[10px] xl:text-xs text-[#374151] uppercase">Realizado</span>
-                                        <AnimatedCounter value={finStats.fatMensal} format="currency" className="text-[#374151]" decimals={2} />
-                                    </div>
+            {/* Desdobramento Carteira MI */}
+            <div className="shrink-0 xl:flex-[3] bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col xl:min-h-0">
+                <div className="bg-[#2563eb] text-white py-1 px-3 text-center font-bold text-xs xl:text-base uppercase tracking-wide shadow-md flex items-center justify-center gap-2">
+                    <Briefcase className="w-4 h-4 text-white" /> Desdobramento Carteira MI
+                </div>
+                <div className="flex-1 p-2 xl:p-4 flex flex-col justify-evenly gap-1 xl:gap-0 overflow-y-auto custom-scrollbar">
+                    {walletBreakdown.map((item: any, i: number) => {
+                        const maxVal = Math.max(...walletBreakdown.map((w: any) => w.value), 1);
+                        const pct = Math.max((item.value / maxVal) * 100, 1.5);
+                        return (
+                            <div key={i} className="flex items-center gap-1 xl:gap-2">
+                                <span className="w-20 xl:w-40 text-right pr-1 font-bold text-[#374151] text-[9px] xl:text-sm truncate shrink-0 uppercase tracking-tight" title={item.name}>{item.name}</span>
+                                <div className="flex-1 h-6 xl:h-10 bg-muted/40 rounded-lg relative flex items-center">
+                                    <div
+                                        style={{ width: `${pct}%`, backgroundColor: item.fill }}
+                                        className="h-full rounded-lg shadow-sm flex items-center transition-all duration-500"
+                                    />
+                                    <span className="ml-1 xl:ml-2 text-[#374151] font-bold text-[9px] xl:text-sm whitespace-nowrap">
+                                        {`R$ ${item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                                    </span>
                                 </div>
                             </div>
-                        </div>
-                    </div>
+                        );
+                    })}
+                </div>
+            </div>
 
-                    {/* BOTTOM: Desdobramento Carteira MI (Bar Chart) */}
-                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col h-[250px] xl:h-auto">
-                        <div className="bg-[#2563eb] text-white py-1 px-3 text-center font-bold text-sm xl:text-base uppercase tracking-wide shadow-md flex items-center justify-center gap-2">
-                            <Briefcase className="w-4 h-4 text-white" /> Desdobramento Carteira MI
+            {/* ================= 5. CARTEIRA DE PEDIDOS (xl: right column) ================= */}
+            {(() => {
+                const carteiraMEbrl = finStats.carteiraME * dollarRate;
+                const carteiraTotal = finStats.carteiraMI + carteiraMEbrl;
+                const maxCarteira = Math.max(carteiraTotal, 1);
+                const carteiraItems = [
+                    { label: "Carteira Total", value: carteiraTotal, color: "#2563eb", pct: 100 },
+                    { label: "Carteira MI", value: finStats.carteiraMI, color: "#22c55e", pct: (finStats.carteiraMI / maxCarteira) * 100 },
+                    { label: "Carteira ME", value: carteiraMEbrl, color: "#93C5FD", pct: (carteiraMEbrl / maxCarteira) * 100 },
+                ];
+                return (
+                    <div className="shrink-0 xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col">
+                        <div className="bg-[#2563eb] text-white py-1 px-3 text-center font-bold text-xs xl:text-base uppercase tracking-wide shadow-md flex items-center justify-center gap-2">
+                            <Briefcase className="w-4 h-4 text-white" /> Carteira de Pedidos
                         </div>
-                        <div className="flex-1 p-2 xl:p-3 flex flex-col justify-start gap-1 xl:gap-2 overflow-y-auto max-h-[220px] custom-scrollbar">
-                            {walletBreakdown.map((item: any, i: number) => (
-                                <div key={i} className="flex items-center text-[9px] xl:text-[10px]">
-                                    <span className="w-24 xl:w-32 text-right pr-2 font-bold text-[#374151] truncate">{item.name}</span>
-                                    <div className="flex-1 h-4 xl:h-6 bg-muted/50 rounded-md relative flex items-center shadow-inner">
+                        <div className="flex-1 p-2 xl:p-4 flex flex-col justify-evenly gap-1">
+                            {carteiraItems.map((item, i) => (
+                                <div key={i} className="flex items-center gap-1 xl:gap-2">
+                                    <span className="w-20 xl:w-36 text-right pr-1 font-bold text-[#374151] text-[9px] xl:text-sm truncate shrink-0 uppercase tracking-tight">{item.label}</span>
+                                    <div className="flex-1 h-6 xl:h-10 bg-muted/40 rounded-lg relative flex items-center">
                                         <div
-                                            style={{ width: `${Math.max((item.value / 6000000) * 100, 0.5)}%`, backgroundColor: item.fill }}
-                                            className={`h-full rounded-md shadow-sm flex items-center justify-end px-1 xl:px-2 overflow-visible`}
-                                        >
-                                            {item.value > 0 && (
-                                                <span className="text-[#374151] font-bold text-[7px] xl:text-[9px] whitespace-nowrap drop-shadow-sm transform translate-x-full pl-2 left-0 absolute">
-                                                    {`R$ ${item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                                                </span>
-                                            )}
-                                        </div>
+                                            style={{ width: `${Math.max(item.pct, 2)}%`, backgroundColor: item.color }}
+                                            className="h-full rounded-lg shadow-sm transition-all duration-500"
+                                        />
+                                        <span className="ml-1 xl:ml-2 text-[#374151] font-bold text-[9px] xl:text-sm whitespace-nowrap">
+                                            {`R$ ${item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                                        </span>
                                     </div>
                                 </div>
                             ))}
                         </div>
                     </div>
+                );
+            })()}
 
+            </div>{/* end right column wrapper */}
+
+            {/* ================= DAILY TABLE (last on mobile, left column row 2 on xl) ================= */}
+            <div className="shrink-0 xl:col-start-1 xl:row-start-2 bg-card/95 backdrop-blur rounded-xl shadow-lg border border-border overflow-hidden flex flex-col h-[500px] xl:h-auto mb-16 xl:mb-0">
+                {/* Header */}
+                <div className="bg-[#2563eb] text-white py-2 xl:py-3 px-3 xl:px-4 grid grid-cols-4 gap-2 font-bold text-xs xl:text-sm uppercase items-center sticky top-0 z-20 tracking-wide shadow-md cursor-pointer">
+                    <div className="flex items-center justify-center gap-2 hover:text-[#bfdbfe] transition-colors" onClick={() => handleSort('date')}>
+                        Data {sortConfig?.key === 'date' && (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-white" /> : <ArrowDown className="w-3 h-3 text-white" />)}
+                    </div>
+                    <div className="text-center hover:text-[#bfdbfe] transition-colors flex justify-center gap-1" onClick={() => handleSort('fatNum')}>
+                        Faturamento {sortConfig?.key === 'fatNum' && (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-white" /> : <ArrowDown className="w-3 h-3 text-white" />)}
+                    </div>
+                    <div className="text-center hover:text-[#bfdbfe] transition-colors flex justify-center gap-1" onClick={() => handleSort('vendNum')}>
+                        Vendas {sortConfig?.key === 'vendNum' && (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-white" /> : <ArrowDown className="w-3 h-3 text-white" />)}
+                    </div>
+                    <div className="text-center">+/-</div>
                 </div>
-
+                <div className="flex-1 overflow-auto custom-scrollbar bg-card">
+                    <table className="w-full text-xs xl:text-sm text-[#374151] font-sans">
+                        <tbody className="divide-y divide-border/50">
+                            {sortedTableData.map((row, i) => (
+                                <tr key={i} className={`hover:bg-primary/5 transition-colors ${i % 2 === 0 ? 'bg-card' : 'bg-muted/20'}`}>
+                                    <td className="py-1 xl:py-2 px-2 xl:px-4 text-center font-bold text-[#374151]">{row.date}</td>
+                                    <td className="py-1 xl:py-2 px-2 xl:px-4 text-center font-medium text-[#374151]">{row.fat}</td>
+                                    <td className="py-1 xl:py-2 px-2 xl:px-4 text-center font-medium text-[#374151]">{row.vend}</td>
+                                    <td className="py-1 xl:py-2 px-2 xl:px-4 text-center flex justify-center">
+                                        {row.trend === 'up' ? <ArrowUp className="w-3 h-3 xl:w-4 xl:h-4 text-green-500" /> : <ArrowDown className="w-3 h-3 xl:w-4 xl:h-4 text-destructive" />}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+                {/* Footer */}
+                <div className="bg-[#2563eb] text-white border-t border-border py-1.5 xl:py-3 px-1 xl:px-4 grid grid-cols-4 gap-0.5 xl:gap-2 text-[10px] xl:text-sm sticky bottom-0 z-20 shadow-[-10px]">
+                    <div className="font-bold text-white uppercase flex flex-col justify-center text-center gap-0.5"><span>Total</span><span>Média</span></div>
+                    <div className="text-center flex flex-col font-bold text-white gap-0.5"><span>{finStats.fatMensal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span><span>{(finStats.fatMensal / Math.max(1, dailyData.length)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
+                    <div className="text-center flex flex-col font-bold text-white gap-0.5"><span>{finStats.vendasMensal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span><span>{(finStats.vendasMensal / Math.max(1, dailyData.length)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
+                    <div></div>
+                </div>
             </div>
+
         </div>
     );
 }

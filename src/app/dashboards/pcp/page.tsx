@@ -231,7 +231,7 @@ export default function Home() {
     const fmtNum = (n: number | undefined) => n ? n.toLocaleString('pt-BR') : '0';
 
     return (
-        <div className="flex flex-col min-h-screen lg:h-screen lg:overflow-hidden overflow-y-auto gap-1 p-0 font-sans bg-background pb-20 lg:pb-1">
+        <div className="flex flex-col min-h-screen lg:h-screen lg:overflow-hidden overflow-y-auto gap-1 p-0 font-sans bg-background lg:pb-1">
             {/* TOP SECTION (63%) */}
             <div className="flex flex-col lg:flex-row gap-1 h-auto lg:h-[63%] min-h-0 shrink-0">
                 {/* KPI Cards */}
