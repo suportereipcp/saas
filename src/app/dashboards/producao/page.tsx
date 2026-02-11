@@ -112,7 +112,7 @@ export default function ProducaoPage() {
                 calData.forEach((d: any) => {
                     if (d.type === 'feriado') {
                         holidayDates.add(d.date);
-                    } else if (d.type === 'meio_periodo') {
+                    } else if (d.type === 'meio_dia') {
                         halfDayDates.add(d.date);
                     }
                 });
@@ -395,7 +395,7 @@ export default function ProducaoPage() {
     const mediaVendAtual = stats.realizedDaysMonth > 0 ? stats.vendMensalClosed / stats.realizedDaysMonth : 0;
 
     const chartData = [
-        { name: 'Prod', value: Math.round(mediaMensalAtual), fill: '#3b82f6' },
+        { name: 'Prod', value: Math.round(mediaMensalAtual), fill: '#BFDBFE' },
         { name: 'Vend', value: Math.round(mediaVendAtual), fill: '#22c55e' },
         { name: 'Fat.', value: Math.round(mediaFatAtual), fill: '#60a5fa' },
     ];
@@ -403,7 +403,7 @@ export default function ProducaoPage() {
 
 
     return (
-        <div className={`flex flex-col min-h-screen xl:h-screen w-full bg-[#f8f9fa] text-slate-800 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-y-auto xl:overflow-hidden pb-32 xl:pb-0`}>
+        <div className={`flex flex-col min-h-screen xl:h-screen w-full bg-[#f8f9fa] text-slate-800 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-y-auto xl:overflow-hidden`}>
 
             {/* ================= TOP SECTION (38%) ================= */}
             <div className="h-auto xl:h-[38%] flex flex-col xl:flex-row w-full gap-4 shrink-0 px-2 xl:px-0">

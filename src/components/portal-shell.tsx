@@ -58,7 +58,7 @@ export function PortalShell({ children, userEmail, userName, links, defaultOpen 
                         </div>
                     </header>
                 )}
-                <div className={`flex-1 overflow-y-auto ${fullWidth ? 'p-1' : 'p-4 md:p-6'}`}>
+                <div className={`flex-1 overflow-y-auto pb-20 lg:pb-0 ${fullWidth ? 'p-1' : 'p-4 md:p-6'}`}>
                     {children}
                 </div>
             </SidebarInset>
