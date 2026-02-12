@@ -1,44 +1,200 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ProductionItem } from '../types';
-import { Search, Filter, ChevronLeft, ChevronRight, History, Play, AlertCircle, CheckCircle } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, History, Play, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+// Filter icon was unused, removed.
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { supabase } from '@/lib/supabase';
 
 interface HistoryPanelProps {
-    items: ProductionItem[];
+    // items: ProductionItem[]; // Removed to avoid confusion. We fetch our own data.
 }
 
-export const HistoryPanel: React.FC<HistoryPanelProps> = ({ items }) => {
-    // Filters Draft State
-    const [draftSearchTerm, setDraftSearchTerm] = useState('');
-    const [draftProcess, setDraftProcess] = useState<'ALL' | 'WASHING' | 'ADHESIVE'>('ALL');
-    const [draftStartDate, setDraftStartDate] = useState('');
-    const [draftEndDate, setDraftEndDate] = useState('');
+export const HistoryPanel: React.FC<HistoryPanelProps> = () => {
+    // Filters State
+    const [searchTerm, setSearchTerm] = useState('');
+    const [processFilter, setProcessFilter] = useState<'ALL' | 'WASHING' | 'ADHESIVE'>('ALL');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
 
-    // Active Filters State
-    const [hasSearched, setHasSearched] = useState(false);
+    // Active Filters for Pagination (so changing inputs doesn't trigger fetch until "Filter" is clicked)
     const [activeFilters, setActiveFilters] = useState({
-        search: '',
-        process: 'ALL' as 'ALL' | 'WASHING' | 'ADHESIVE',
-        start: '',
-        end: ''
+        searchTerm: '',
+        processFilter: 'ALL' as 'ALL' | 'WASHING' | 'ADHESIVE',
+        startDate: '',
+        endDate: ''
     });
 
-    const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(10);
+    // Data State
+    const [displayedItems, setDisplayedItems] = useState<any[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
 
-    const handleFilterClick = () => {
-        setActiveFilters({
-            search: draftSearchTerm,
-            process: draftProcess,
-            start: draftStartDate,
-            end: draftEndDate
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage] = useState(10);
+    const [totalServerItems, setTotalServerItems] = useState(0);
+
+    // Initial Fetch
+    useEffect(() => {
+        // Initial load with default filters (empty)
+        fetchData(1, {
+            searchTerm: '',
+            processFilter: 'ALL',
+            startDate: '',
+            endDate: ''
         });
-        setHasSearched(true);
+    }, []);
+
+    const mapItemsToRows = (data: any[]) => {
+        return data.map(item => {
+            let reportRow = {
+                id: item.id,
+                nr_solicitacao: item.nr_solicitacao,
+                it_codigo: item.it_codigo,
+                quantity: item.quantity,
+                arrivalAt: item.datasul_finished_at,
+                startedAt: item.wash_started_at,
+                finishedAt: item.adhesive_finished_at,
+                calculation_priority: item.calculation_priority,
+                wash_finished_by: item.wash_finished_by,
+                adhesive_finished_by: item.adhesive_finished_by,
+                statusLabel: 'N/A',
+                isLate: false,
+                op_number: item.op_number,
+                lupa_evaluator: item.lupa_evaluator,
+                lupa_status_start: item.lupa_status_start,
+                lupa_operator: item.lupa_operator,
+                lupa_status_end: item.lupa_status_end,
+                status: item.status
+            };
+
+            // Logic for specific status display based on item status
+            if (item.status === 'WASHING') {
+                reportRow.startedAt = item.wash_started_at;
+                reportRow.finishedAt = item.wash_finished_at;
+                const startTS = item.wash_started_at ? new Date(item.wash_started_at).getTime() : 0;
+                const deadlineTS = item.wash_deadline ? new Date(item.wash_deadline).getTime() : startTS + 3600000;
+                reportRow.isLate = startTS > deadlineTS;
+                reportRow.statusLabel = item.wash_started_at ? 'LAVAGEM' : 'AGUARDANDO';
+            } else if (item.status === 'ADHESIVE') {
+                reportRow.arrivalAt = item.wash_finished_at;
+                reportRow.startedAt = item.adhesive_started_at;
+                reportRow.finishedAt = item.adhesive_finished_at;
+                const startTS = item.adhesive_started_at ? new Date(item.adhesive_started_at).getTime() : 0;
+                const deadlineTS = item.adhesive_deadline ? new Date(item.adhesive_deadline).getTime() : startTS + 3600000;
+                reportRow.isLate = startTS > deadlineTS;
+                reportRow.statusLabel = item.adhesive_started_at ? 'ADESIVO' : 'AGUARDANDO';
+            } else {
+                reportRow.statusLabel = item.status === 'FINISHED' ? 'FINALIZADO' : item.status;
+            }
+
+            return reportRow;
+        });
+    };
+
+    const fetchData = async (page: number, filters: typeof activeFilters) => {
+        setIsSearching(true);
+        try {
+            // Calculate Range
+            const from = (page - 1) * itemsPerPage;
+            const to = from + itemsPerPage - 1;
+
+            // Base Query on View
+            let query = supabase
+                .schema('app_controle_prazo_qualidade')
+                .from('production_items_view')
+                .select('*', { count: 'exact' }) // Request exact count for pagination
+                .order('created_at', { ascending: false })
+                .range(from, to);
+
+            // Apply Filters
+            if (filters.searchTerm) {
+                // Check if it's a number (solicitation) or text (item code)
+                if (!isNaN(Number(filters.searchTerm))) {
+                    query = query.eq('nr_solicitacao', filters.searchTerm);
+                } else {
+                    query = query.ilike('it_codigo', `%${filters.searchTerm}%`);
+                }
+            }
+
+            if (filters.processFilter !== 'ALL') {
+                query = query.eq('status', filters.processFilter);
+            }
+
+            if (filters.startDate) {
+                query = query.gte('created_at', `${filters.startDate}T00:00:00`);
+            }
+
+            if (filters.endDate) {
+                query = query.lte('created_at', `${filters.endDate}T23:59:59`);
+            }
+
+            const { data: viewData, count, error: viewError } = await query;
+
+            if (viewError) throw viewError;
+
+            // Update Total Count
+            if (count !== null) setTotalServerItems(count);
+
+            // Fetch Table Details (OP, Lupa, etc) for these IDs
+            if (viewData && viewData.length > 0) {
+                const ids = viewData.map((i: any) => i.id);
+                const { data: tableData, error: tableError } = await supabase
+                    .schema('app_controle_prazo_qualidade')
+                    .from('production_items')
+                    .select('id, op_number, lupa_evaluator, lupa_operator, lupa_status_start, lupa_status_end')
+                    .in('id', ids);
+
+                if (tableError) throw tableError;
+
+                // Merge Data
+                const mergedData = viewData.map((viewItem: any) => {
+                    const tableItem = tableData?.find((t: any) => t.id === viewItem.id);
+                    return {
+                        ...viewItem,
+                        op_number: tableItem?.op_number || viewItem.op_number,
+                        lupa_evaluator: tableItem?.lupa_evaluator || viewItem.lupa_evaluator,
+                        lupa_operator: tableItem?.lupa_operator || viewItem.lupa_operator,
+                        lupa_status_start: tableItem?.lupa_status_start || viewItem.lupa_status_start,
+                        lupa_status_end: tableItem?.lupa_status_end || viewItem.lupa_status_end
+                    };
+                });
+
+                setDisplayedItems(mapItemsToRows(mergedData));
+            } else {
+                setDisplayedItems([]);
+            }
+
+        } catch (error) {
+            console.error("Erro na busca:", error);
+            // Fallback?
+        } finally {
+            setIsSearching(false);
+        }
+    };
+
+    const handleSearchClick = () => {
+        // Update active filters and fetch page 1
+        const newFilters = {
+            searchTerm,
+            processFilter,
+            startDate,
+            endDate
+        };
+        setActiveFilters(newFilters);
         setCurrentPage(1);
+        fetchData(1, newFilters);
+    };
+
+    const handlePageChange = (newPage: number) => {
+        const totalPages = Math.ceil(totalServerItems / itemsPerPage);
+        if (newPage >= 1 && newPage <= totalPages) {
+            setCurrentPage(newPage);
+            fetchData(newPage, activeFilters);
+        }
     };
 
     const formatDate = (dateStr?: string) => {
@@ -49,128 +205,22 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ items }) => {
         });
     };
 
-    const processedItems = useMemo(() => {
-        if (!hasSearched) return [];
-
-        return items.map(item => {
-            let reportRow = {
-                id: item.id,
-                nr_solicitacao: item.nr_solicitacao,
-                it_codigo: item.it_codigo,
-                quantity: item.quantity,
-                arrivalAt: undefined as string | undefined,
-                startedAt: undefined as string | undefined,
-                finishedAt: undefined as string | undefined,
-                calculation_priority: item.calculation_priority,
-                wash_finished_by: item.wash_finished_by,
-                adhesive_finished_by: item.adhesive_finished_by,
-                statusLabel: 'N/A',
-                isLate: false,
-                op_number: item.op_number,
-                lupa_evaluator: item.lupa_evaluator,
-                lupa_status_start: item.lupa_status_start,
-                lupa_operator: item.lupa_operator,
-                lupa_status_end: item.lupa_status_end
-            };
-
-            if (activeFilters.process === 'WASHING') {
-                reportRow.arrivalAt = item.datasul_finished_at;
-                reportRow.startedAt = item.wash_started_at;
-                reportRow.finishedAt = item.wash_finished_at;
-
-                if (reportRow.startedAt && reportRow.arrivalAt) {
-                    const startTS = new Date(reportRow.startedAt).getTime();
-                    const deadlineTS = item.wash_deadline ? new Date(item.wash_deadline).getTime() : startTS + 3600000;
-                    reportRow.isLate = startTS > deadlineTS;
-                    reportRow.statusLabel = reportRow.isLate ? 'Atrasou Início' : 'No Prazo';
-                } else {
-                    reportRow.statusLabel = item.wash_started_at ? 'Em Lavagem' : 'Aguardando';
-                }
-            }
-            else if (activeFilters.process === 'ADHESIVE') {
-                reportRow.arrivalAt = item.wash_finished_at;
-                reportRow.startedAt = item.adhesive_started_at;
-                reportRow.finishedAt = item.adhesive_finished_at;
-
-                if (reportRow.startedAt && reportRow.arrivalAt) {
-                    const startTS = new Date(reportRow.startedAt).getTime();
-                    const deadlineTS = item.adhesive_deadline ? new Date(item.adhesive_deadline).getTime() : startTS + 3600000;
-                    reportRow.isLate = startTS > deadlineTS;
-                    reportRow.statusLabel = reportRow.isLate ? 'Atrasou Início' : 'No Prazo';
-                } else {
-                    reportRow.statusLabel = item.adhesive_started_at ? 'Em Aplicação' : 'Aguardando';
-                }
-            }
-            else {
-                reportRow.arrivalAt = item.datasul_finished_at;
-                reportRow.startedAt = item.wash_started_at;
-                reportRow.finishedAt = item.adhesive_finished_at;
-                reportRow.statusLabel = item.status === 'WASHING' ? 'LAVAGEM' :
-                    item.status === 'ADHESIVE' ? 'ADESIVO' :
-                        item.status === 'FINISHED' ? 'FINALIZADO' : item.status;
-            }
-
-            return reportRow;
-
-        }).filter(row => {
-            if (!row) return false;
-
-            const searchMatch =
-                (row.nr_solicitacao?.toString() || '').includes(activeFilters.search) ||
-                (row.it_codigo?.toLowerCase() || '').includes(activeFilters.search.toLowerCase());
-
-            if (!searchMatch) return false;
-
-            if (!row.arrivalAt) return false;
-
-            // Normalize references to YYYY-MM-DD strings for consistent filtering
-            const refDateVal = new Date(row.arrivalAt);
-            const refDateStr = refDateVal.toLocaleDateString('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-');
-
-            let dateMatch = true;
-
-            if (activeFilters.start) {
-                // activeFilters.start is YYYY-MM-DD
-                if (refDateStr < activeFilters.start) dateMatch = false;
-            }
-
-            if (activeFilters.end) {
-                // activeFilters.end is YYYY-MM-DD
-                if (refDateStr > activeFilters.end) dateMatch = false;
-            }
-
-            return dateMatch;
-        }).sort((a, b) => {
-            const timeA = a.arrivalAt ? new Date(a.arrivalAt).getTime() : 0;
-            const timeB = b.arrivalAt ? new Date(b.arrivalAt).getTime() : 0;
-            return timeB - timeA;
-        });
-    }, [items, activeFilters, hasSearched]);
-
-    const safeProcessedItems = (processedItems || []) as NonNullable<typeof processedItems[0]>[];
-    const totalPages = Math.ceil(safeProcessedItems.length / itemsPerPage);
-    const paginatedItems = safeProcessedItems.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
-    );
-
-    const handlePageChange = (newPage: number) => {
-        if (newPage >= 1 && newPage <= totalPages) setCurrentPage(newPage);
-    };
+    // Calculate total pages based on server count
+    const totalPages = Math.ceil(totalServerItems / itemsPerPage);
 
     return (
-        <div className="space-y-6 h-full flex flex-col pb-20 lg:pb-0">
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <History className="w-6 h-6 text-emerald-400" />
+        <div className="space-y-2 p-2 h-full overflow-y-auto">
+            <Card className="shrink-0">
+                <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                        <History className="w-5 h-5 text-emerald-400" />
                         Histórico de Produção
                     </CardTitle>
                 </CardHeader>
 
-                <CardContent>
+                <CardContent className="pb-2">
                     {/* Filters */}
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-2 items-end">
                         <div className="md:col-span-2 space-y-2">
                             <label className="text-xs font-semibold text-muted-foreground">Busca (Sol./Item)</label>
                             <div className="relative">
@@ -178,15 +228,16 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ items }) => {
                                 <Input
                                     className="pl-9"
                                     placeholder="Número da solicitação ou item"
-                                    value={draftSearchTerm}
-                                    onChange={(e) => setDraftSearchTerm(e.target.value)}
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleSearchClick()}
                                 />
                             </div>
                         </div>
 
                         <div className="space-y-2">
                             <label className="text-xs font-semibold text-muted-foreground">Processo</label>
-                            <Select value={draftProcess} onValueChange={(val) => setDraftProcess(val as any)}>
+                            <Select value={processFilter} onValueChange={(val) => setProcessFilter(val as any)}>
                                 <SelectTrigger className="w-full">
                                     <SelectValue placeholder="Processo" />
                                 </SelectTrigger>
@@ -204,8 +255,8 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ items }) => {
                                 <Input
                                     type="date"
                                     className="px-2"
-                                    value={draftStartDate}
-                                    onChange={(e) => setDraftStartDate(e.target.value)}
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
                                 />
                             </div>
                             <div className="space-y-2 flex-1">
@@ -213,25 +264,31 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ items }) => {
                                 <Input
                                     type="date"
                                     className="px-2"
-                                    value={draftEndDate}
-                                    onChange={(e) => setDraftEndDate(e.target.value)}
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
                                 />
                             </div>
                         </div>
 
-                        <Button onClick={handleFilterClick} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white">
-                            <Play className="w-4 h-4 mr-2" fill="currentColor" />
-                            Filtrar
-                        </Button>
+                        <div className="md:pl-2">
+                            <Button
+                                onClick={handleSearchClick}
+                                disabled={isSearching}
+                                className="w-full md:w-32 bg-emerald-500 hover:bg-emerald-600 text-white"
+                            >
+                                {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 mr-2" fill="currentColor" />}
+                                Filtrar
+                            </Button>
+                        </div>
                     </div>
                 </CardContent>
             </Card>
 
             {/* Table */}
-            <Card className="flex-1 flex flex-col overflow-hidden">
-                <div className="hidden md:block overflow-x-auto flex-1">
+            <Card className="flex flex-col shrink-0">
+                <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-left text-sm text-slate-600">
-                        <thead className="bg-slate-50 text-slate-800 font-semibold uppercase tracking-wider text-xs sticky top-0 z-10">
+                        <thead className="bg-slate-50 text-slate-800 font-semibold uppercase tracking-wider text-xs">
                             <tr>
                                 <th className="px-6 py-3 border-b border-slate-200">ID / Ref.</th>
                                 <th className="px-6 py-3 border-b border-slate-200">OP</th>
@@ -240,28 +297,20 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ items }) => {
                                 <th className="px-6 py-3 border-b border-slate-200">Finalizado</th>
                                 <th className="px-6 py-3 border-b border-slate-200">Lupa Início</th>
                                 <th className="px-6 py-3 border-b border-slate-200">Lupa Fim</th>
-                                <th className="px-6 py-3 border-b border-slate-200">
-                                    {activeFilters.process === 'ALL' ? 'Status Geral' : 'Status Prazo'}
-                                </th>
+                                <th className="px-6 py-3 border-b border-slate-200">Status Geral</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {!hasSearched ? (
-                                <tr>
-                                    <td colSpan={8} className="px-6 py-16 text-center">
-                                        <p className="text-lg font-medium text-slate-600">Aguardando Filtro</p>
-                                    </td>
-                                </tr>
-                            ) : paginatedItems.length === 0 ? (
+                        <tbody className="divide-y divide-slate-200 border-b border-slate-200">
+                            {displayedItems.length === 0 ? (
                                 <tr>
                                     <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground">
-                                        Nenhum registro encontrado.
+                                        {isSearching ? "Buscando dados..." : "Nenhum registro encontrado."}
                                     </td>
                                 </tr>
                             ) : (
-                                paginatedItems.map((row) => (
+                                displayedItems.map((row) => (
                                     <tr key={row.id} className="hover:bg-slate-50 transition">
-                                        <td className="px-6 py-4">
+                                        <td className="px-6 py-2">
                                             <div className="flex flex-col">
                                                 <span className="font-bold text-slate-800 flex items-center gap-2">
                                                     <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-xs border border-slate-200">{row.nr_solicitacao}</span>
@@ -270,15 +319,15 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ items }) => {
                                                 <span className="text-xs text-muted-foreground">Qtd: {row.quantity}</span>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-6 py-2">
                                             <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded">
                                                 {row.op_number || '-'}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 font-mono text-xs text-slate-600">{formatDate(row.arrivalAt)}</td>
-                                        <td className="px-6 py-4 font-mono text-xs text-slate-600">{formatDate(row.startedAt)}</td>
-                                        <td className="px-6 py-4 font-mono text-xs text-slate-600">{formatDate(row.finishedAt)}</td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-6 py-2 font-mono text-xs text-slate-600">{formatDate(row.arrivalAt)}</td>
+                                        <td className="px-6 py-2 font-mono text-xs text-slate-600">{formatDate(row.startedAt)}</td>
+                                        <td className="px-6 py-2 font-mono text-xs text-slate-600">{formatDate(row.finishedAt)}</td>
+                                        <td className="px-6 py-2">
                                             {row.lupa_evaluator ? (
                                                 <div className="flex flex-col text-xs">
                                                     <span className="font-bold text-slate-700">{row.lupa_evaluator}</span>
@@ -291,7 +340,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ items }) => {
                                                 </div>
                                             ) : <span className="text-slate-300">-</span>}
                                         </td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-6 py-2">
                                             {row.lupa_operator ? (
                                                 <div className="flex flex-col text-xs">
                                                     <span className="font-bold text-slate-700">{row.lupa_operator}</span>
@@ -304,7 +353,7 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ items }) => {
                                                 </div>
                                             ) : <span className="text-slate-300">-</span>}
                                         </td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-6 py-2">
                                             <span className={`px-2 py-1 rounded-full text-xs font-bold flex items-center w-fit gap-1 ${row.isLate
                                                 ? 'bg-red-100 text-red-700 border border-red-200'
                                                 : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
@@ -320,42 +369,38 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ items }) => {
                     </table>
                 </div>
 
-                {/* Pagination */}
-                {
-                    hasSearched && safeProcessedItems.length > 0 && (
-                        <div className="px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between bg-slate-50 gap-4">
-                            <div className="flex items-center gap-4 text-xs text-slate-500">
-                                <span>
-                                    {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, safeProcessedItems.length)} de {safeProcessedItems.length}
-                                </span>
-                            </div>
+                {/* Pagination - Always visible even if 0 items to show state */}
+                <div className="px-6 py-2 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between bg-slate-50 gap-2 shrink-0">
+                    <div className="flex items-center gap-4 text-xs text-slate-500">
+                        <span>
+                            {totalServerItems > 0
+                                ? `Exibindo ${((currentPage - 1) * itemsPerPage) + 1} - ${Math.min(currentPage * itemsPerPage, totalServerItems)} de ${totalServerItems} resultados`
+                                : 'Nenhum resultado encontrado'}
+                        </span>
+                    </div>
 
-                            {totalPages > 1 && (
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => handlePageChange(currentPage - 1)}
-                                        disabled={currentPage === 1}
-                                    >
-                                        <ChevronLeft className="w-4 h-4" />
-                                    </Button>
-                                    <span className="text-sm font-medium text-slate-700">
-                                        {currentPage} / {totalPages}
-                                    </span>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => handlePageChange(currentPage + 1)}
-                                        disabled={currentPage === totalPages}
-                                    >
-                                        <ChevronRight className="w-4 h-4" />
-                                    </Button>
-                                </div>
-                            )}
-                        </div>
-                    )
-                }
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => handlePageChange(currentPage - 1)}
+                            disabled={currentPage === 1 || isSearching || totalPages <= 1}
+                            className="bg-white"
+                        >
+                            Anterior
+                        </Button>
+                        <span className="text-sm font-medium text-slate-700 mx-2">
+                            Página {currentPage} de {totalPages || 1}
+                        </span>
+                        <Button
+                            variant="outline"
+                            onClick={() => handlePageChange(currentPage + 1)}
+                            disabled={currentPage === totalPages || isSearching || totalPages <= 1}
+                            className="bg-white"
+                        >
+                            Próximo
+                        </Button>
+                    </div>
+                </div>
             </Card >
         </div >
     );

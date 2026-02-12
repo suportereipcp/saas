@@ -4,7 +4,7 @@ import { Tldraw, Editor, DefaultSizeStyle, DefaultDashStyle, DefaultColorStyle, 
 import 'tldraw/tldraw.css';
 import { Button } from '@/components/ui/button';
 import { Save, File, NotebookText, Palette, Pencil, Loader2, X } from 'lucide-react';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { TaggingModal } from './TaggingModal';
 import { cn } from '@/lib/utils';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -101,7 +101,7 @@ export default function CanvasBoard() {
 
         // 1. Clear persistence
         localStorage.removeItem('notes_last_active');
-        
+
         // 2. Clear Local Draft content (since user explicitly discarded)
         if (userId) {
             const key = `draft_note_${userId}_new`; // We only allow discarding NEW notes via this button
@@ -123,10 +123,105 @@ export default function CanvasBoard() {
     const [currentTags, setCurrentTags] = useState<string[]>([]);
     const [currentTranscription, setCurrentTranscription] = useState("");
     const [userId, setUserId] = useState<string | null>(null);
-    
+    const [isOnline, setIsOnline] = useState(true);
+
+    // Monitor Online Status & Sync
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        setIsOnline(navigator.onLine);
+
+        const handleOnline = () => {
+            setIsOnline(true);
+            toast.success("Conexão restabelecida!");
+            processPendingTranscriptions();
+        };
+        const handleOffline = () => {
+            setIsOnline(false);
+            toast.warning("Você está offline. As notas serão salvas, mas a transcrição ficará pendente.");
+        };
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userId, editor]);
+
+    const processPendingTranscriptions = async () => {
+        if (!editor || !userId) return;
+
+        // Find notes with PENDENTE_TRANSCRICAO
+        const { data: pendingNotes } = await supabase
+            .schema('app_anotacoes')
+            .from('notes')
+            .select('*')
+            .eq('user_id', userId)
+            .contains('tags', ['PENDENTE_TRANSCRICAO']);
+
+        if (!pendingNotes || pendingNotes.length === 0) return;
+
+        toast.loading(`Sincronizando ${pendingNotes.length} transcrições pendentes...`, { id: 'sync-trx' });
+
+        const currentSnapshot = getSnapshot(editor.store); // Backup current
+
+        try {
+            for (const note of pendingNotes) {
+                if (note.canvas_data) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    editor.loadSnapshot(note.canvas_data as any);
+                    await new Promise(resolve => setTimeout(resolve, 800));
+
+                    try {
+                        const ids = Array.from(editor.getCurrentPageShapeIds());
+                        if (ids.length > 0) {
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            const result = await (editor as any).toImage(ids, { format: 'png', background: true, padding: 32 });
+                            if (result && result.blob) {
+                                const blob = result.blob;
+                                const reader = new FileReader();
+                                const base64 = await new Promise<string>((resolve) => {
+                                    reader.onloadend = () => resolve(reader.result as string);
+                                    reader.readAsDataURL(blob);
+                                });
+
+                                const response = await fetch('/api/transcribe', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ image: base64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "") })
+                                });
+
+                                if (response.ok) {
+                                    const data = await response.json();
+                                    const text = data.text || "";
+                                    const newTags = (note.tags || []).filter((t: string) => t !== 'PENDENTE_TRANSCRICAO');
+                                    await supabase
+                                        .schema('app_anotacoes')
+                                        .from('notes')
+                                        .update({ transcription: text, tags: newTags })
+                                        .eq('id', note.id);
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.error(`Failed to sync note ${note.id}`, e);
+                    }
+                }
+            }
+            toast.success("Sincronização concluída!");
+        } catch (err) {
+            console.error("Sync error", err);
+            toast.error("Erro na sincronização.");
+        } finally {
+            editor.loadSnapshot(currentSnapshot);
+            toast.dismiss('sync-trx');
+        }
+    };
+
     // Ref to track if we are currently discarding the note to prevent race conditions with auto-save
     const isDiscardingRef = useRef(false);
-    
+
     // State for Discard Confirmation Dialog
     const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
 
@@ -137,7 +232,7 @@ export default function CanvasBoard() {
             if (user) setUserId(user.id);
         };
         getUser();
-    }, [supabase]);
+    }, []);
 
     // Load Note Data if Editing (With Priority for Local Drafts)
     useEffect(() => {
@@ -163,7 +258,7 @@ export default function CanvasBoard() {
                 // 2. Restore Canvas (Check Local Draft First)
                 const draftKey = `draft_note_${userId}_${noteId}`;
                 const localDraft = localStorage.getItem(draftKey);
-                
+
                 let loadedFromDraft = false;
                 if (localDraft) {
                     try {
@@ -177,6 +272,7 @@ export default function CanvasBoard() {
 
                 // 3. Fallback to DB Canvas if no valid draft
                 if (!loadedFromDraft && data.canvas_data) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     editor.loadSnapshot(data.canvas_data as any);
                 }
 
@@ -193,7 +289,7 @@ export default function CanvasBoard() {
         };
 
         loadNote();
-    }, [editor, noteId, userId, supabase]);
+    }, [editor, noteId, userId]);
 
 
     // Initial Editor Config (Styles)
@@ -255,25 +351,25 @@ export default function CanvasBoard() {
         const key = `draft_note_${userId}_new`;
         const localDraft = localStorage.getItem(key);
 
-                if (localDraft) {
-                    try {
-                        const snapshot = JSON.parse(localDraft);
-                        editor.loadSnapshot(snapshot);
-                        
-                        // FIX: Enforce default styles (S, Solid, Black) after restoring draft
-                        editor.run(() => {
-                            editor.setStyleForNextShapes(DefaultSizeStyle, 's');
-                            editor.setStyleForNextShapes(DefaultDashStyle, 'solid');
-                            editor.setStyleForNextShapes(DefaultColorStyle, 'black');
-                            editor.setStyleForNextShapes(DefaultFillStyle, 'none');
-                            editor.setCurrentTool('draw');
-                        });
-                        
-                        // toast.info("Rascunho não salvo restaurado."); 
-                    } catch (e) {
-                        console.error("Error restoring new note draft:", e);
-                    }
-                }
+        if (localDraft) {
+            try {
+                const snapshot = JSON.parse(localDraft);
+                editor.loadSnapshot(snapshot);
+
+                // FIX: Enforce default styles (S, Solid, Black) after restoring draft
+                editor.run(() => {
+                    editor.setStyleForNextShapes(DefaultSizeStyle, 's');
+                    editor.setStyleForNextShapes(DefaultDashStyle, 'solid');
+                    editor.setStyleForNextShapes(DefaultColorStyle, 'black');
+                    editor.setStyleForNextShapes(DefaultFillStyle, 'none');
+                    editor.setCurrentTool('draw');
+                });
+
+                // toast.info("Rascunho não salvo restaurado."); 
+            } catch (e) {
+                console.error("Error restoring new note draft:", e);
+            }
+        }
     }, [editor, userId, noteId]);
 
     const handleSave = async (selectedTags: string[], transcriptionInputValue: string) => {
@@ -283,35 +379,43 @@ export default function CanvasBoard() {
         }
 
         try {
-            // 1. Auto-Transcribe Content (Fresh AI analysis)
-            // We ignore the input value if we want to force a refresh, or we could use it if provided.
-            // The user requested "The intelligence needs to identify the content", implying a fresh look.
-            toast.loading("Analisando conteúdo da nota...", { id: 'save-process' });
-            
+            toast.loading("Salvando anotação...", { id: 'save-process' });
+
             let finalTranscription = transcriptionInputValue;
-            
-            // Always try to update transcription on save
-            try {
-                const freshTranscription = await handleAutoTranscribe();
-                if (freshTranscription) {
-                    finalTranscription = freshTranscription;
+            const finalTags = [...selectedTags];
+
+            // 1. Transcription Logic
+            if (isOnline) {
+                try {
+                    toast.loading("IA lendo documento (Caixa Alta/Baixa)...", { id: 'save-process' });
+                    // Always force re-transcription as requested
+                    const freshTranscription = await handleAutoTranscribe();
+                    if (freshTranscription) {
+                        finalTranscription = freshTranscription;
+                    }
+                } catch (transcribeError) {
+                    console.warn("Auto-transcription failed on save:", transcribeError);
                 }
-            } catch (transcribeError) {
-                console.warn("Auto-transcription failed on save:", transcribeError);
-                // Fallback to existing input or empty, don't block save
+            } else {
+                // Offline Mode
+                if (!finalTags.includes('PENDENTE_TRANSCRICAO')) {
+                    finalTags.push('PENDENTE_TRANSCRICAO');
+                }
+                if (!finalTranscription) {
+                    finalTranscription = "[Aguardando conexão para transcrever...]";
+                }
             }
 
             const snapshot = getSnapshot(editor.store);
-
-            // Generate a Title (First text or Default)
             const title = `Anotação ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
 
             const payload = {
                 user_id: userId,
                 title: title,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 canvas_data: snapshot as any,
-                tags: selectedTags,
-                transcription: finalTranscription, // Use the fresh one
+                tags: finalTags,
+                transcription: finalTranscription,
                 updated_at: new Date().toISOString()
             };
 
@@ -340,7 +444,11 @@ export default function CanvasBoard() {
             localStorage.removeItem(key);
 
             toast.dismiss('save-process');
-            toast.success("Anotação salva e transcrita com sucesso!");
+            if (isOnline) {
+                toast.success("Anotação salva e transcrita com sucesso!");
+            } else {
+                toast.warning("Salvo localmente. A transcrição será feita quando conectar.");
+            }
 
             // Redirect to My Notes
             router.push('/anotacoes/memory');
@@ -348,7 +456,7 @@ export default function CanvasBoard() {
         } catch (error: any) {
             console.error("Save error:", error);
             toast.dismiss('save-process');
-            toast.error(`Erro ao salvar: ${error.message}`);
+            toast.error(`Erro ao salvar na nuvem: ${error.message}. O rascunho continua salvo neste dispositivo.`);
         }
     };
 
@@ -361,7 +469,6 @@ export default function CanvasBoard() {
             if (ids.length === 0) return "";
 
             // Use editor.toImage to get a PNG Blob directly
-            // @ts-ignore
             const result = await (editor as any).toImage(ids, { format: 'png', background: true, padding: 32 });
 
             if (!result || !result.blob) {
@@ -373,6 +480,7 @@ export default function CanvasBoard() {
             // Convert to Base64
             const reader = new FileReader();
             const base64Promise = new Promise<string>((resolve, reject) => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 reader.onloadend = () => {
                     if (typeof reader.result === 'string') resolve(reader.result);
                     else reject(new Error("Failed to read blob"));
@@ -560,9 +668,9 @@ export default function CanvasBoard() {
                                 Cancelar
                             </Button>
                         </DialogClose>
-                        <Button 
-                            type="button" 
-                            variant="destructive" 
+                        <Button
+                            type="button"
+                            variant="destructive"
                             onClick={executeDiscard}
                         >
                             Sim, descartar

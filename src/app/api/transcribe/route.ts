@@ -20,19 +20,8 @@ export async function POST(req: NextRequest) {
 
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-        // 2. Fetch "gemini_key" from "system_settings" table in "public" schema
-        const { data: setting, error: dbError } = await supabase
-            .from('system_settings')
-            .select('value')
-            .eq('key', 'gemini_key')
-            .single();
-
-        if (dbError || !setting?.value) {
-            console.error("Database Error fetching Gemini API Key:", dbError);
-            return NextResponse.json({ error: "Configuration Error: Gemini Key not found in system_settings." }, { status: 500 });
-        }
-
-        const apiKey = setting.value;
+        // Override API Key as requested
+        const apiKey = 'AIzaSyAAjMaIv5n-ZYVU6R0udrFnMMUqzXcDtro';
 
         // 3. Init Gemini Client
         const genAI = new GoogleGenerativeAI(apiKey);
@@ -42,7 +31,7 @@ export async function POST(req: NextRequest) {
         // Remove header if present (e.g., "data:image/png;base64,")
         const base64Image = image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
 
-        const prompt = "Transcreva EXATAMENTE o que está escrito neste manuscrito. Se for um desenho sem texto, descreva brevemente. Se for texto, retorne apenas o texto, sem comentários adicionais. Mantenha a formatação de linhas se possível.";
+        const prompt = "Transcreva o texto deste manuscrito respeitando rigorosamente a formatação de letras maiúsculas e minúsculas (Caixa Alta e Baixa) conforme escrito no original. NÃO converta tudo para maiúsculo ou minúsculo. Se houver desenhos, descreva-os brevemente entre colchetes.";
 
         const result = await model.generateContent([
             prompt,

@@ -12,7 +12,8 @@ import { KanbanBoard } from './components/KanbanBoard';
 import { HistoryPanel } from './components/HistoryPanel';
 import { WarehouseRequestPanel } from './components/WarehouseRequestPanel';
 import { ProductionItemWithDetails, ProcessStatus, ViewState, WarehouseRequest, ProductionItem } from './types';
-import { Monitor } from 'lucide-react'; // Added import for Monitor icon
+import { Monitor } from 'lucide-react';
+import { toast } from 'sonner';
 
 function ControleQualidadeContent() {
     const searchParams = useSearchParams();
@@ -28,29 +29,30 @@ function ControleQualidadeContent() {
     const fetchData = useCallback(async (isBackground = false) => {
         if (!isBackground) setIsLoading(true);
         try {
-            // Busca Itens de Produção (via View que já calcula a prioridade)
-            // Busca Itens de Produção (View + Tabela para garantir dados recentes como op_number)
-            const [viewResponse, tableResponse] = await Promise.all([
-                supabase
-                    .schema('app_controle_prazo_qualidade')
-                    .from('production_items_view')
-                    .select('*')
-                    .order('created_at', { ascending: false }),
-                supabase
-                    .schema('app_controle_prazo_qualidade')
-                    .from('production_items')
-                    .select('id, op_number, lupa_evaluator, lupa_operator, lupa_status_start, lupa_status_end')
-            ]);
-
-            const itemsView = viewResponse.data || [];
-            const itemsTable = tableResponse.data || [];
-            const itemsError = viewResponse.error || tableResponse.error;
+            // Busca Itens de Produção (Apenas ativos para o Kanban: LAVAGEM e ADESIVO)
+            // Histórico completo é tratado no componente HistoryPanel
+            const { data: itemsView, error: itemsError } = await supabase
+                .schema('app_controle_prazo_qualidade')
+                .from('production_items_view')
+                .select('*')
+                .in('status', ['WASHING', 'ADHESIVE'])
+                .order('created_at', { ascending: false });
 
             if (itemsError) throw itemsError;
 
+            // Busca Detalhes da Tabela (OP, Lupa, etc) para esses IDs
+            const ids = itemsView ? itemsView.map((i: any) => i.id) : [];
+            const { data: itemsTable, error: tableError } = await supabase
+                .schema('app_controle_prazo_qualidade')
+                .from('production_items')
+                .select('id, op_number, lupa_evaluator, lupa_operator, lupa_status_start, lupa_status_end')
+                .in('id', ids);
+
+            if (tableError) throw tableError;
+
             // Merge op_number primarily from table (source of truth)
-            const mergedItems = itemsView.map((viewItem: any) => {
-                const tableItem = itemsTable.find((t: any) => t.id === viewItem.id);
+            const mergedItems = itemsView ? itemsView.map((viewItem: any) => {
+                const tableItem = itemsTable?.find((t: any) => t.id === viewItem.id);
                 return {
                     ...viewItem,
                     op_number: tableItem?.op_number || viewItem.op_number,
@@ -59,7 +61,7 @@ function ControleQualidadeContent() {
                     lupa_status_start: tableItem?.lupa_status_start || viewItem.lupa_status_start,
                     lupa_status_end: tableItem?.lupa_status_end || viewItem.lupa_status_end
                 };
-            });
+            }) : [];
 
             setItems(mergedItems);
 
@@ -173,7 +175,7 @@ function ControleQualidadeContent() {
             console.error("Erro ao atualizar status (detalhado):",
                 `Msg: ${error.message} | Code: ${error.code} | Hint: ${error.hint} | Details: ${error.details}`
             );
-            alert("Falha ao salvar alteração. Verifique o console.");
+            toast.error("Falha ao salvar alteração. Verifique o console.");
         }
     };
 
@@ -193,7 +195,7 @@ function ControleQualidadeContent() {
             console.error("Erro ao solicitar material (detalhado):",
                 `Msg: ${error.message} | Code: ${error.code} | Hint: ${error.hint} | Details: ${error.details}`
             );
-            alert("Erro ao enviar solicitação. Verifique o console.");
+            toast.error("Erro ao enviar solicitação. Verifique o console.");
         } else {
             fetchData();
         }
@@ -216,6 +218,36 @@ function ControleQualidadeContent() {
             );
         } else {
             fetchData();
+        }
+    };
+
+    const handleRegisterRework = async (item: ProductionItemWithDetails) => {
+        try {
+            // 1. Insert into public.integracao_entrada
+            const { error: errorIntegration } = await supabase
+                .schema('public')
+                .from('integracao_entrada')
+                .insert({
+                    tipo: 'solicita-material',
+                    conteudo: {
+                        item: item.it_codigo,
+                        quantidade: item.quantity,
+                        nr_solicitacao: item.nr_solicitacao
+                    },
+                    status: 'aguardando'
+                });
+
+            if (errorIntegration) throw errorIntegration;
+
+            // 2. Update status to REWORK
+            await handleUpdateStatus(item.id, 'REWORK' as ProcessStatus);
+
+            toast.success("Retrabalho registrado com sucesso!");
+            fetchData();
+
+        } catch (error: any) {
+            console.error("Erro ao registrar retrabalho:", error);
+            toast.error(`Erro ao registrar retrabalho: ${error.message}`);
         }
     };
 
@@ -243,11 +275,10 @@ function ControleQualidadeContent() {
     }
 
     return (
-        <div className={`bg-slate-50/50 ${
-            (view === 'WASHING_STATION' || view === 'ADHESIVE_STATION') 
-            ? 'h-screen overflow-hidden flex flex-col' 
+        <div className={`bg-slate-50/50 ${(view === 'WASHING_STATION' || view === 'ADHESIVE_STATION' || view === 'HISTORY')
+            ? 'h-screen overflow-hidden flex flex-col'
             : 'min-h-screen'
-        }`}>
+            }`}>
             {view === 'DASHBOARD' && (
                 <DashboardPanel
                     items={itemsWithDetails}
@@ -286,6 +317,7 @@ function ControleQualidadeContent() {
                         i.status === ProcessStatus.ADHESIVE || i.status === ProcessStatus.FINISHED
                     )}
                     onUpdateStatus={handleUpdateStatus}
+                    onRegisterRework={handleRegisterRework}
                     viewMode="ADHESIVE"
                 />
             )}
@@ -300,7 +332,7 @@ function ControleQualidadeContent() {
             )}
 
             {view === 'HISTORY' && (
-                <HistoryPanel items={items} />
+                <HistoryPanel />
             )}
         </div>
     );
