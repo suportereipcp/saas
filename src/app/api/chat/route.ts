@@ -16,7 +16,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: 'Message is required' }, { status: 400 });
         }
 
-        // 1. Fetch API Key
+        // 1. Fetch API Key (Gemini)
         apiKey = process.env.GEMINI_API_KEY || '';
         if (!apiKey) {
             const { data: setting } = await supabaseAdmin
@@ -27,32 +27,25 @@ export async function POST(req: Request) {
             if (setting) apiKey = setting.value;
         }
 
-        if (!apiKey) {
-            return NextResponse.json({
-                error: 'Configuration Error',
-                details: 'GEMINI_API_KEY not found'
-            }, { status: 500 });
-        }
+        // Fetch LLM provider and model from settings
+        let llmProvider = 'gemini';
+        let llmModel = 'gemini-2.0-flash';
 
-        // Get User ID from Auth (Session) or Request if available
-        // Note: Ideally pass the auth token to this API route or use createServerClient
-        // For now, assuming authenticated user context via supabaseAdmin acting as system, 
-        // BUT we need the real user ID. 
-        // Let's use `supabase` client from `utils/supabase/server` if available or expect user_id in body (less secure).
-        // A better approach is using `createServerClient` in this route to get the session.
+        const { data: providerSetting } = await supabaseAdmin
+            .from('system_settings')
+            .select('value')
+            .eq('key', 'anotacoes_llm_provider')
+            .single();
+        if (providerSetting?.value) llmProvider = providerSetting.value;
 
-        const supabase = supabaseAdmin;
+        const { data: modelSetting } = await supabaseAdmin
+            .from('system_settings')
+            .select('value')
+            .eq('key', 'anotacoes_llm_model')
+            .single();
+        if (modelSetting?.value) llmModel = modelSetting.value;
 
-        // Retrieve session to get user_id properly
-        // In a real scenario, use: const supabase = createClient(); const { data: { user } } = await supabase.auth.getUser();
-        // Here we will rely on the client sending the user_id context or grab it if possible.
-        // Quick fix: Check if user_id is passed in body as a secure temporary measure or use header.
-        // Assuming secure context or extracting from header could be complex here without changing frontend first.
-
-        // Let's assume we want to save it. We really need the user_id. 
-        // I will first attempt to get it from auth.
-
-        let userId = body.userId; // Temporary: Client should send this, or we verify token.
+        let userId = body.userId;
 
         if (userId) {
             // Save USER message
@@ -69,16 +62,8 @@ export async function POST(req: Request) {
             else console.log('[DB] Saved user message ID:', data?.[0]?.id);
         }
 
-        // 2. Initialize Gemini with Tools
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({
-            model: 'gemini-2.0-flash',
-            systemInstruction: AGENT_SYSTEM_INSTRUCTION,
-            tools: [{ functionDeclarations: [catalogToolDefinition, internetSearchToolDefinition, searchNotesToolDefinition] }]
-        });
-
-        // 2.5 Fetch Recent Chat History (RAG / Context)
-        let history: any[] = [];
+        // Fetch chat history
+        let rawHistory: any[] = [];
         if (userId) {
             const { data: recentMessages, error: historyError } = await (supabaseAdmin as any)
                 .schema('app_anotacoes')
@@ -91,96 +76,232 @@ export async function POST(req: Request) {
             if (historyError) {
                 console.error('[DB] Error fetching history:', historyError);
             } else if (recentMessages && recentMessages.length > 0) {
-                // Reverse to chronological order (Oldest -> Newest)
-                history = recentMessages.reverse().map((msg: any) => ({
-                    role: msg.role === 'user' ? 'user' : 'model',
-                    parts: [{ text: msg.content }]
-                }));
+                rawHistory = recentMessages.reverse();
+                console.log(`[RAG] Loaded ${rawHistory.length} past messages for context.`);
+            }
+        }
 
-                // Gemini REQUIREMENT: History must start with 'user' role.
-                // If the oldest message fetched is 'model', remove it.
-                if (history.length > 0 && history[0].role === 'model') {
-                    history.shift(); 
+        let text: string;
+
+        // ===========================
+        // OPENROUTER PATH
+        // ===========================
+        if (llmProvider === 'openrouter') {
+            const openrouterKey = process.env.OPENROUTER_API_KEY || '';
+            if (!openrouterKey) {
+                return NextResponse.json({ error: 'OPENROUTER_API_KEY not configured' }, { status: 500 });
+            }
+
+            // Tools no formato OpenAI
+            const openaiTools = [
+                {
+                    type: "function" as const,
+                    function: {
+                        name: "search_catalog",
+                        description: catalogToolDefinition.description,
+                        parameters: {
+                            type: "object",
+                            properties: {
+                                query: { type: "string", description: "O código da peça para buscar (ex: 'R-025', 'S-305')." }
+                            },
+                            required: ["query"]
+                        }
+                    }
+                },
+                {
+                    type: "function" as const,
+                    function: {
+                        name: "search_internet",
+                        description: internetSearchToolDefinition.description,
+                        parameters: {
+                            type: "object",
+                            properties: {
+                                query: { type: "string", description: "O termo de busca otimizado." }
+                            },
+                            required: ["query"]
+                        }
+                    }
+                },
+                {
+                    type: "function" as const,
+                    function: {
+                        name: "search_notes",
+                        description: searchNotesToolDefinition.description,
+                        parameters: {
+                            type: "object",
+                            properties: {
+                                query: { type: "string", description: "Termo de busca textual." },
+                                tag: { type: "string", description: "Nome de uma tag/marcador para filtrar. Opcional." }
+                            },
+                            required: ["query"]
+                        }
+                    }
                 }
-                
-                console.log(`[RAG] Loaded ${history.length} past messages for context.`);
+            ];
+
+            // Mensagens no formato OpenAI
+            const messages: any[] = [
+                { role: "system", content: AGENT_SYSTEM_INSTRUCTION }
+            ];
+
+            for (const msg of rawHistory) {
+                messages.push({
+                    role: msg.role === 'user' ? 'user' : 'assistant',
+                    content: msg.content
+                });
             }
+
+            messages.push({ role: "user", content: message });
+
+            // Loop de tool calls (máximo 3 iterações)
+            let finalText = '';
+            for (let i = 0; i < 3; i++) {
+                const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${openrouterKey}`,
+                        'Content-Type': 'application/json',
+                        'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+                    },
+                    body: JSON.stringify({
+                        model: llmModel,
+                        messages,
+                        tools: openaiTools,
+                        tool_choice: "auto",
+                    }),
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.text();
+                    console.error('[OpenRouter] API Error:', response.status, errorBody);
+                    throw new Error(`OpenRouter API error: ${response.status} - ${errorBody}`);
+                }
+
+                const data = await response.json();
+                const choice = data.choices?.[0];
+
+                if (!choice) {
+                    throw new Error('No response from OpenRouter');
+                }
+
+                const assistantMessage = choice.message;
+
+                // Se não tem tool_calls, é a resposta final
+                if (!assistantMessage.tool_calls || assistantMessage.tool_calls.length === 0) {
+                    finalText = assistantMessage.content || '';
+                    break;
+                }
+
+                // Processar tool calls
+                messages.push(assistantMessage);
+
+                for (const toolCall of assistantMessage.tool_calls) {
+                    const fnName = toolCall.function.name;
+                    const fnArgs = JSON.parse(toolCall.function.arguments);
+                    let toolResult: any;
+
+                    if (fnName === 'search_catalog') {
+                        toolResult = await performCatalogSearch(fnArgs.query);
+                    } else if (fnName === 'search_internet') {
+                        toolResult = await performInternetSearch(fnArgs.query);
+                    } else if (fnName === 'search_notes') {
+                        toolResult = await performNotesSearch(fnArgs.query, fnArgs.tag);
+                    } else {
+                        toolResult = { error: `Unknown function: ${fnName}` };
+                    }
+
+                    messages.push({
+                        role: "tool",
+                        tool_call_id: toolCall.id,
+                        content: JSON.stringify(toolResult),
+                    });
+                }
+            }
+
+            text = finalText;
+
+        // ===========================
+        // GEMINI PATH (original)
+        // ===========================
+        } else {
+            if (!apiKey) {
+                return NextResponse.json({
+                    error: 'Configuration Error',
+                    details: 'GEMINI_API_KEY not found'
+                }, { status: 500 });
+            }
+
+            const genAI = new GoogleGenerativeAI(apiKey);
+            const model = genAI.getGenerativeModel({
+                model: llmModel,
+                systemInstruction: AGENT_SYSTEM_INSTRUCTION,
+                tools: [{ functionDeclarations: [catalogToolDefinition, internetSearchToolDefinition, searchNotesToolDefinition] }]
+            });
+
+            // Formatar histórico para Gemini
+            let history: any[] = rawHistory.map((msg: any) => ({
+                role: msg.role === 'user' ? 'user' : 'model',
+                parts: [{ text: msg.content }]
+            }));
+            if (history.length > 0 && history[0].role === 'model') {
+                history.shift();
+            }
+
+            const chat = model.startChat({ history });
+            let result = await chat.sendMessage(message);
+            let response = result.response;
+
+            // Check if model wants to call a function
+            const functionCalls = response.functionCalls();
+            if (functionCalls && functionCalls.length > 0) {
+                const call = functionCalls[0];
+
+                if (call.name === 'search_catalog') {
+                    const args = call.args as any;
+                    const toolResult = await performCatalogSearch(args.query);
+                    result = await chat.sendMessage([{
+                        functionResponse: { name: 'search_catalog', response: toolResult }
+                    }]);
+                    response = result.response;
+                } else if (call.name === 'search_internet') {
+                    const args = call.args as any;
+                    const toolResult = await performInternetSearch(args.query);
+                    result = await chat.sendMessage([{
+                        functionResponse: { name: 'search_internet', response: toolResult }
+                    }]);
+                    response = result.response;
+                } else if (call.name === 'search_notes') {
+                    const args = call.args as any;
+                    const toolResult = await performNotesSearch(args.query, args.tag);
+                    result = await chat.sendMessage([{
+                        functionResponse: { name: 'search_notes', response: toolResult }
+                    }]);
+                    response = result.response;
+                }
+            }
+
+            text = response.text();
         }
 
-        // 3. Start chat and send message
-        const chat = model.startChat({
-            history: history
-        });
-        let result = await chat.sendMessage(message);
-        let response = result.response;
-
-        // 4. Check if model wants to call a function
-        const functionCalls = response.functionCalls();
-        if (functionCalls && functionCalls.length > 0) {
-            // ... (Tool execution logic kept same)
-            const call = functionCalls[0];
-
-            if (call.name === 'search_catalog') {
-                const args = call.args as any;
-                const toolResult = await performCatalogSearch(args.query);
-
-                // Send function result back to model
-                result = await chat.sendMessage([{
-                    functionResponse: {
-                        name: 'search_catalog',
-                        response: toolResult
-                    }
-                }]);
-                response = result.response;
-            } else if (call.name === 'search_internet') {
-                const args = call.args as any;
-                const toolResult = await performInternetSearch(args.query);
-
-                // Send function result back to model
-                result = await chat.sendMessage([{
-                    functionResponse: {
-                        name: 'search_internet',
-                        response: toolResult
-                    }
-                }]);
-                response = result.response;
-            } else if (call.name === 'search_notes') {
-                const args = call.args as any;
-                const toolResult = await performNotesSearch(args.query, args.tag);
-
-                // Send function result back to model
-                result = await chat.sendMessage([{
-                    functionResponse: {
-                        name: 'search_notes',
-                        response: toolResult
-                    }
-                }]);
-                response = result.response;
-            }
-        }
-
-        const text = response.text();
-
+        // Save model response
         if (userId) {
-            // Save MODEL message
             const { data, error } = await (supabaseAdmin as any)
                 .schema('app_anotacoes')
                 .from('chat_messages')
                 .insert({
                     user_id: userId,
-                    role: 'model', // or 'assistant'
+                    role: 'model',
                     content: text
                 }).select();
 
-            if (error) console.error('[DB] Error saving model messsage:', error);
+            if (error) console.error('[DB] Error saving model message:', error);
             else console.log('[DB] Saved model message ID:', data?.[0]?.id);
         }
 
         return NextResponse.json({ reply: text });
 
     } catch (error: any) {
-        // ... error handling
-        console.error('Gemini API Error:', error);
+        console.error('LLM API Error:', error);
         return NextResponse.json({
             error: 'Internal Server Error',
             details: error.message || 'Unknown error'
