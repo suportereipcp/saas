@@ -22,22 +22,9 @@ function NotesContent() {
     const router = useRouter(); // Import useRouter
     const noteId = searchParams.get('noteId');
     const isNew = searchParams.get('new') === 'true';
-    const [isChecking, setIsChecking] = useState(true);
+    const [isChecking, setIsChecking] = useState(false); // No longer needed, always show welcome if no ID
 
-    // Auto-Redirect to Last Active Note
-    useEffect(() => {
-        // Only run if we are at the root (no specific note/mode selected)
-        if (!noteId && !isNew) {
-            const lastActive = localStorage.getItem('notes_last_active');
-            if (lastActive) {
-                router.replace(`/anotacoes?${lastActive}`);
-                // Don't stop loading, as we are redirecting
-                return;
-            }
-        }
-        // If we didn't redirect, stop loading and show Welcome
-        setIsChecking(false);
-    }, [noteId, isNew, router]);
+    // Auto-Redirect REMOVED to allow "New Note" flow on return
 
     // If "Edit Mode" (noteId) OR "Create Mode" (new=true) -> Show Canvas
     if (noteId || isNew) {

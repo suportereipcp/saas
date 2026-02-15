@@ -3,7 +3,7 @@
 import { Tldraw, Editor, DefaultSizeStyle, DefaultDashStyle, DefaultColorStyle, DefaultFillStyle, getSnapshot } from 'tldraw';
 import 'tldraw/tldraw.css';
 import { Button } from '@/components/ui/button';
-import { Save, File, NotebookText, Palette, Pencil, Loader2, X } from 'lucide-react';
+import { Save, File, NotebookText, Palette, Pencil, Loader2, X, FilePlus } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { TaggingModal } from './TaggingModal';
 import { cn } from '@/lib/utils';
@@ -91,26 +91,7 @@ export default function CanvasBoard() {
         }
     }, [searchParams]);
 
-    const handleDiscardClick = () => {
-        setIsDiscardDialogOpen(true);
-    };
 
-    const executeDiscard = () => {
-        // 0. Set Discarding Flag to prevent auto-save from writing back
-        isDiscardingRef.current = true;
-
-        // 1. Clear persistence
-        localStorage.removeItem('notes_last_active');
-
-        // 2. Clear Local Draft content (since user explicitly discarded)
-        if (userId) {
-            const key = `draft_note_${userId}_new`; // We only allow discarding NEW notes via this button
-            localStorage.removeItem(key);
-        }
-
-        // 3. Navigate back
-        router.replace('/anotacoes');
-    };
 
 
 
@@ -124,15 +105,21 @@ export default function CanvasBoard() {
     const [currentTranscription, setCurrentTranscription] = useState("");
     const [userId, setUserId] = useState<string | null>(null);
     const [isOnline, setIsOnline] = useState(true);
+    
+    // DIRTY STATE: Track initial state to warn on unsaved close
+    const [initialHash, setInitialHash] = useState<string>("");
+    const [isCloseDialogOpen, setIsCloseDialogOpen] = useState(false);
 
     // Monitor Online Status & Sync
     useEffect(() => {
         if (typeof window === 'undefined') return;
         setIsOnline(navigator.onLine);
 
-        const handleOnline = () => {
+        const handleOnline = async () => {
             setIsOnline(true);
             toast.success("Conexão restabelecida!");
+            // Sincronizar notas salvas offline ANTES de transcrever
+            await syncOfflineQueue();
             processPendingTranscriptions();
         };
         const handleOffline = () => {
@@ -148,6 +135,69 @@ export default function CanvasBoard() {
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userId, editor]);
+
+    // Warn user about unsaved changes before closing/navigating away
+    useEffect(() => {
+        if (!editor) return;
+
+        const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+            const currentHash = getCanvasHash();
+            let isDirty = false;
+
+            if (noteId) {
+                isDirty = currentHash !== initialHash;
+            } else {
+                isDirty = currentHash !== "empty";
+            }
+
+            if (isDirty) {
+                event.preventDefault();
+                event.returnValue = ''; // Required for Chrome to show the prompt
+                return ''; // Standard for other browsers
+            }
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+        };
+    }, [editor, noteId, initialHash]);
+
+    // Intercept SPA Navigation (Next.js Link clicks)
+    useEffect(() => {
+        if (!editor) return;
+
+        const handleAnchorClick = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            const anchor = target.closest('a');
+            
+            if (anchor) {
+                const href = anchor.getAttribute('href');
+                // Allow external links or same-page anchors if needed (refine as necessary)
+                if (href && (href.startsWith('/') || href.startsWith(window.location.origin))) {
+                     const currentHash = getCanvasHash();
+                     let isDirty = false;
+         
+                     if (noteId) {
+                          isDirty = currentHash !== initialHash;
+                     } else {
+                          isDirty = currentHash !== "empty";
+                     }
+
+                     if (isDirty) {
+                         e.preventDefault();
+                         e.stopPropagation();
+                         setIsCloseDialogOpen(true);
+                     }
+                }
+            }
+        };
+
+        // Capture phase to intercept before Next.js Link handles it
+        document.addEventListener('click', handleAnchorClick, true);
+        return () => document.removeEventListener('click', handleAnchorClick, true);
+    }, [editor, noteId, initialHash]);
 
     const processPendingTranscriptions = async () => {
         if (!editor || !userId) return;
@@ -219,12 +269,105 @@ export default function CanvasBoard() {
         }
     };
 
+    // --- OFFLINE QUEUE: Salvar notas localmente quando sem internet ---
+    const OFFLINE_QUEUE_KEY = `offline_notes_queue_${userId}`;
+
+    const saveToOfflineQueue = (snapshot: any, title: string, tags: string[], transcription: string) => {
+        try {
+            const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
+            queue.push({
+                snapshot,
+                title,
+                tags,
+                transcription,
+                noteId: noteId || null, // null = nota nova
+                userId,
+                createdAt: new Date().toISOString()
+            });
+            localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+        } catch (e) {
+            console.error('Failed to save to offline queue:', e);
+        }
+    };
+
+    const syncOfflineQueue = async () => {
+        if (!userId) return;
+        try {
+            const queue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
+            if (queue.length === 0) return;
+
+            toast.loading(`Sincronizando ${queue.length} nota(s) salva(s) offline...`, { id: 'sync-offline' });
+
+            const remainingQueue: any[] = [];
+
+            for (const item of queue) {
+                try {
+                    // Adicionar tag para transcrição posterior
+                    const syncTags = [...(item.tags || [])];
+                    if (!syncTags.includes('PENDENTE_TRANSCRICAO')) {
+                        syncTags.push('PENDENTE_TRANSCRICAO');
+                    }
+
+                    if (item.noteId) {
+                        // UPDATE nota existente
+                        const result = await supabase
+                            .schema('app_anotacoes')
+                            .from('notes')
+                            .update({
+                                canvas_data: item.snapshot,
+                                tags: syncTags,
+                                transcription: item.transcription || '[Aguardando transcrição...]',
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('id', item.noteId);
+                        if (result.error) throw result.error;
+                    } else {
+                        // INSERT nota nova
+                        const result = await supabase
+                            .schema('app_anotacoes')
+                            .from('notes')
+                            .insert({
+                                user_id: item.userId,
+                                title: item.title,
+                                canvas_data: item.snapshot,
+                                tags: syncTags,
+                                transcription: item.transcription || '[Aguardando transcrição...]',
+                                updated_at: new Date().toISOString()
+                            });
+                        if (result.error) throw result.error;
+                    }
+                } catch (e) {
+                    console.error('Failed to sync offline note:', e);
+                    remainingQueue.push(item); // Mantém na fila se falhou
+                }
+            }
+
+            // Atualizar fila com apenas os que falharam
+            if (remainingQueue.length > 0) {
+                localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remainingQueue));
+                toast.warning(`${remainingQueue.length} nota(s) não sincronizaram. Tentaremos novamente.`, { id: 'sync-offline' });
+            } else {
+                localStorage.removeItem(OFFLINE_QUEUE_KEY);
+                toast.success(`${queue.length} nota(s) sincronizada(s) com sucesso!`, { id: 'sync-offline' });
+            }
+        } catch (e) {
+            console.error('Sync offline queue error:', e);
+            toast.error('Erro ao sincronizar notas offline.', { id: 'sync-offline' });
+        }
+    };
+
     // Ref to track if we are currently discarding the note to prevent race conditions with auto-save
     const isDiscardingRef = useRef(false);
 
     // State for Discard Confirmation Dialog
-    const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
 
+
+    // State for Saving Loading Dialog
+    const [isSavingDialogOpen, setIsSavingDialogOpen] = useState(false);
+    
+    // CACHE: Store last transcribed hash to avoid redundant API calls
+    const [lastTranscribedHash, setLastTranscribedHash] = useState<string>("");
+    
     // Fetch User on Mount
     useEffect(() => {
         const getUser = async () => {
@@ -234,57 +377,95 @@ export default function CanvasBoard() {
         getUser();
     }, []);
 
-    // Load Note Data if Editing (With Priority for Local Drafts)
+    // Load Note Data
     useEffect(() => {
-        if (!editor || !noteId || !userId) return;
+        if (!editor || !userId) return;
 
         const loadNote = async () => {
             setIsLoading(true);
-            const { data, error } = await supabase
-                .schema('app_anotacoes')
-                .from('notes')
-                .select('*')
-                .eq('id', noteId)
-                .single();
 
-            if (error) {
-                console.error("Error loading note:", error);
-                toast.error("Erro ao carregar anotação.");
-            } else if (data) {
-                // 1. Restore Metadata (always from DB)
-                if (data.tags) setCurrentTags(data.tags);
-                if (data.transcription) setCurrentTranscription(data.transcription);
+            if (noteId) {
+                // --- EXISTING NOTE ---
+                const { data, error } = await supabase
+                    .schema('app_anotacoes')
+                    .from('notes')
+                    .select('*')
+                    .eq('id', noteId)
+                    .single();
 
-                // 2. Restore Canvas (Check Local Draft First)
-                const draftKey = `draft_note_${userId}_${noteId}`;
+                if (error) {
+                    console.error("Error loading note:", error);
+                    toast.error("Erro ao carregar anotação.");
+                } else if (data) {
+                    // 1. Restore Metadata
+                    if (data.tags) setCurrentTags(data.tags);
+                    if (data.transcription) setCurrentTranscription(data.transcription);
+
+                    // 2. Restore Canvas (Check Local Draft First)
+                    const draftKey = `draft_note_${userId}_${noteId}`;
+                    const localDraft = localStorage.getItem(draftKey);
+
+                    let loadedFromDraft = false;
+                    if (localDraft) {
+                        try {
+                            const snapshot = JSON.parse(localDraft);
+                            editor.loadSnapshot(snapshot);
+                            loadedFromDraft = true;
+                        } catch (e) {
+                            console.error("Error loading local draft:", e);
+                        }
+                    }
+
+                    // 3. Fallback to DB Canvas
+                    if (!loadedFromDraft && data.canvas_data) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        editor.loadSnapshot(data.canvas_data as any);
+                    }
+                }
+            } else {
+                // --- NEW NOTE ---
+                // Reset metadata
+                setCurrentTags([]);
+                setCurrentTranscription("");
+
+                // Check for new note draft
+                const draftKey = `draft_note_${userId}_new`;
                 const localDraft = localStorage.getItem(draftKey);
-
-                let loadedFromDraft = false;
-                if (localDraft) {
+                
+                // Only restore draft if we have an active session (prevents "zombie" drafts after clean exit)
+                const hasActiveSession = localStorage.getItem('notes_last_active');
+                
+                if (localDraft && hasActiveSession) {
                     try {
                         const snapshot = JSON.parse(localDraft);
                         editor.loadSnapshot(snapshot);
-                        loadedFromDraft = true;
                     } catch (e) {
-                        console.error("Error loading local draft:", e);
+                        console.error("Error loading new note draft:", e);
                     }
+                } else {
+                    // CLEAN SLATE
+                    editor.run(() => {
+                        editor.selectAll();
+                        editor.deleteShapes(editor.getSelectedShapeIds());
+                    });
                 }
-
-                // 3. Fallback to DB Canvas if no valid draft
-                if (!loadedFromDraft && data.canvas_data) {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    editor.loadSnapshot(data.canvas_data as any);
-                }
-
-                // FIX: Enforce default styles (S, Solid, Black) even after loading snapshot
-                editor.run(() => {
-                    editor.setStyleForNextShapes(DefaultSizeStyle, 's');
-                    editor.setStyleForNextShapes(DefaultDashStyle, 'solid');
-                    editor.setStyleForNextShapes(DefaultColorStyle, 'black');
-                    editor.setStyleForNextShapes(DefaultFillStyle, 'none');
-                    editor.setCurrentTool('draw');
-                });
             }
+
+            // Enforce default styles after any load/clear
+            editor.run(() => {
+                editor.setStyleForNextShapes(DefaultSizeStyle, 's');
+                editor.setStyleForNextShapes(DefaultDashStyle, 'solid');
+                editor.setStyleForNextShapes(DefaultColorStyle, 'black');
+                editor.setStyleForNextShapes(DefaultFillStyle, 'none');
+                editor.setCurrentTool('draw');
+            });
+
+            // Set Initial Hash for Dirty Checking
+            // Short delay to ensure shapes are rendered in store? Usually synchronous in tldraw store.
+            setTimeout(() => {
+                setInitialHash(getCanvasHash());
+            }, 100);
+
             setIsLoading(false);
         };
 
@@ -343,34 +524,36 @@ export default function CanvasBoard() {
         };
     }, [editor, userId, noteId]);
 
-    // --- PERSISTENCE: Restore Draft (New Notes) ---
-    useEffect(() => {
-        // Only run for new notes (no noteId) and when editor/user is ready
-        if (!editor || !userId || noteId) return;
 
-        const key = `draft_note_${userId}_new`;
-        const localDraft = localStorage.getItem(key);
 
-        if (localDraft) {
-            try {
-                const snapshot = JSON.parse(localDraft);
-                editor.loadSnapshot(snapshot);
-
-                // FIX: Enforce default styles (S, Solid, Black) after restoring draft
-                editor.run(() => {
-                    editor.setStyleForNextShapes(DefaultSizeStyle, 's');
-                    editor.setStyleForNextShapes(DefaultDashStyle, 'solid');
-                    editor.setStyleForNextShapes(DefaultColorStyle, 'black');
-                    editor.setStyleForNextShapes(DefaultFillStyle, 'none');
-                    editor.setCurrentTool('draw');
+    // Helper: Generate fingerprint of current canvas state
+    const getCanvasHash = (): string => {
+        if (!editor) return "";
+        try {
+            const ids = Array.from(editor.getCurrentPageShapeIds()).sort();
+            if (ids.length === 0) return "empty";
+            
+            // Serialize relevant properties of all shapes to detect changes
+            const shapesData = ids.map(id => {
+                const shape = editor.getShape(id);
+                if (!shape) return "";
+                // Include props, position, rotation, etc.
+                return JSON.stringify({
+                    type: shape.type,
+                    x: shape.x,
+                    y: shape.y,
+                    props: shape.props,
+                    rotation: shape.rotation,
+                    opacity: shape.opacity
                 });
-
-                // toast.info("Rascunho não salvo restaurado."); 
-            } catch (e) {
-                console.error("Error restoring new note draft:", e);
-            }
+            });
+            
+            return shapesData.join('|');
+        } catch (e) {
+            console.error("Hash error", e);
+            return Date.now().toString(); // Fallback always new
         }
-    }, [editor, userId, noteId]);
+    };
 
     const handleSave = async (selectedTags: string[], transcriptionInputValue: string) => {
         if (!editor || !userId) {
@@ -379,97 +562,218 @@ export default function CanvasBoard() {
         }
 
         try {
-            toast.loading("Salvando anotação...", { id: 'save-process' });
+            // Open Loading Dialog
+            setIsSavingDialogOpen(true);
 
             let finalTranscription = transcriptionInputValue;
-            const finalTags = [...selectedTags];
+            let finalTags = [...selectedTags];
 
-            // 1. Transcription Logic
-            if (isOnline) {
-                try {
-                    toast.loading("IA lendo documento (Caixa Alta/Baixa)...", { id: 'save-process' });
-                    // Always force re-transcription as requested
-                    const freshTranscription = await handleAutoTranscribe();
-                    if (freshTranscription) {
-                        finalTranscription = freshTranscription;
-                    }
-                } catch (transcribeError) {
-                    console.warn("Auto-transcription failed on save:", transcribeError);
-                }
-            } else {
-                // Offline Mode
+            // --- OFFLINE MODE: Salvar na fila local e sair ---
+            if (!isOnline) {
+                const snapshot = getSnapshot(editor.store);
+                const title = `Anotação ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+
                 if (!finalTags.includes('PENDENTE_TRANSCRICAO')) {
                     finalTags.push('PENDENTE_TRANSCRICAO');
                 }
-                if (!finalTranscription) {
-                    finalTranscription = "[Aguardando conexão para transcrever...]";
+
+                saveToOfflineQueue(snapshot, title, finalTags, finalTranscription || '');
+
+                // Cleanup: mesma lógica de pós-save online
+                isDiscardingRef.current = true;
+                const draftKey = `draft_note_${userId}_${noteId || 'new'}`;
+                localStorage.removeItem(draftKey);
+                localStorage.removeItem('notes_last_active');
+
+                toast.success("Salvo localmente! Será sincronizado quando a internet voltar.", { duration: 4000 });
+                setIsSavingDialogOpen(false);
+                router.push('/anotacoes/memory');
+                return; // Sai sem tentar Supabase
+            }
+
+            // 1. DETERMINE IF TRANSCRIPTION IS NEEDED (Before saving)
+            // This allows us to add a "PROCESSING" tag to the DB immediately
+            let shouldTranscribe = false;
+            let processingImageBase64 = "";
+
+            if (isOnline) {
+                const textWasModifiedInModal = transcriptionInputValue !== currentTranscription && transcriptionInputValue.trim() !== '';
+                const currentHash = getCanvasHash();
+                const drawingChanged = currentHash !== lastTranscribedHash;
+                
+                // Skip if user manually typed text AND drawing didn't change
+                shouldTranscribe = drawingChanged || !textWasModifiedInModal;
+
+                if (shouldTranscribe) {
+                    // Try to generate image now
+                    try {
+                        const ids = Array.from(editor.getCurrentPageShapeIds());
+                        if (ids.length > 0) {
+                            const imgResult = await (editor as any).toImage(ids, { format: 'jpeg', quality: 0.8, background: true, padding: 32 });
+                            if (imgResult?.blob) {
+                                const reader = new FileReader();
+                                const base64Promise = new Promise<string>((resolve, reject) => {
+                                    reader.onloadend = () => {
+                                        if (typeof reader.result === 'string') resolve(reader.result);
+                                        else reject(new Error("Failed to read blob"));
+                                    };
+                                    reader.onerror = reject;
+                                    reader.readAsDataURL(imgResult.blob);
+                                });
+                                processingImageBase64 = await base64Promise;
+                                
+                                // Reset status tags
+                                finalTags = finalTags.filter(t => 
+                                    t !== 'TRANSCRIPTION_SUCCESS' && 
+                                    t !== 'TRANSCRIPTION_ERROR'
+                                );
+
+                                // Add visible tag for UI spinner
+                                if (!finalTags.includes('PROCESSING_TRANSCRIPTION')) {
+                                    finalTags.push('PROCESSING_TRANSCRIPTION');
+                                }
+                            } else {
+                                shouldTranscribe = false; // Failed to gen image
+                            }
+                        } else {
+                            shouldTranscribe = false; // Empty canvas
+                        }
+                    } catch (e) {
+                        console.warn("Image gen failed", e);
+                        shouldTranscribe = false;
+                    }
                 }
             }
 
             const snapshot = getSnapshot(editor.store);
             const title = `Anotação ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
 
-            const payload = {
-                user_id: userId,
-                title: title,
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                canvas_data: snapshot as any,
-                tags: finalTags,
-                transcription: finalTranscription,
-                updated_at: new Date().toISOString()
-            };
-
-            let result;
+            // 2. SAVE IMMEDIATELY (fast - just DB write)
+            let savedNoteId = noteId;
             if (isEditing && noteId) {
-                // Update
-                result = await supabase
+                // On EDIT: don't overwrite title (preserves original creation date label)
+                const result = await supabase
                     .schema('app_anotacoes')
                     .from('notes')
-                    .update(payload)
+                    .update({
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        canvas_data: snapshot as any,
+                        tags: finalTags,
+                        transcription: finalTranscription,
+                        updated_at: new Date().toISOString()
+                    })
                     .eq('id', noteId);
+                if (result.error) throw result.error;
             } else {
-                // Insert
-                result = await supabase
+                // On INSERT: include title with creation date
+                const result = await supabase
                     .schema('app_anotacoes')
                     .from('notes')
-                    .insert(payload)
-                    .select()
+                    .insert({
+                        user_id: userId,
+                        title: title,
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        canvas_data: snapshot as any,
+                        tags: finalTags,
+                        transcription: finalTranscription,
+                        updated_at: new Date().toISOString()
+                    })
+                    .select('id')
                     .single();
+                if (result.error) throw result.error;
+                savedNoteId = result.data.id;
             }
-
-            if (result.error) throw result.error;
 
             // Clear Local Draft on Success
-            const key = `draft_note_${userId}_${noteId || 'new'}`;
-            localStorage.removeItem(key);
+            // IMPORTANT: Set discarding flag FIRST to prevent auto-save from re-writing on unmount
+            isDiscardingRef.current = true;
+            const draftKey = `draft_note_${userId}_${noteId || 'new'}`;
+            localStorage.removeItem(draftKey);
 
-            toast.dismiss('save-process');
-            if (isOnline) {
-                toast.success("Anotação salva e transcrita com sucesso!");
-            } else {
-                toast.warning("Salvo localmente. A transcrição será feita quando conectar.");
+            // 3. FIRE BACKGROUND TRANSCRIPTION (non-blocking)
+            if (isOnline && savedNoteId && shouldTranscribe && processingImageBase64) {
+                // Check payload size roughly (limit is ~4.5MB for Vercel)
+                // Base64 size = (size * 4/3). 4.5MB * 1.33 = ~6M chars.
+                if (processingImageBase64.length > 6 * 1024 * 1024) {
+                     console.warn("Image too large for background transcription");
+                     toast.warning("Imagem muito grande para transcrição automática.");
+                     // Remove tag immediately
+                     const { data: currentTags } = await supabase
+                        .schema('app_anotacoes')
+                        .from('notes')
+                        .select('tags')
+                        .eq('id', savedNoteId)
+                        .single();
+                     const fixedTags = (currentTags?.tags || []).filter((t: string) => t !== 'PROCESSING_TRANSCRIPTION');
+                     if (!fixedTags.includes('TRANSCRIPTION_ERROR')) fixedTags.push('TRANSCRIPTION_ERROR');
+                     
+                     await supabase
+                        .schema('app_anotacoes')
+                        .from('notes')
+                        .update({ tags: fixedTags })
+                        .eq('id', savedNoteId);
+                } else {
+                    fetch('/api/transcribe-background', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ noteId: savedNoteId, image: processingImageBase64 })
+                    }).catch(async (err) => {
+                        console.warn("Background transcription fire failed:", err);
+                        // Cleanup tag on fetch failure
+                         const { data: currentTags } = await supabase
+                            .schema('app_anotacoes')
+                            .from('notes')
+                            .select('tags')
+                            .eq('id', savedNoteId)
+                            .single();
+                         const fixedTags = (currentTags?.tags || []).filter((t: string) => t !== 'PROCESSING_TRANSCRIPTION');
+                         // Add Error Tag
+                         if (!fixedTags.includes('TRANSCRIPTION_ERROR')) fixedTags.push('TRANSCRIPTION_ERROR');
+
+                         await supabase
+                            .schema('app_anotacoes')
+                            .from('notes')
+                            .update({ tags: fixedTags })
+                            .eq('id', savedNoteId);
+                    });
+                }
             }
 
-            // Redirect to My Notes
+            toast.success("Anotação salva! A transcrição será atualizada em breve.");
+
+            // 4. REDIRECT IMMEDIATELY
+            // Clear persistence to ensure next open is fresh
+            localStorage.removeItem('notes_last_active');
             router.push('/anotacoes/memory');
 
         } catch (error: any) {
             console.error("Save error:", error);
-            toast.dismiss('save-process');
-            toast.error(`Erro ao salvar na nuvem: ${error.message}. O rascunho continua salvo neste dispositivo.`);
+            toast.error(`Erro ao salvar: ${error.message}. O rascunho continua salvo neste dispositivo.`);
+        } finally {
+            setIsSavingDialogOpen(false);
         }
     };
 
 
-    const handleAutoTranscribe = async (): Promise<string> => {
+    const handleAutoTranscribe = async (useCache = false): Promise<string> => {
         if (!editor) return "";
 
         try {
             const ids = Array.from(editor.getCurrentPageShapeIds());
             if (ids.length === 0) return "";
 
-            // Use editor.toImage to get a PNG Blob directly
-            const result = await (editor as any).toImage(ids, { format: 'png', background: true, padding: 32 });
+            // CACHE CHECK
+            // We calculate the hash of the current drawing
+            const currentHash = getCanvasHash();
+            
+            // If we are allowed to use cache, and hash matches last success
+            if (useCache && lastTranscribedHash && currentHash === lastTranscribedHash && currentTranscription) {
+                console.log("Skipping transcription: Content unchanged since last analysis.");
+                return currentTranscription; // Return valid existing text
+            }
+
+            // Use editor.toImage to get a JPEG Blob directly (Lighter than PNG)
+            const result = await (editor as any).toImage(ids, { format: 'jpeg', quality: 0.8, background: true, padding: 32 });
 
             if (!result || !result.blob) {
                 throw new Error("Falha ao gerar imagem da anotação");
@@ -503,11 +807,59 @@ export default function CanvasBoard() {
             }
 
             const data = await response.json();
-            return data.text || "";
+            const resultText = data.text || "";
+
+            // Update Cache
+            setLastTranscribedHash(currentHash);
+            
+            // IMPORTANT: If called from Modal, we don't necessarily set currentTranscription here
+            // Modal ends up calling setTranscription internally.
+            // But if called from Save, we return it.
+
+            return resultText;
 
         } catch (error: any) {
             console.error("Transcribe Error:", error);
             throw error;
+        }
+    };
+    
+    const exitEditor = () => {
+        // 0. Set Discarding Flag to prevent auto-save from writing back
+        isDiscardingRef.current = true;
+        
+        // Clear persistence
+        localStorage.removeItem('notes_last_active');
+        // Clear local draft for ANY note (new or existing) since user chose to exit without saving
+        if (userId) {
+             localStorage.removeItem(`draft_note_${userId}_${noteId || 'new'}`);
+        }
+        router.push('/anotacoes/memory');
+    };
+
+    const handleCloseRequest = () => {
+        if (!editor) {
+            exitEditor();
+            return;
+        }
+        
+        const currentHash = getCanvasHash();
+        
+        // If content changed from initial load OR (for new notes) if content is not empty
+        // logic: if existing note -> changed from start?
+        // logic: if new note -> is not empty? (hash 'empty' means empty)
+        
+        let isDirty = false;
+        if (noteId) {
+             isDirty = currentHash !== initialHash;
+        } else {
+             isDirty = currentHash !== "empty"; // For new notes, if not empty, it's dirty
+        }
+
+        if (isDirty) {
+            setIsCloseDialogOpen(true);
+        } else {
+            exitEditor();
         }
     };
 
@@ -616,30 +968,57 @@ export default function CanvasBoard() {
                 </div>
             </div>
 
-            {/* Discard Button (Only for New Notes) - Above Save Button */}
-            {!isEditing && (
-                <div className="absolute bottom-44 right-6 z-50">
+
+
+            {/* FAB Stack - Bottom Right */}
+            <div className="absolute bottom-10 right-6 z-50 flex flex-col items-end gap-3">
+                
+                {/* Close/Exit Button - RED */}
+                <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-red-600 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full shadow-sm border border-red-200 whitespace-nowrap">
+                        Fechar
+                    </span>
                     <Button
                         size="icon"
-                        className="h-14 w-14 rounded-full bg-red-100 text-red-600 hover:bg-red-200 hover:text-red-700 shadow-sm transition-all duration-300 hover:scale-110 group border border-red-200"
-                        onClick={handleDiscardClick}
-                        title="Descartar Rascunho"
+                        className="h-12 w-12 rounded-full bg-red-500 text-white hover:bg-red-600 shadow-md shadow-red-900/15 hover:shadow-lg transition-all duration-300 hover:scale-105 group border-2 border-red-400"
+                        onClick={handleCloseRequest}
+                        title="Fechar e Voltar para Lista"
                     >
-                        <X className="w-6 h-6 transition-transform duration-300 group-hover:rotate-90" />
+                        <X className="w-5 h-5 transition-transform duration-300 group-hover:rotate-90" />
                     </Button>
                 </div>
-            )}
 
-            {/* Floating Action Button */}
-            <div className="absolute bottom-28 right-6 z-50">
-                <Button
-                    size="icon"
-                    className="h-14 w-14 rounded-full bg-emerald-100 text-emerald-600 hover:bg-emerald-200 hover:text-emerald-700 shadow-md transition-all duration-300 hover:scale-110 group border border-emerald-200"
-                    onClick={() => setTaggingOpen(true)}
-                    title={isEditing ? "Salvar Alterações" : "Salvar Nova Nota"}
-                >
-                    <Save className="w-7 h-7 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
-                </Button>
+                {/* Nova Anotação Button (Only when Editing) - BLUE */}
+                {isEditing && (
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-blue-600 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full shadow-sm border border-blue-200 whitespace-nowrap">
+                            Nova Nota
+                        </span>
+                        <Button
+                            size="icon"
+                            className="h-12 w-12 rounded-full bg-blue-500 text-white hover:bg-blue-600 shadow-md shadow-blue-900/15 hover:shadow-lg transition-all duration-300 hover:scale-105 group border-2 border-blue-400"
+                            onClick={() => router.push('/anotacoes')}
+                            title="Nova Anotação"
+                        >
+                            <FilePlus className="w-5 h-5 transition-transform duration-300 group-hover:scale-110" />
+                        </Button>
+                    </div>
+                )}
+
+                {/* Main Save Button - GREEN */}
+                <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-emerald-700 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full shadow-sm border border-emerald-200 whitespace-nowrap">
+                        Salvar
+                    </span>
+                    <Button
+                        size="icon"
+                        className="h-12 w-12 rounded-full bg-emerald-600 text-white hover:bg-emerald-700 shadow-md shadow-emerald-900/20 hover:shadow-lg transition-all duration-300 hover:scale-105 group border-2 border-emerald-500"
+                        onClick={() => setTaggingOpen(true)}
+                        title={isEditing ? "Salvar Alterações" : "Salvar Nova Nota"}
+                    >
+                        <Save className="w-5 h-5 transition-transform duration-300 group-hover:scale-110" />
+                    </Button>
+                </div>
             </div>
 
             {/* Visual Right Scrollbar - ISOLATED COMPONENT */}
@@ -654,26 +1033,53 @@ export default function CanvasBoard() {
                 onAutoTranscribe={handleAutoTranscribe}
             />
 
-            <Dialog open={isDiscardDialogOpen} onOpenChange={setIsDiscardDialogOpen}>
+
+
+            <Dialog open={isSavingDialogOpen} onOpenChange={(open) => !open && setIsSavingDialogOpen(open)}>
+                <DialogContent className="sm:max-w-md flex flex-col items-center justify-center p-8 [&>button]:hidden">
+                   <div className="flex flex-col items-center gap-4 text-center">
+                        <Loader2 className="h-12 w-12 text-primary animate-spin" />
+                        <DialogTitle className="text-lg font-semibold text-primary">Salvando Anotação</DialogTitle>
+                        <p className="text-gray-600">Donizete por favor aguarde um pouco pois estou salvando as informações...</p>
+                   </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isCloseDialogOpen} onOpenChange={setIsCloseDialogOpen}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Descartar Anotação?</DialogTitle>
+                        <DialogTitle>Deseja sair sem salvar?</DialogTitle>
                         <DialogDescription>
-                            Tem certeza que deseja descartar este rascunho? Esta ação não pode ser desfeita e todo o conteúdo desenhado será perdido.
+                            Você tem alterações não salvas. Se sair agora, o que você escreveu/desenhou será perdido.
                         </DialogDescription>
                     </DialogHeader>
-                    <DialogFooter className="flex gap-2 sm:justify-end">
-                        <DialogClose asChild>
-                            <Button type="button" variant="outline">
-                                Cancelar
-                            </Button>
-                        </DialogClose>
+                    <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+                        <Button 
+                            type="button" 
+                            variant="ghost"
+                            onClick={() => setIsCloseDialogOpen(false)}
+                        >
+                            Cancelar
+                        </Button>
                         <Button
                             type="button"
                             variant="destructive"
-                            onClick={executeDiscard}
+                            onClick={() => {
+                                setIsCloseDialogOpen(false);
+                                exitEditor();
+                            }}
                         >
-                            Sim, descartar
+                            Sair sem Salvar
+                        </Button>
+                        <Button
+                            type="button"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                            onClick={() => {
+                                setIsCloseDialogOpen(false);
+                                setTaggingOpen(true); // Open tagging modal to save
+                            }}
+                        >
+                            Salvar Agora
                         </Button>
                     </DialogFooter>
                 </DialogContent>

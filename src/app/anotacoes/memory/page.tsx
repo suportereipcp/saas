@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Search, Calendar, PenLine, Filter, Trash2, Loader2 } from "lucide-react";
+import { Search, Calendar, PenLine, Filter, Trash2, Loader2, Check, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NoteDetailModal } from "../components/NoteDetailModal";
 import { FilterDialog } from "../components/FilterDialog";
@@ -19,8 +19,8 @@ export default function MemoryPage() {
     const [markers, setMarkers] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    const fetchData = async () => {
-        setIsLoading(true);
+    const fetchData = async (silent = false) => {
+        if (!silent) setIsLoading(true);
 
         try {
             // Fetch Notes
@@ -28,7 +28,7 @@ export default function MemoryPage() {
                 .schema('app_anotacoes')
                 .from('notes')
                 .select('*')
-                .order('updated_at', { ascending: false });
+                .order('created_at', { ascending: false });
 
             // Fetch Markers
             const markersReq = supabase
@@ -43,7 +43,6 @@ export default function MemoryPage() {
 
             if (markersRes.error) {
                 console.warn("Markers warning:", markersRes.error.message);
-                // Non-critical, just empty markers
                 setMarkers([]);
             } else {
                 setMarkers(markersRes.data || []);
@@ -51,14 +50,47 @@ export default function MemoryPage() {
 
         } catch (error: any) {
             console.error("Fetch Error:", error);
-            toast.error(`Erro: ${error.message || "Falha ao carregar dados"}`);
+            if (!silent) toast.error(`Erro: ${error.message || "Falha ao carregar dados"}`);
         } finally {
-            setIsLoading(false);
+            if (!silent) setIsLoading(false);
         }
     };
 
     useEffect(() => {
         fetchData();
+
+        // Realtime Subscription
+        const channel = supabase
+            .channel('realtime-notes')
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'app_anotacoes',
+                    table: 'notes'
+                },
+                (payload) => {
+                     // Optimistic update
+                     if (payload.eventType === 'UPDATE') {
+                        setNotes(prev => prev.map(n => n.id === payload.new.id ? payload.new : n));
+                     } else if (payload.eventType === 'INSERT') {
+                        setNotes(prev => [payload.new, ...prev]);
+                     } else if (payload.eventType === 'DELETE') {
+                        setNotes(prev => prev.filter(n => n.id !== payload.old.id));
+                     }
+                }
+            )
+            .subscribe();
+
+        // Silent Polling Interval (Backup for Realtime)
+        const interval = setInterval(() => {
+            fetchData(true);
+        }, 4000);
+
+        return () => {
+            supabase.removeChannel(channel);
+            clearInterval(interval);
+        };
     }, []);
 
     const handleDelete = async (id: string) => {
@@ -151,6 +183,10 @@ export default function MemoryPage() {
                 note={viewingNote}
                 open={!!viewingNote}
                 onOpenChange={(open: boolean) => !open && setViewingNote(null)}
+                onTranscriptionUpdated={(noteId: string, newText: string) => {
+                    setNotes(prev => prev.map(n => n.id === noteId ? { ...n, transcription: newText } : n));
+                    setViewingNote((prev: any) => prev?.id === noteId ? { ...prev, transcription: newText } : prev);
+                }}
             />
 
             {/* Chat Area */}
@@ -232,7 +268,9 @@ export default function MemoryPage() {
                                         </Button>
                                     </div>
 
-                                    <h3 className="text-lg font-bold text-slate-800 mb-2">{note.title}</h3>
+                                    <h3 className="text-lg font-bold text-slate-800 mb-2">
+                                        Última Edição: {new Date(note.updated_at).toLocaleString('pt-BR')}
+                                    </h3>
 
                                     {/* Transcription / Summary Display */}
                                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 mb-3">
@@ -247,13 +285,36 @@ export default function MemoryPage() {
                                         )}
                                     </div>
 
-                                    <div className="mt-4 flex flex-wrap gap-2">
-                                        {note.tags && note.tags.map((tag: string) => (
+                                    <div className="mt-4 flex flex-wrap gap-2 pr-10">
+                                        {note.tags && note.tags
+                                            .filter((t: string) => 
+                                                t !== 'PROCESSING_TRANSCRIPTION' &&
+                                                t !== 'TRANSCRIPTION_SUCCESS' &&
+                                                t !== 'TRANSCRIPTION_ERROR'
+                                            )
+                                            .map((tag: string) => (
                                             <span key={tag} className="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-bold uppercase tracking-wide">
                                                 {tag}
                                             </span>
                                         ))}
                                     </div>
+
+                                    {/* Transcription Status Indicators */}
+                                    {note.tags?.includes('PROCESSING_TRANSCRIPTION') && (
+                                        <div className="absolute bottom-6 right-6" title="Transcrevendo em segundo plano...">
+                                            <Loader2 className="w-6 h-6 text-emerald-500 animate-spin" />
+                                        </div>
+                                    )}
+                                    {note.tags?.includes('TRANSCRIPTION_SUCCESS') && (
+                                        <div className="absolute bottom-6 right-6 bg-white rounded-full p-1 shadow-sm" title="Transcrição concluída com sucesso">
+                                            <Check className="w-5 h-5 text-emerald-500" />
+                                        </div>
+                                    )}
+                                    {note.tags?.includes('TRANSCRIPTION_ERROR') && (
+                                        <div className="absolute bottom-6 right-6 bg-white rounded-full p-1 shadow-sm" title="Erro na transcrição">
+                                            <AlertTriangle className="w-5 h-5 text-red-500" />
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         ))}

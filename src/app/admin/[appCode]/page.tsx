@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase-server";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { AppSettingsForm } from "@/components/admin/app-settings-form";
+import { NotebookSettings } from "@/components/admin/notebook-settings";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -22,6 +24,41 @@ export default async function AppSettingsPage({ params }: AppSettingsPageProps) 
         notFound();
     }
 
+    // Buscar configurações de LLM do system_settings (apenas para o Caderno Inteligente)
+    let currentProvider = "gemini";
+    let currentModel = "gemini-2.0-flash";
+    let customModels: any[] = [];
+
+    if (appCode === "anotacoes") {
+        const { data: providerSetting } = await supabaseAdmin
+            .from("system_settings")
+            .select("value")
+            .eq("key", "anotacoes_llm_provider")
+            .single();
+        if (providerSetting?.value) currentProvider = providerSetting.value;
+
+        const { data: modelSetting } = await supabaseAdmin
+            .from("system_settings")
+            .select("value")
+            .eq("key", "anotacoes_llm_model")
+            .single();
+        if (modelSetting?.value) currentModel = modelSetting.value;
+
+        const { data: customModelsSetting } = await supabaseAdmin
+            .from("system_settings")
+            .select("value")
+            .eq("key", "anotacoes_custom_models")
+            .single();
+        
+        if (customModelsSetting?.value) {
+            try {
+                customModels = JSON.parse(customModelsSetting.value);
+            } catch (e) {
+                console.error("Error parsing custom models JSON", e);
+            }
+        }
+    }
+
     return (
         <div className="space-y-6">
             {/* Header / Nav Back */}
@@ -42,10 +79,14 @@ export default async function AppSettingsPage({ params }: AppSettingsPageProps) 
             {/* Config Sections Wrapper */}
             <AppSettingsForm app={{ ...app, active: app.active ?? false }} />
 
-            {/* Placeholder for specific settings */}
-            <div className="bg-white rounded-lg border border-grey-light shadow-sm p-8 text-center text-grey-darker">
-                <p>Aqui entrarão configurações específicas do app <strong>{app.name}</strong> futuramente.</p>
-            </div>
+            {/* Configurações específicas por app */}
+            {appCode === "anotacoes" ? (
+                <NotebookSettings currentProvider={currentProvider} currentModel={currentModel} customModels={customModels} />
+            ) : (
+                <div className="bg-white rounded-lg border border-grey-light shadow-sm p-8 text-center text-grey-darker">
+                    <p>Aqui entrarão configurações específicas do app <strong>{app.name}</strong> futuramente.</p>
+                </div>
+            )}
         </div>
     );
 }

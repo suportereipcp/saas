@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
-import { Check, Loader2, Tag, FileText, User, Sparkles } from "lucide-react";
+import { Check, Loader2, Tag, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -32,7 +32,7 @@ export function TaggingModal({ open, onOpenChange, initialSelectedTags = [], ini
     const [isLoadingMarkers, setIsLoadingMarkers] = useState(false);
 
     // New Loading State (Starts true if we need to transcribe)
-    const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
+
 
     // Fetch Markers on Mount (or when Open)
     useEffect(() => {
@@ -77,29 +77,8 @@ export function TaggingModal({ open, onOpenChange, initialSelectedTags = [], ini
         }
     }, [open, initialSelectedTags, markers, initialTranscription]);
 
-    // AUTO JOBS - NEW FLOW
-    useEffect(() => {
-        // Only run if open, we have an auto-transcriber, and no existing transcription
-        if (open && onAutoTranscribe && !initialTranscription && !transcription && !isAnalysisLoading) {
-            const run = async () => {
-                setIsAnalysisLoading(true);
-                // toast.info("Jarvis: Lendo anotação..."); // Removido para limpeza visual
-                try {
-                    const text = await onAutoTranscribe();
-                    if (text) {
-                        setTranscription(text);
-                        // toast.success("Transcrição concluída!"); // Removido para limpeza visual
-                    }
-                } catch (error) {
-                    console.error(error);
-                    toast.error("Erro na leitura automática. Tente manualmente.");
-                } finally {
-                    setIsAnalysisLoading(false);
-                }
-            };
-            run();
-        }
-    }, [open, initialTranscription]);
+    // AUTO TRANSCRIPTION IS NOW HANDLED IN BACKGROUND AFTER SAVE
+    // Modal opens instantly without waiting for LLM analysis
 
     const toggleSelection = (id: string) => {
         setSelectedIds(prev =>
@@ -142,26 +121,9 @@ export function TaggingModal({ open, onOpenChange, initialSelectedTags = [], ini
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className={cn(
                 "bg-slate-50 border-none shadow-2xl p-0 overflow-hidden flex flex-col transition-all duration-500",
-                isAnalysisLoading ? "max-w-sm h-[300px] rounded-3xl" : "max-w-4xl max-h-[90vh]"
+                "max-w-4xl max-h-[90vh]"
             )}>
 
-                {/* LOADING STATE - FULL OVERLAY */}
-                {isAnalysisLoading ? (
-                    <div className="flex flex-col items-center justify-center w-full h-full p-8 text-center space-y-6 animate-in fade-in zoom-in-95 duration-500">
-                        <div className="relative">
-                            <div className="absolute inset-0 bg-emerald-200 rounded-full blur-xl opacity-50 animate-pulse"></div>
-                            <div className="bg-white p-4 rounded-full shadow-lg relative z-10">
-                                <Sparkles className="w-10 h-10 text-emerald-500 animate-pulse" />
-                            </div>
-                        </div>
-                        <div className="space-y-2">
-                            <DialogTitle className="text-xl font-bold text-slate-800">Analisando Anotação...</DialogTitle>
-                            <p className="text-sm text-slate-500">O Jarvis está lendo e transcrevendo seu desenho.</p>
-                        </div>
-                        <Loader2 className="w-6 h-6 text-emerald-500 animate-spin" />
-                    </div>
-                ) : (
-                    /* FORM STATE */
                     <>
                         <div className="p-8 pb-0 shrink-0 animate-in fade-in slide-in-from-bottom-4 duration-500">
                             <DialogHeader className="mb-6">
@@ -332,7 +294,6 @@ export function TaggingModal({ open, onOpenChange, initialSelectedTags = [], ini
                             </Button>
                         </div>
                     </>
-                )}
             </DialogContent>
         </Dialog >
     );
