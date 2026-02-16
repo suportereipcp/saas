@@ -7,14 +7,12 @@ import { SidebarInset, SidebarProvider, useSidebar } from "@/components/ui/sideb
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-interface PortalShellProps {
+interface AgentPrensaShellProps {
     children: React.ReactNode;
     userEmail?: string | null;
     userName?: string | null;
     links?: SidebarLink[];
     defaultOpen?: boolean;
-    hideHeader?: boolean; // Hide the top header bar
-    fullWidth?: boolean; // Reduce padding for dashboards
 }
 
 function MobileTrigger() {
@@ -27,8 +25,7 @@ function MobileTrigger() {
     )
 }
 
-export function PortalShell({ children, userEmail, userName, links, defaultOpen = true, hideHeader = false, fullWidth = false }: PortalShellProps) {
-    // Hydration fix: SidebarProvider uses local storage which mismatches server defaultOpen=true
+export function AgentPrensaShell({ children, userEmail, userName, links, defaultOpen = true }: AgentPrensaShellProps) {
     const [isMounted, setIsMounted] = useState(false);
 
     useEffect(() => {
@@ -39,6 +36,7 @@ export function PortalShell({ children, userEmail, userName, links, defaultOpen 
         return <div className="h-screen w-full bg-slate-100 animate-pulse" />;
     }
 
+    // Hardcoded NO PADDING for content, but STOCK SHELL STYLES for container
     return (
         <SidebarProvider defaultOpen={defaultOpen} className="bg-slate-100 p-2 md:p-3 gap-2 md:gap-3 h-screen overflow-hidden">
             <Suspense fallback={<div className="w-[--sidebar-width] bg-[#68D9A6] h-full" />}>
@@ -49,17 +47,11 @@ export function PortalShell({ children, userEmail, userName, links, defaultOpen 
                 />
             </Suspense>
 
-            {/* Main Content Area - Styled as a "Finite Page" Card */}
             <SidebarInset className="rounded-xl md:rounded-2xl bg-white shadow-sm md:shadow-md border-0 overflow-hidden flex flex-col h-full ring-0">
-                {!hideHeader && (
-                    <header className="flex h-16 shrink-0 items-center gap-2 bg-white px-4 lg:hidden">
-                        <MobileTrigger />
-                        <div className="flex flex-1 items-center gap-2">
-                             {/* Breadcrumbs or other header content could go here */}
-                        </div>
-                    </header>
-                )}
-                <div className={`flex-1 overflow-y-auto pb-20 lg:pb-0 ${fullWidth ? 'p-1' : 'p-4 md:p-6'}`}>
+                <header className="flex h-16 shrink-0 items-center gap-2 bg-white px-4 lg:hidden">
+                    <MobileTrigger />
+                </header>
+                <div className="flex-1 overflow-y-auto pb-20 lg:pb-0 p-0">
                     {children}
                 </div>
             </SidebarInset>

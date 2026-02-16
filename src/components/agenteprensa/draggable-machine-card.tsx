@@ -65,14 +65,14 @@ export function DraggableMachineCard({
             onClick={onClick}
             className="cursor-pointer hover:z-50"
         >
-            <Card className={`p-0 overflow-hidden border shadow-sm flex flex-col items-stretch h-full transition-shadow bg-white select-none ${isSelected ? 'ring-2 ring-primary border-primary shadow-md' : 'border-gray-200 hover:shadow-md'}`}>
+            <Card className={`p-0 overflow-hidden border shadow-sm flex flex-col items-stretch h-full transition-shadow bg-[#B7B9B8] select-none ${isSelected ? 'ring-2 ring-primary border-primary shadow-md' : 'border-[#B7B9B8] hover:shadow-md'}`}>
                 {/* Machine Header */}
-                <div className={`p-2 border-b text-center ${isSelected ? 'bg-primary/10 border-primary/20' : 'bg-white border-gray-100'}`}>
-                    <span className={`text-sm font-bold ${isSelected ? 'text-primary' : 'text-foreground'}`}>{machine.id}</span>
+                <div className={`p-2 border-b text-center ${isSelected ? 'border-primary/20' : 'border-gray-100'}`} style={{ backgroundColor: '#fcc094' }}>
+                    <span className="text-sm font-bold text-gray-900">{machine.id}</span>
                 </div>
 
                 {/* Slots Container */}
-                <div className="p-2 space-y-2 bg-white min-h-[80px] flex flex-col justify-center flex-1">
+                <div className="p-2 space-y-2 bg-[#B7B9B8] min-h-[80px] flex flex-col justify-center flex-1">
                     {[...Array(3)].map((_, idx) => {
                         const slot = machine.slots[idx] || null;
                         return (
