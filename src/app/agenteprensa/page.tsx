@@ -19,9 +19,7 @@ const MACHINES = Array.from({ length: 24 }, (_, i) => {
 
 export default function AgentePrensaDashboard() {
     return (
-        <div className="space-y-6">
-            <h1 className="text-2xl font-bold">Painel de Máquinas</h1>
-
+        <div className="h-full w-full">
             <MachineGrid initialMachines={MACHINES} />
         </div>
     );

@@ -213,11 +213,7 @@ export function MachineGrid({ initialMachines }: MachineGridProps) {
             modifiers={[snapToGridModifier]}
         >
             <div
-                className="relative w-full min-h-[1200px] bg-gray-50/50 border border-gray-200 rounded-lg overflow-hidden select-none"
-                style={{
-                    backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)',
-                    backgroundSize: '10px 10px'
-                }}
+                className="relative w-full min-h-full bg-[#FCFCFD] overflow-hidden select-none"
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase-server";
-import { PortalShell } from "@/components/portal-shell";
+import { AgentPrensaShell } from "@/components/agenteprensa/agent-prensa-shell";
 import { redirect } from "next/navigation";
 
 export default async function AgentePrensaLayout({
@@ -30,8 +30,8 @@ export default async function AgentePrensaLayout({
     ];
 
     return (
-        <PortalShell userEmail={user.email} userName={profile?.full_name} links={appLinks}>
+        <AgentPrensaShell userEmail={user.email} userName={profile?.full_name} links={appLinks}>
             {children}
-        </PortalShell>
+        </AgentPrensaShell>
     );
 }
