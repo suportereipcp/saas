@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { Check, Loader2, Tag, FileText } from "lucide-react";
@@ -130,9 +130,9 @@ export function TaggingModal({ open, onOpenChange, initialSelectedTags = [], ini
                                 <DialogTitle className="text-3xl font-bold text-slate-800 text-center">
                                     Salvar Nota
                                 </DialogTitle>
-                                <p className="text-center text-slate-500 text-lg">
+                                <DialogDescription className="text-center text-slate-500 text-lg">
                                     Revise a transcrição e adicione marcadores.
-                                </p>
+                                </DialogDescription>
                             </DialogHeader>
                         </div>
 
