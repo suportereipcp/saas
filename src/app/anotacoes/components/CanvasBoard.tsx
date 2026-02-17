@@ -35,10 +35,7 @@ interface ScrollIndicatorProps {
     editor: Editor | null;
 }
 
-// DEBUG: Check license key in production
-if (typeof window !== 'undefined') {
-    console.log('Tldraw License Check:', process.env.NEXT_PUBLIC_TLDRAW_LICENSE_KEY ? 'Key Found' : 'Key Missing', process.env.NEXT_PUBLIC_TLDRAW_LICENSE_KEY);
-}
+// License check removed for security
 
 function ScrollIndicator({ editor }: ScrollIndicatorProps) {
     const [scrollProgress, setScrollProgress] = useState(0);
@@ -471,6 +468,22 @@ export default function CanvasBoard() {
 
         loadNote();
     }, [editor, noteId, userId]);
+
+
+    // Auto-Retry Logic
+    useEffect(() => {
+        const autoRetry = searchParams.get('autoRetry') === 'true';
+        // Ensure we only retry if fully loaded (isLoading=false), editor is ready, and we have the note data
+        if (autoRetry && !isLoading && editor && noteId && currentTags !== undefined) {
+             const timer = setTimeout(() => {
+                 toast.info("Reprocessando transcrição automaticamente...");
+                 handleSave(currentTags, currentTranscription);
+             }, 800);
+             
+             return () => clearTimeout(timer);
+        }
+        // Add currentTags/transcription to dep array to ensure we have latest values
+    }, [isLoading, editor, noteId, searchParams, currentTags, currentTranscription]);
 
 
     // Initial Editor Config (Styles)

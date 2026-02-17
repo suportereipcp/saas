@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Search, Calendar, PenLine, Filter, Trash2, Loader2, Check, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NoteDetailModal } from "../components/NoteDetailModal";
@@ -11,6 +12,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 
 export default function MemoryPage() {
+    const router = useRouter();
     const [selectedFilterIds, setSelectedFilterIds] = useState<string[]>([]);
     const [dateRange, setDateRange] = useState<{ start: string, end: string }>({ start: "", end: "" });
     const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -39,6 +41,34 @@ export default function MemoryPage() {
             const [notesRes, markersRes] = await Promise.all([notesReq, markersReq]);
 
             if (notesRes.error) throw new Error(`Notas: ${notesRes.error.message}`);
+
+            // ZOMBIE CHECK: Detect stuck transcriptions (> 5 minutes)
+            const now = new Date();
+            const stuckNotes = (notesRes.data || []).filter((n: any) => {
+                if (!n.tags?.includes('PROCESSING_TRANSCRIPTION')) return false;
+                const updated = new Date(n.updated_at);
+                const diffMs = now.getTime() - updated.getTime();
+                return diffMs > 5 * 60 * 1000; // 5 minutes
+            });
+
+            if (stuckNotes.length > 0) {
+                console.warn(`Cleaning up ${stuckNotes.length} stuck transcription(s)...`);
+                for (const note of stuckNotes) {
+                    const newTags = (note.tags || []).filter((t: string) => t !== 'PROCESSING_TRANSCRIPTION');
+                    if (!newTags.includes('TRANSCRIPTION_ERROR')) newTags.push('TRANSCRIPTION_ERROR');
+                    
+                    // Update DB (Silent)
+                    await supabase
+                        .schema('app_anotacoes')
+                        .from('notes')
+                        .update({ tags: newTags })
+                        .eq('id', note.id);
+                    
+                    // Update Local Object to reflect change immediately
+                    note.tags = newTags;
+                }
+            }
+
             setNotes(notesRes.data || []);
 
             if (markersRes.error) {
@@ -59,39 +89,27 @@ export default function MemoryPage() {
     useEffect(() => {
         fetchData();
 
-        // Realtime Subscription
-        const channel = supabase
-            .channel('realtime-notes')
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'app_anotacoes',
-                    table: 'notes'
-                },
-                (payload) => {
-                     // Optimistic update
-                     if (payload.eventType === 'UPDATE') {
-                        setNotes(prev => prev.map(n => n.id === payload.new.id ? payload.new : n));
-                     } else if (payload.eventType === 'INSERT') {
-                        setNotes(prev => [payload.new, ...prev]);
-                     } else if (payload.eventType === 'DELETE') {
-                        setNotes(prev => prev.filter(n => n.id !== payload.old.id));
-                     }
-                }
-            )
-            .subscribe();
+        /*
+           REALTIME DISABLED:
+           Due to Cloudflare Tunnel WebSocket issues in production, we're relying on Polling.
+           This is robust and prevents console errors. The polling below handles updates every 4s.
+        */
 
-        // Silent Polling Interval (Backup for Realtime)
+        // Silent Polling Interval (Main Update Mechanism)
         const interval = setInterval(() => {
             fetchData(true);
         }, 4000);
 
         return () => {
-            supabase.removeChannel(channel);
             clearInterval(interval);
         };
     }, []);
+
+    const handleRetryTranscription = (e: React.MouseEvent, noteId: string) => {
+        e.stopPropagation();
+        toast.info("Iniciando reprocessamento...");
+        router.push(`/anotacoes?noteId=${noteId}&autoRetry=true`);
+    };
 
     const handleDelete = async (id: string) => {
         try {
@@ -311,7 +329,11 @@ export default function MemoryPage() {
                                         </div>
                                     )}
                                     {note.tags?.includes('TRANSCRIPTION_ERROR') && (
-                                        <div className="absolute bottom-6 right-6 bg-white rounded-full p-1 shadow-sm" title="Erro na transcrição">
+                                        <div 
+                                            className="absolute bottom-6 right-6 bg-white rounded-full p-1 shadow-sm cursor-pointer hover:bg-red-50 transition-colors" 
+                                            title="Erro na transcrição. Clique para tentar novamente."
+                                            onClick={(e) => handleRetryTranscription(e, note.id)}
+                                        >
                                             <AlertTriangle className="w-5 h-5 text-red-500" />
                                         </div>
                                     )}

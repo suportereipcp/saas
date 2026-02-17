@@ -2,9 +2,10 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { Truck, CheckSquare, Clock, Calendar, Package, FileText, PackagePlus, Box, Layers, AlignLeft, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
-import { AreaChart, Area, XAxis, ResponsiveContainer, Tooltip, CartesianGrid, LabelList } from 'recharts';
+import { AreaChart, Area, BarChart, Bar, XAxis, ResponsiveContainer, Tooltip, CartesianGrid, LabelList } from 'recharts';
 import { createBrowserClient } from '@supabase/ssr';
 
+// --- Interfaces ---
 // --- Interfaces ---
 interface CardsPedidos {
     conferir: number;
@@ -38,13 +39,8 @@ interface PerformanceEntrega {
     pctNum: number;
 }
 
-interface EstoqueEstrategico {
-    prensado: number;
-    jato: number;
-    adesivo: number;
-}
-
-interface PedidosRecebidos {
+// Reusing interface for clarity, could be shared
+interface PedidosChartData {
     date: string;
     val: number;
 }
@@ -61,7 +57,7 @@ interface BalanceamentoCurva {
     d15_30: number;
     d15_60: number;
     d60_120: number;
-    acima_120: number; // Assuming we might want this, though logic uses total - others
+    acima_120: number;
     total: number;
 }
 
@@ -79,8 +75,8 @@ export default function Home() {
     const [resumoData, setResumoData] = useState<ResumoItem[]>([]);
     const [historicoData, setHistoricoData] = useState<HistoricoPedido[]>([]);
     const [performanceData, setPerformanceData] = useState<PerformanceEntrega[]>([]);
-    const [estoqueEstrategico, setEstoqueEstrategico] = useState<EstoqueEstrategico | null>(null);
-    const [pedidosRecebidos, setPedidosRecebidos] = useState<PedidosRecebidos[]>([]);
+    const [pedidosRecebidos, setPedidosRecebidos] = useState<PedidosChartData[]>([]);
+    const [pedidosLiberados, setPedidosLiberados] = useState<PedidosChartData[]>([]);
     const [balancoAcabado, setBalancoAcabado] = useState<BalanceamentoAcabado | null>(null);
     const [balancoCurva, setBalancoCurva] = useState<BalanceamentoCurva[]>([]);
     const [syncTime, setSyncTime] = useState<string>("-");
@@ -108,27 +104,21 @@ export default function Home() {
             const { data: hist } = await supabase.schema('dashboards_pcp').from('historico_pedidos').select('*').order('data', { ascending: true });
             if (hist) {
                 setHistoricoData(hist.map((h: any) => ({
-                    // Fix: Parse string directly to avoid Timezone offset
-                    // Assumes format YYYY-MM-DD from DB
                     data: h.data ? h.data.split('-').reverse().join('-') : h.data,
                     qtd_ped: h.qtd_ped
                 })));
             }
 
-            // 4. Performance Entrega (Complex Mapping)
+            // 4. Performance Entrega
             const { data: perf } = await supabase.schema('dashboards_pcp').from('performance_entrega').select('*').order('id', { ascending: false }).limit(1).single();
             if (perf) {
-                // Map columns to rows
                 const p0 = Number(perf.perc_0 || 0);
                 const p1 = Number(perf.perc_1 || 0);
                 const p2 = Number(perf.perc_2 || 0);
                 const p3 = Number(perf.perc_3 || 0);
                 const p4 = Number(perf.perc_4 || 0);
                 const p5 = Number(perf.perc_5 || 0);
-                const pAcima = Number(perf.perc_acima_5 || 0); // Assuming this column exists based on user request logic, or we should sum remnants? 
-                // User said "tem na tabela". Let's assume standard formatting. 
-                // Actually, often tables have `perc_acima`. I will guess `perc_acima_5` or similar. 
-                // Let's protect against NaN.
+                const pAcima = Number(perf.perc_acima_5 || 0);
 
                 const mappedPerf = [
                     { label: "Mesmo dia", qtd: perf.dias_0, pct: `${p0.toFixed(0)}%`, acu: `${p0.toFixed(0)}%`, pctNum: p0 },
@@ -142,18 +132,27 @@ export default function Home() {
                 setPerformanceData(mappedPerf);
             }
 
-            // 5. Estoque Estrategico
-            const { data: est } = await supabase.schema('dashboards_pcp').from('estoque_produtos_estrategicos').select('*').order('id', { ascending: false }).limit(1).single();
-            if (est) setEstoqueEstrategico(est);
+            // 5. Pedidos Liberados (Chart) - REPLACES ESTOQUE ESTRATEGICO
+            // Uses historico_embarques table, same chart style as Pedidos Recebidos
+            const { data: pedLib } = await supabase.schema('dashboards_pcp').from('historico_embarques').select('*').order('data', { ascending: false }).limit(10);
+            if (pedLib) {
+                const sorted = pedLib.filter((p: any) => p.data).reverse().map((p: any) => {
+                    const dateStr = String(p.data);
+                    const cleanDate = dateStr.split('T')[0];
+                    const [year, month, day] = cleanDate.split('-');
+                    return {
+                        date: `${day}/${month}`,
+                        val: p.qtd_ped
+                    };
+                });
+                setPedidosLiberados(sorted);
+            }
 
             // 6. Pedidos Recebidos (Chart)
-            // Fix: Order DESC to get LATEST dates, then limit, then reverse for chart display
             const { data: pedRec } = await supabase.schema('dashboards_pcp').from('pedidos_recebidos').select('*').order('data', { ascending: false }).limit(10);
             if (pedRec) {
                 const sorted = pedRec.filter((p: any) => p.data).reverse().map((p: any) => {
-                    // Fix: Robust date parsing for YYYY-MM-DD
                     const dateStr = String(p.data);
-                    // Handle potential T timestamp if Supabase changes behavior
                     const cleanDate = dateStr.split('T')[0];
                     const [year, month, day] = cleanDate.split('-');
                     return {
@@ -172,8 +171,7 @@ export default function Home() {
             const { data: balCurva } = await supabase.schema('dashboards_pcp').from('balanceamento_curva').select('*').order('curva');
             if (balCurva) setBalancoCurva(balCurva);
 
-            // 9. Sync Time (Get from any table created_at or general_data if implemented)
-            // For now using cards_pedidos created_at
+            // 9. Sync Time
             if (cards && cards.created_at) {
                 const dateObj = new Date(cards.created_at);
                 setSyncDate(dateObj.toLocaleDateString('pt-BR'));
@@ -183,16 +181,15 @@ export default function Home() {
 
         fetchData().catch(console.error);
 
-        // Polling: atualiza a cada 1 minuto
         const intervalId = setInterval(() => {
-            fetchData(); // Recarrega dados em background
-        }, 60000); // 1 minuto
+            fetchData();
+        }, 60000);
 
         return () => {
             clearInterval(intervalId);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // Run only once on mount
+    }, []);
 
 
     // --- Sorting Logic ---
@@ -352,26 +349,34 @@ export default function Home() {
 
                     {/* Middle Row Charts - Fill remaining space */}
                     <div className="h-auto lg:flex-1 grid grid-cols-1 lg:grid-cols-2 gap-1 min-h-0">
-                        {/* Estoque Produtos Estratégicos */}
+                        {/* Qtd Pedidos Liberados Chart - NEW */}
                         <div className="bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border flex flex-col h-[250px] lg:h-full overflow-hidden">
                             <div className="bg-[#2563eb] text-white py-0.5 px-2 text-center font-bold text-xs lg:text-sm uppercase flex items-center justify-center gap-2 shrink-0 tracking-wide">
-                                <Package className="w-4 h-4 text-white" /> Estoque Produtos Estratégicos
+                                <Truck className="w-4 h-4 text-white" /> Qtd Pedidos Liberados
                             </div>
-                            <div className="flex-1 p-1 lg:p-2 flex flex-col justify-center gap-1">
-                                {[
-                                    { label: 'Prensado', val: estoqueEstrategico?.prensado, w: '40%', color: 'bg-[#60a5fa]' },
-                                    { label: 'Adesivo', val: estoqueEstrategico?.adesivo, w: '30%', color: 'bg-[#bfdbfe]' },
-                                    { label: 'Jato', val: estoqueEstrategico?.jato, w: '90%', color: 'bg-[#86efac]' },
-                                ].map((item, i) => (
-                                    <div key={i} className="flex items-center gap-2">
-                                        <span className="w-20 lg:w-24 text-right text-xs lg:text-base font-bold text-[#374151] uppercase tracking-tight">{item.label}</span>
-                                        <div className="flex-1 h-6 lg:h-10 bg-muted/50 rounded-lg overflow-hidden relative shadow-inner">
-                                            <div style={{ width: item.w }} className={`h-full ${item.color} flex items-center justify-end pr-2 text-[#374151] text-[10px] lg:text-xs font-bold transition-all duration-1000 shadow-lg`}>
-                                            </div>
-                                            <span className="absolute inset-y-0 left-2 flex items-center text-sm lg:text-xl font-bold text-[#374151] drop-shadow-md z-10">{fmtNum(item.val)}</span>
-                                        </div>
-                                    </div>
-                                ))}
+                            <div className="flex-1 p-1">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={pedidosLiberados} margin={{ top: 20, right: 10, left: 10, bottom: 5 }}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 700 }} dy={5} />
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: 'hsl(var(--card))', color: 'hsl(var(--card-foreground))', borderRadius: '8px', border: '1px solid hsl(var(--border))', backdropFilter: 'blur(4px)' }}
+                                            itemStyle={{ color: 'hsl(var(--foreground))', fontSize: 12 }}
+                                            cursor={{ fill: '#f1f5f9' }}
+                                        />
+                                        <Bar dataKey="val" fill="#86EFAC" radius={[4, 4, 0, 0]}>
+                                            <LabelList
+                                                dataKey="val"
+                                                position="top"
+                                                content={({ x, y, width, value }: any) => (
+                                                    <text x={x + width / 2} y={y} dy={-5} fill="#374151" textAnchor="middle" className="text-sm lg:text-xl font-bold">
+                                                        {value}
+                                                    </text>
+                                                )}
+                                            />
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
                             </div>
                         </div>
 
@@ -414,7 +419,6 @@ export default function Home() {
                     </div>
                 </div>
             </div>
-
             {/* BOTTOM SECTION: Balanceamento (Remaining Space) */}
             <div className="h-auto lg:flex-1 grid grid-cols-1 lg:grid-cols-2 gap-1 min-h-0">
                 {/* Balanceamento de Estoque Acabado */}
