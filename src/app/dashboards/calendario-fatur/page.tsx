@@ -99,33 +99,17 @@ export default function CalendarioPage() {
                 }
             });
 
-            // Strategy: Delete All Exceptions and Re-insert (Sync)
-            // Safety Check: Avoid deleting if we have 0 records to insert AND current state was not empty? 
-            // Actually, if user cleared everything, we SHOULD delete everything.
+            // Strategy: Use RPC function for atomic save (Delete + Insert)
+            const { error: rpcError } = await supabase.rpc('save_calendar_fatur', {
+                payload: records
+            });
 
-            // 1. Delete all records (assuming id > 0)
-            const { error: delError } = await supabase
-                .schema('dashboards_pcp')
-                .from('calendario_fatur')
-                .delete()
-                .gt('id', 0);
-
-            if (delError) throw delError;
-
-            // 2. Insert new state
-            if (records.length > 0) {
-                const { error: insError } = await supabase
-                    .schema('dashboards_pcp')
-                    .from('calendario_fatur')
-                    .insert(records);
-
-                if (insError) throw insError;
-            }
+            if (rpcError) throw rpcError;
 
             setShowSuccess(true);
             setTimeout(() => setShowSuccess(false), 3000);
         } catch (err: any) {
-            console.error("Erro ao salvar:", err);
+            console.error("Erro ao salvar:", JSON.stringify(err, null, 2), err);
             alert("Erro ao salvar calendário: " + err.message);
         } finally {
             setLoading(false);
