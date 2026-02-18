@@ -127,7 +127,7 @@ export default function Home() {
                     { label: "3 dias", qtd: perf.dias_3, pct: `${p3.toFixed(0)}%`, acu: `${(p0 + p1 + p2 + p3).toFixed(0)}%`, pctNum: p3 },
                     { label: "4 dias", qtd: perf.dias_4, pct: `${p4.toFixed(0)}%`, acu: `${(p0 + p1 + p2 + p3 + p4).toFixed(0)}%`, pctNum: p4 },
                     { label: "5 dias", qtd: perf.dias_5, pct: `${p5.toFixed(0)}%`, acu: `${(p0 + p1 + p2 + p3 + p4 + p5).toFixed(0)}%`, pctNum: p5 },
-                    { label: "> 5 dias", qtd: perf.dias_acima_5, pct: `${pAcima.toFixed(0)}%`, acu: "100%", pctNum: pAcima },
+                    { label: "> 5 dias", qtd: perf.acima_5, pct: `${pAcima.toFixed(0)}%`, acu: "100%", pctNum: pAcima },
                 ];
                 setPerformanceData(mappedPerf);
             }
