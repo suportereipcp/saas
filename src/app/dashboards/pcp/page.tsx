@@ -356,7 +356,7 @@ export default function Home() {
                             </div>
                             <div className="flex-1 p-1">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={pedidosLiberados} margin={{ top: 20, right: 10, left: 10, bottom: 5 }}>
+                                    <BarChart data={pedidosLiberados} margin={{ top: 20, right: 30, left: 30, bottom: 5 }}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                         <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 700 }} dy={5} />
                                         <Tooltip
@@ -387,7 +387,7 @@ export default function Home() {
                             </div>
                             <div className="flex-1 p-1">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <AreaChart data={pedidosRecebidos} margin={{ top: 20, right: 10, left: 10, bottom: 5 }}>
+                                    <AreaChart data={pedidosRecebidos} margin={{ top: 20, right: 30, left: 30, bottom: 5 }}>
                                         <defs>
                                             <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
                                                 <stop offset="5%" stopColor="#2563eb" stopOpacity={0.8} />
