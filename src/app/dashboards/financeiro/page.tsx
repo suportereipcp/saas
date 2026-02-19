@@ -373,16 +373,16 @@ export default function FinanceiroPage() {
             </div>
 
             {/* ================= RIGHT COLUMN: All charts (xl: col 2, spans full height) ================= */}
-            <div className="xl:col-start-2 xl:row-start-1 xl:row-span-2 flex flex-col gap-3 xl:h-full xl:min-h-0 xl:overflow-hidden">
+            <div className="xl:col-start-2 xl:row-start-1 xl:row-span-2 flex flex-col gap-2 xl:h-full xl:min-h-0 xl:overflow-hidden">
 
             {/* Desdobramento Faturamento */}
-            <div className="shrink-0 xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col">
+            <div className="xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col min-h-0">
                 <div className="bg-[#2563eb] text-white py-1 px-3 text-center font-bold text-xs xl:text-lg uppercase tracking-wide shadow-md flex items-center justify-center gap-2">
                     <PieChartIcon className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Desdobramento Faturamento
                 </div>
-                <div className="flex-1 flex">
+                <div className="flex-1 flex min-h-0">
                     {/* Bar 1: Mercado Interno */}
-                    <div className="flex-1 flex flex-col items-center justify-center p-2 xl:p-3 border-r border-border">
+                    <div className="flex-1 flex flex-col items-center justify-center p-2 xl:p-3 border-r border-border min-w-0">
                         <span className="text-[#374151] font-bold text-[10px] xl:text-lg mb-0.5 xl:mb-1 uppercase tracking-tight">Mercado Interno</span>
                         <AnimatedCounter
                             value={finStats.metaMI > 0 ? (finStats.fatMI / finStats.metaMI) * 100 : 0}
@@ -398,7 +398,7 @@ export default function FinanceiroPage() {
                         </div>
                     </div>
                     {/* Bar 2: Mercado Externo */}
-                    <div className="flex-1 flex flex-col items-center justify-center p-2 xl:p-3">
+                    <div className="flex-1 flex flex-col items-center justify-center p-2 xl:p-3 min-w-0">
                         <span className="text-[#374151] font-bold text-[10px] xl:text-lg mb-0.5 xl:mb-1 uppercase tracking-tight">Mercado Externo</span>
                         <AnimatedCounter
                             value={finStats.metaME > 0 ? (finStats.fatME / finStats.metaME) * 100 : 0}
@@ -417,11 +417,11 @@ export default function FinanceiroPage() {
             </div>
 
             {/* Faturamento Total */}
-            <div className="shrink-0 xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col">
+            <div className="xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col min-h-0">
                 <div className="bg-[#2563eb] text-white py-1 px-3 text-center font-bold text-xs xl:text-lg uppercase tracking-wide shadow-md flex items-center justify-center gap-2">
                     <BarChart3 className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Faturamento Total
                 </div>
-                <div className="flex-1 flex flex-col items-center justify-center p-2 xl:p-3">
+                <div className="flex-1 flex flex-col items-center justify-center p-2 xl:p-3 min-h-0">
                     <div className="flex flex-col items-center w-full">
                         <AnimatedCounter
                             value={(finStats.fatMensal / finStats.metaGlobal) * 100}
@@ -446,18 +446,18 @@ export default function FinanceiroPage() {
             </div>
 
             {/* Desdobramento Carteira MI */}
-            <div className="shrink-0 xl:flex-[3] bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col xl:min-h-0">
+            <div className="xl:flex-[3] bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col min-h-0">
                 <div className="bg-[#2563eb] text-white py-1 px-3 text-center font-bold text-xs xl:text-base uppercase tracking-wide shadow-md flex items-center justify-center gap-2">
                     <Briefcase className="w-4 h-4 text-white" /> Desdobramento Carteira MI
                 </div>
-                <div className="flex-1 p-2 xl:p-4 flex flex-col justify-evenly gap-1 xl:gap-0 overflow-y-auto custom-scrollbar">
+                <div className="flex-1 p-2 xl:p-4 flex flex-col justify-evenly gap-1 xl:gap-0 overflow-y-auto custom-scrollbar min-h-0">
                     {walletBreakdown.map((item: any, i: number) => {
                         const maxVal = Math.max(...walletBreakdown.map((w: any) => w.value), 1);
                         const pct = Math.max((item.value / maxVal) * 100, 1.5);
                         return (
-                            <div key={i} className="flex items-center gap-1 xl:gap-2">
+                            <div key={i} className="flex items-center gap-1 xl:gap-2 shrink-0">
                                 <span className="w-20 xl:w-40 text-right pr-1 font-bold text-[#374151] text-[9px] xl:text-sm truncate shrink-0 uppercase tracking-tight" title={item.name}>{item.name}</span>
-                                <div className="flex-1 h-6 xl:h-10 bg-muted/40 rounded-lg relative flex items-center">
+                                <div className="flex-1 h-6 xl:h-9 bg-muted/40 rounded-lg relative flex items-center">
                                     <div
                                         style={{ width: `${pct}%`, backgroundColor: item.fill }}
                                         className="h-full rounded-lg shadow-sm flex items-center transition-all duration-500"
@@ -483,15 +483,15 @@ export default function FinanceiroPage() {
                     { label: "Carteira ME", value: carteiraMEbrl, color: "#93C5FD", pct: (carteiraMEbrl / maxCarteira) * 100 },
                 ];
                 return (
-                    <div className="shrink-0 xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col">
+                    <div className="xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col min-h-0">
                         <div className="bg-[#2563eb] text-white py-1 px-3 text-center font-bold text-xs xl:text-base uppercase tracking-wide shadow-md flex items-center justify-center gap-2">
                             <Briefcase className="w-4 h-4 text-white" /> Carteira de Pedidos
                         </div>
-                        <div className="flex-1 p-2 xl:p-4 flex flex-col justify-evenly gap-1">
+                        <div className="flex-1 p-2 xl:p-4 flex flex-col justify-evenly gap-1 min-h-0">
                             {carteiraItems.map((item, i) => (
-                                <div key={i} className="flex items-center gap-1 xl:gap-2">
+                                <div key={i} className="flex items-center gap-1 xl:gap-2 shrink-0">
                                     <span className="w-20 xl:w-36 text-right pr-1 font-bold text-[#374151] text-[9px] xl:text-sm truncate shrink-0 uppercase tracking-tight">{item.label}</span>
-                                    <div className="flex-1 h-6 xl:h-10 bg-muted/40 rounded-lg relative flex items-center">
+                                    <div className="flex-1 h-6 xl:h-9 bg-muted/40 rounded-lg relative flex items-center">
                                         <div
                                             style={{ width: `${Math.max(item.pct, 2)}%`, backgroundColor: item.color }}
                                             className="h-full rounded-lg shadow-sm transition-all duration-500"
@@ -510,7 +510,7 @@ export default function FinanceiroPage() {
             </div>{/* end right column wrapper */}
 
             {/* ================= DAILY TABLE (last on mobile, left column row 2 on xl) ================= */}
-            <div className="shrink-0 xl:col-start-1 xl:row-start-2 bg-card/95 backdrop-blur rounded-xl shadow-lg border border-border overflow-hidden flex flex-col h-[500px] xl:h-auto mb-16 xl:mb-0">
+            <div className="xl:col-start-1 xl:row-start-2 bg-card/95 backdrop-blur rounded-xl shadow-lg border border-border overflow-hidden flex flex-col h-[500px] xl:h-full min-h-0 mb-16 xl:mb-0">
                 {/* Header */}
                 <div className="bg-[#2563eb] text-white py-2 xl:py-3 px-3 xl:px-4 grid grid-cols-4 gap-2 font-bold text-xs xl:text-sm uppercase items-center sticky top-0 z-20 tracking-wide shadow-md cursor-pointer">
                     <div className="flex items-center justify-center gap-2 hover:text-[#bfdbfe] transition-colors" onClick={() => handleSort('date')}>

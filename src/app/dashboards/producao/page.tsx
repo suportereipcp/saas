@@ -403,10 +403,10 @@ export default function ProducaoPage() {
 
 
     return (
-        <div className={`flex flex-col min-h-screen xl:h-screen w-full bg-[#f8f9fa] text-slate-800 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-y-auto xl:overflow-hidden`}>
+        <div className={`flex flex-col h-full w-full bg-[#f8f9fa] text-slate-800 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-hidden`}>
 
-            {/* ================= TOP SECTION (38%) ================= */}
-            <div className="h-auto xl:h-[38%] flex flex-col xl:flex-row w-full gap-4 shrink-0 px-2 xl:px-0">
+            {/* ================= TOP SECTION (28%) ================= */}
+            <div className="h-auto xl:h-[28%] flex flex-col xl:flex-row w-full gap-4 shrink-0 px-2 xl:px-0">
 
                 {/* MENSAL SECTION */}
                 <div className="w-full xl:flex-1 flex flex-col xl:flex-row gap-4 pr-0 xl:pr-4 border-r-0 xl:border-r border-border/50">
@@ -434,7 +434,7 @@ export default function ProducaoPage() {
                         </div>
                     </div>
 
-                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-md border border-border overflow-hidden flex flex-col h-[280px] xl:h-auto">
+                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-md border border-border overflow-hidden flex flex-col h-[240px] xl:h-full min-h-0">
                         <div className="bg-[#2563eb] text-white p-1 xl:p-2 text-center font-bold text-sm xl:text-base uppercase flex items-center justify-center gap-2 tracking-widest shadow-md z-10">
                             <Clock className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Meta de Produção Mensal - {format(new Date(), 'MM/yyyy')}
                         </div>
@@ -443,9 +443,9 @@ export default function ProducaoPage() {
                             <div className="text-center"><span className="text-[10px] xl:text-xs font-bold uppercase text-muted-foreground block">Realizados</span><span className="text-xl xl:text-3xl font-bold text-foreground">{stats.realizedDaysMonth}</span></div>
                             <div className="text-center"><span className="text-[10px] xl:text-xs font-bold uppercase text-muted-foreground block">Restantes</span><span className="text-xl xl:text-3xl font-bold text-foreground">{Math.max(0, stats.workingDaysMonth - stats.realizedDaysMonth).toFixed(1)}</span></div>
                         </div>
-                        <div className="flex-1 flex flex-col items-center justify-center p-2 xl:p-4">
+                        <div className="flex-1 flex flex-col items-center justify-center p-2 xl:p-4 pb-4 xl:pb-6">
                             {/* Simple SVG Circular Gauge */}
-                            <div className="relative w-32 h-32 xl:w-40 xl:h-40">
+                            <div className="relative w-24 h-24 xl:w-32 xl:h-32 mb-2">
                                 <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                                     <circle cx="50" cy="50" r="42" fill="none" stroke="#e2e8f0" strokeWidth="12" />
                                     <circle
@@ -458,7 +458,7 @@ export default function ProducaoPage() {
                                     <span className="text-2xl xl:text-3xl font-black text-[#374151]">{Math.round(pctMensal)}%</span>
                                 </div>
                             </div>
-                            <div className="flex flex-col items-center text-base xl:text-lg leading-tight mt-2">
+                            <div className="flex flex-col items-center text-base xl:text-lg leading-tight mt-1 xl:mt-2">
                                 <div className="text-foreground font-bold">Meta: <span className="text-[#374151] text-lg xl:text-xl">{fmtNum(metaMensal)}</span></div>
                                 <div className="text-foreground font-bold">Atendido: <span className="text-blue-600 text-lg xl:text-xl">{fmtNum(atendidoMensal)}</span></div>
                             </div>
@@ -492,7 +492,7 @@ export default function ProducaoPage() {
                         </div>
                     </div>
 
-                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-md border border-border overflow-hidden flex flex-col h-auto min-h-[280px] xl:h-auto">
+                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-md border border-border overflow-hidden flex flex-col h-[240px] xl:h-full min-h-0">
                         <div className="bg-[#2563eb] text-white p-1 xl:p-2 text-center font-bold text-sm xl:text-base uppercase flex items-center justify-center gap-2 tracking-widest shadow-md z-10">
                             <Clock className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Meta de Produção Anual - {isMounted ? format(new Date(), 'yyyy') : '...'}
                         </div>
@@ -501,9 +501,9 @@ export default function ProducaoPage() {
                             <div className="text-center"><span className="text-[10px] xl:text-xs font-bold uppercase text-muted-foreground block">Realizados</span><span className="text-xl xl:text-3xl font-bold text-foreground">{stats.realizedDaysYear}</span></div>
                             <div className="text-center"><span className="text-[10px] xl:text-xs font-bold uppercase text-muted-foreground block">Restantes</span><span className="text-xl xl:text-3xl font-bold text-foreground">{Math.max(0, stats.workingDaysYear - stats.realizedDaysYear)}</span></div>
                         </div>
-                        <div className="flex-1 flex flex-col items-center justify-center p-2 xl:p-4">
+                        <div className="flex-1 flex flex-col items-center justify-center p-2 xl:p-4 pb-4 xl:pb-6">
                             {/* Simple SVG Circular Gauge */}
-                            <div className="relative w-32 h-32 xl:w-40 xl:h-40">
+                            <div className="relative w-24 h-24 xl:w-32 xl:h-32 mb-2">
                                 <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                                     <circle cx="50" cy="50" r="42" fill="none" stroke="#e2e8f0" strokeWidth="12" />
                                     <circle
@@ -516,7 +516,7 @@ export default function ProducaoPage() {
                                     <span className="text-2xl xl:text-3xl font-black text-[#374151]">{Math.round(pctAnual)}%</span>
                                 </div>
                             </div>
-                            <div className="flex flex-col items-center text-base xl:text-lg leading-tight mt-2">
+                            <div className="flex flex-col items-center text-base xl:text-lg leading-tight mt-1 xl:mt-2">
                                 <div className="text-foreground font-bold">Meta: <span className="text-[#374151] text-lg xl:text-xl">{fmtNum(metaAnual)}</span></div>
                                 <div className="text-foreground font-bold">Atendido: <span className="text-blue-600 text-lg xl:text-xl">{fmtNum(atendidoAnual)}</span></div>
                             </div>
@@ -526,13 +526,13 @@ export default function ProducaoPage() {
             </div>
 
             {/* ================= BOTTOM SECTION (58%) ================= */}
-            <div className="h-auto xl:flex-1 flex flex-col xl:flex-row w-full gap-2 pb-2 min-h-0 pt-1 px-2 xl:px-0">
+            <div className="h-auto xl:flex-1 flex flex-col xl:flex-row w-full gap-2 pb-1 min-h-0 pt-1 px-2 xl:px-0">
 
                 {/* COLUMN 1: Acompanhamento Diário Charts & Table */}
-                <div className="w-full xl:w-[40%] flex flex-col gap-2 overflow-hidden h-full">
+                <div className="w-full xl:w-[40%] flex flex-col gap-2 overflow-hidden h-full min-h-0">
 
                     {/* TOP: Monthly Total Horizontal Bar Chart */}
-                    <div className="w-full bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col h-[280px] shrink-0">
+                    <div className="w-full bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col h-[240px] shrink-0">
                         <div className="bg-[#2563eb] text-white py-1 xl:py-2 px-2 xl:px-3 text-center font-bold text-sm xl:text-base uppercase flex items-center justify-center gap-2 tracking-wide shadow-md shrink-0">
                             <BarChart3 className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Resumo Mensal (Prod x Fat x Vend)
                         </div>
@@ -649,9 +649,9 @@ export default function ProducaoPage() {
                 </div>
 
                 {/* COLUMN 2: Middle Charts */}
-                <div className="w-full xl:flex-1 flex flex-col gap-2 h-auto xl:h-full">
+                <div className="w-full xl:flex-1 flex flex-col gap-2 h-auto xl:h-full min-h-0">
                     {/* TOP CHART: Média Prensa x Injetora */}
-                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col gap-1 h-[300px] xl:h-full">
+                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col min-h-0">
                         <div className="bg-[#2563eb] text-white py-1 xl:py-2 px-2 xl:px-3 text-center font-bold text-sm xl:text-base uppercase flex items-center justify-center gap-2 tracking-wide shadow-md">
                             <BarChart3 className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Média Prensa x Injetora
                         </div>
@@ -680,7 +680,7 @@ export default function ProducaoPage() {
                         </div>
                     </div>
                     {/* BOTTOM CHART: Média Prod x Venda x Fat */}
-                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col h-[250px] xl:h-auto">
+                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col min-h-0">
                         <div className="bg-[#2563eb] text-white py-1 px-3 text-center font-bold text-sm xl:text-base uppercase tracking-wide shadow-md">
                             <BarChart3 className="w-4 h-4 xl:w-5 xl:h-5 inline-block mr-2 text-white" />
                             Média Prod x Venda x Fat
@@ -723,10 +723,10 @@ export default function ProducaoPage() {
                 </div>
 
                 {/* COLUMN 3: New Charts (Recebimento & Estoque) */}
-                <div className="w-full xl:flex-1 flex flex-col gap-2 h-auto xl:h-full">
+                <div className="w-full xl:flex-1 flex flex-col gap-2 h-auto xl:h-full min-h-0">
 
                     {/* CHART 1: Recebimento RAP */}
-                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col gap-3 h-auto min-h-[180px] xl:h-auto">
+                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col gap-3 min-h-0">
                         <div className="bg-[#2563eb] text-white py-1 xl:py-2 px-2 xl:px-3 text-center font-bold text-sm xl:text-base uppercase flex items-center justify-center gap-2 tracking-wide shadow-md shrink-0">
                             <Box className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Recebimento RAP
                         </div>
@@ -762,7 +762,7 @@ export default function ProducaoPage() {
                     </div>
 
                     {/* CHART 2: Estoque Fund. x Alum. */}
-                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col gap-3 h-auto min-h-[180px] xl:h-auto">
+                    <div className="w-full xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col gap-3 min-h-0">
                         <div className="bg-[#2563eb] text-white py-1 xl:py-2 px-2 xl:px-3 text-center font-bold text-sm xl:text-base uppercase flex items-center justify-center gap-2 tracking-wide shadow-md shrink-0">
                             <Layers className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Estoque Fund. x Alum.
                         </div>

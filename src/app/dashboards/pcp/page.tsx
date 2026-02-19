@@ -228,9 +228,9 @@ export default function Home() {
     const fmtNum = (n: number | undefined) => n ? n.toLocaleString('pt-BR') : '0';
 
     return (
-        <div className="flex flex-col min-h-screen lg:h-screen lg:overflow-hidden overflow-y-auto gap-1 p-0 font-sans bg-background lg:pb-1">
-            {/* TOP SECTION (63%) */}
-            <div className="flex flex-col lg:flex-row gap-1 h-auto lg:h-[63%] min-h-0 shrink-0">
+        <div className="flex flex-col h-full lg:overflow-hidden overflow-y-auto gap-1 p-0 font-sans bg-background lg:pb-1">
+            {/* TOP SECTION (50%) */}
+            <div className="h-auto lg:h-[50%] flex flex-col lg:flex-row gap-1 min-h-0 shrink-0">
                 {/* KPI Cards */}
                 <div className="w-full lg:w-[280px] xl:w-[320px] 2xl:w-[360px] flex flex-col gap-1 shrink-0 h-auto lg:h-full">
                     <div className="bg-[#2563eb] text-white p-1 rounded-lg text-center font-bold text-lg lg:text-xl uppercase tracking-wider border-b-4 border-[#2563eb] shadow-lg flex items-center justify-center gap-2 shrink-0">
@@ -262,7 +262,7 @@ export default function Home() {
 
                 {/* Right Tables/Charts */}
                 <div className="flex-1 flex flex-col gap-1 h-auto lg:h-full overflow-hidden">
-                    <div className="h-auto lg:h-[52%] flex flex-col lg:grid lg:grid-cols-3 gap-1 min-h-0">
+                    <div className="h-auto lg:h-[48%] flex flex-col lg:grid lg:grid-cols-3 gap-1 min-h-0">
                         {/* Table Resumo */}
                         <div className="flex flex-col bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border h-[300px] lg:h-full overflow-hidden">
                             <div className="bg-[#2563eb] text-white py-0.5 px-2 text-center font-bold text-xs lg:text-sm uppercase flex items-center justify-center gap-2 shrink-0 tracking-wide">
@@ -434,7 +434,7 @@ export default function Home() {
                         ].map((item, i) => (
                             <div key={i} className="flex items-center gap-2">
                                 <span className="w-20 lg:w-24 text-right text-xs lg:text-base font-bold text-[#374151] uppercase">{item.label}</span>
-                                <div className="flex-1 h-8 lg:h-12 bg-muted/50 rounded-md overflow-hidden relative shadow-inner">
+                                <div className="flex-1 h-8 lg:h-10 bg-muted/50 rounded-md overflow-hidden relative shadow-inner">
                                     <div style={{ width: item.w }} className={`h-full ${item.color} flex items-center px-2 lg:px-4 text-[#374151] text-sm lg:text-2xl font-bold shadow-lg`}>
                                         {fmtNum(item.val)}
                                     </div>
@@ -499,7 +499,7 @@ export default function Home() {
             </div>
 
             {/* Footer Sync Bar */}
-            <div className="h-6 shrink-0 flex justify-center pb-0 lg:pb-0.5">
+            <div className="h-5 shrink-0 flex justify-center pb-0 lg:pb-0">
                 <div className="bg-muted text-[#2563eb] rounded-full px-4 lg:px-6 flex items-center gap-2 lg:gap-4 text-[9px] lg:text-[10px] uppercase font-bold tracking-widest shadow-2xl border border-border hover:border-primary transition-colors cursor-default">
                     <span className="opacity-70">ÚLTIMA ATUALIZAÇÃO:</span>
                     <div className="flex items-center gap-1 lg:gap-2 text-[#2563eb]">
