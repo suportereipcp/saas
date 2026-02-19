@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { calculateWorkingDays } from "@/utils/paineis/calendar";
-import { startOfMonth, endOfMonth, isSameMonth, isYesterday, parseISO, format } from "date-fns";
+import { startOfMonth, endOfMonth, isSameMonth, isYesterday, parseISO, format, subDays } from "date-fns";
 
 import { Target, TrendingUp, TrendingDown, Briefcase, Calendar, Percent, ArrowDown, ArrowUp, BarChart3, PieChart as PieChartIcon, DollarSign, CheckCircle2 } from "lucide-react";
 import AnimatedCounter from "@/components/paineis/AnimatedCounter";
@@ -233,7 +233,8 @@ export default function FinanceiroPage() {
         projecaoFat: 0,
         projecaoPercent: 0,
         mediaVendasNecessaria: 0,
-        mediaFatNecessaria: 0
+        mediaFatNecessaria: 0,
+        mediaFatAtual: 0 // New field
     });
 
     useEffect(() => {
@@ -242,35 +243,60 @@ export default function FinanceiroPage() {
         const monthEnd = endOfMonth(now);
 
         // 1. Calculate Working Days
-        // Days Passed (from start of month up to yesterday for accurate pacing, or today if including today's partial)
+        // Days Passed (from start of month up to YESTERDAY for accurate pacing)
         // User logic: "Total Faturado / Dias Faturaveis (Passados)"
-        // Let's assume passed days = working days from Start to Yesterday. If today is 1st, 1 day? Or 0?
-        // Safe bet: Working Days from Start Month to NOW.
+        // Changed to use subDays(now, 1) to exclude today from divisor (avoiding dip early in day)
         const totalWorkingDays = calculateWorkingDays(monthStart, monthEnd, holidays, halfDays, []);
-        const daysPassed = calculateWorkingDays(monthStart, now, holidays, halfDays, []); // Includes today if working day
+        const daysPassed = calculateWorkingDays(monthStart, subDays(now, 1), holidays, halfDays, []); 
         const daysRemaining = Math.max(0, totalWorkingDays - daysPassed);
+
+        // Calculate Billing Until Yesterday
+        const todayStr = format(now, "yyyy-MM-dd");
+        // Find today's billing in dailyData to exclude it from total
+        const fatHoje = dailyData.find((d: any) => d.dateStr === todayStr)?.fatNum || 0;
+        const fatAteOntem = Math.max(0, finStats.fatMensal - fatHoje);
 
         // 2. Projeção Faturamento
         // Logic: (FatMensal / DaysPassed) * DaysRemaining + FatMensal
         // If DaysPassed is 0 (start of month), avoid infinity.
-        let projecaoR = 0;
+        // Actually, Projeção should use CURRENT average (including today if data exists?)
+        // But user asked for Average UNTIL YESTERDAY. Let's align Projeção to use THAT average too for consistency?
+        // Or keep Projeção using (FatMensal / DaysPassed)?
+        // If daysPassed excludes today, then FatMensal includes today... that inflates average.
+        // Correct approach for consistent projection: (FatAteOntem / DaysPassed) * DaysRemaining + FatAteOntem?
+        // OR: (FatAteOntem / DaysPassed) * TotalWorkingDays?
+        // Let's stick to user request for "Media Fat Atual" specifically first.
+        // Projeção likely needs to use the "Paced Average" -> FatAteOntem / DaysPassed.
+        
+        let dailyAvg = 0;
         if (daysPassed > 0) {
-            const dailyAvg = finStats.fatMensal / daysPassed;
-            projecaoR = (dailyAvg * daysRemaining) + finStats.fatMensal;
-        } else {
-            projecaoR = finStats.fatMensal; // Just what we have
+             dailyAvg = fatAteOntem / daysPassed;
         }
+
+        // Projeção: DailyAvg * DaysRemaining + FatMensal (Current Total)
+        // Wait, if DailyAvg excludes today, and we project for remaining days (which includes today in DaysRemaining logic? No, daysRemaining = Total - DaysPassed).
+        // If DaysPassed excludes today, DaysRemaining INCLUDES today.
+        // So: Projection = (DailyAvg * DaysRemaining) + FatAteOntem.
+        // This effectively projects today based on average + future days based on average.
+        
+        const projecaoR = (dailyAvg * daysRemaining) + fatAteOntem;
 
         // 3. Projeção %
         const projecaoP = finStats.metaGlobal > 0 ? (projecaoR / finStats.metaGlobal) * 100 : 0;
 
         // 4. Média Fat. Necessária (Matches previous logic roughly, but using refined remaining days)
+        // Needs to cover Gap from NOW (FatMensal) to Meta, over remaining days (excluding today? No, including today).
+        // If we consistently use "Until Yesterday", then gap is from FatAteOntem.
+        // But we HAVE FatMensal already. We shouldn't ignore realized gains today for "Necessary" calculation.
+        // We usually want: (Meta - FatMensal) / DaysRemaining? 
+        // If DaysRemaining includes today, then yes.
         const faltaAtingirFat = Math.max(0, finStats.metaGlobal - finStats.fatMensal);
+        // Adjust denom if needed. If today is "Remaining", we have today + future.
+        // If we already billed X today, we need (Meta - (FatAteOntem + X)) / (RemainingDays).
+        // This is exactly (Meta - FatMensal) / DaysRemaining. Correct.
         const mediaFat = daysRemaining > 0 ? (faltaAtingirFat / daysRemaining) : 0;
 
         // 5. Média Vendas Necessária
-        // Logic: (MetaGlobal - CarteiraMI - FatMensal) / DiasRestantes
-        // If result < 0, then 0.
         const gapVendas = finStats.metaGlobal - finStats.carteiraMI - finStats.fatMensal;
         const mediaVendas = (daysRemaining > 0 && gapVendas > 0) ? (gapVendas / daysRemaining) : 0;
 
@@ -278,11 +304,13 @@ export default function FinanceiroPage() {
             projecaoFat: projecaoR,
             projecaoPercent: projecaoP,
             mediaFatNecessaria: mediaFat,
-            mediaVendasNecessaria: mediaVendas
+            mediaVendasNecessaria: mediaVendas,
+            mediaFatAtual: dailyAvg // Set the calculated average
         });
-    }, [finStats, holidays, halfDays, dollarRate]);
+    }, [finStats, holidays, halfDays, dollarRate, dailyData]);
 
-    const mediaFatAtualVal = dailyData.length > 0 ? finStats.fatMensal / dailyData.length : 0;
+    // Derived value removed in favor of state calculation
+    // const mediaFatAtualVal = dailyData.length > 0 ? finStats.fatMensal / dailyData.length : 0;
 
     // Abbreviated currency formatter (e.g., R$ 12,8M)
     const fmtShort = (v: number) => {
@@ -299,7 +327,7 @@ export default function FinanceiroPage() {
         { label: "Falta Atingir", value: fmtFull(Math.max(0, finStats.metaGlobal - finStats.fatMensal)), icon: Target, bg: "bg-white", border: "border-[#ef4444]", text: "text-[#374151]" },
         { label: "Projeção (R$)", value: fmtFull(calculations.projecaoFat), icon: TrendingUp, bg: "bg-white", border: "border-[#2563eb]", text: "text-[#374151]" },
         { label: "Projeção (%)", value: `${calculations.projecaoPercent.toFixed(2)}%`, icon: Percent, bg: "bg-white", border: "border-[#ef4444]", text: "text-[#374151]" },
-        { label: "Méd. Fat. Atual", value: fmtFull(mediaFatAtualVal), icon: BarChart3, bg: "bg-white", border: "border-[#2563eb]", text: "text-[#374151]" },
+        { label: "Méd. Fat. Atual", value: fmtFull(calculations.mediaFatAtual), icon: BarChart3, bg: "bg-white", border: "border-[#2563eb]", text: "text-[#374151]" },
         { label: "Méd. Fat. Nec.", value: fmtFull(calculations.mediaFatNecessaria), icon: TrendingDown, bg: "bg-white", border: "border-[#ef4444]", text: "text-[#374151]" },
         { label: "Fat. Ontem", value: fmtFull(finStats.fatOntem), icon: Calendar, bg: "bg-white", border: "border-[#2563eb]", text: "text-[#374151]" },
         { label: "Méd. Vend. Nec.", value: fmtFull(calculations.mediaVendasNecessaria), icon: TrendingDown, bg: "bg-white", border: "border-[#2563eb]", text: "text-[#374151]" },
