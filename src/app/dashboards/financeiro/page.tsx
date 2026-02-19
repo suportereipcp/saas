@@ -353,11 +353,11 @@ export default function FinanceiroPage() {
     }, [dailyData, sortConfig]);
 
     return (
-        <div className="flex flex-col xl:grid xl:grid-cols-[45%_1fr] xl:grid-rows-[auto_1fr] h-full w-full gap-3 p-0 overflow-auto xl:overflow-hidden font-sans">
+        <div className="flex flex-col xl:grid xl:grid-cols-[45%_1fr] xl:grid-rows-[auto_1fr] h-full w-full gap-2 p-0 overflow-auto xl:overflow-hidden font-sans">
 
             {/* ================= 1. CARDS (top-left on xl) ================= */}
             <div className="xl:col-start-1 xl:row-start-1 shrink-0">
-                <div className="grid grid-cols-2 xl:grid-cols-3 gap-2 xl:gap-3 content-start">
+                <div className="grid grid-cols-2 xl:grid-cols-3 gap-2 xl:gap-2 content-start">
                     {cards.map((card, idx) => (
                         <div key={idx} className={`${card.bg} backdrop-blur border-b-4 ${card.border} rounded-xl p-2 xl:p-4 shadow-lg relative overflow-hidden group flex flex-col justify-between min-h-[72px] xl:min-h-0 xl:h-auto hover:scale-[1.02] transition-transform duration-300`}>
                             <div className="flex justify-between items-start relative z-10 w-full">
@@ -382,15 +382,15 @@ export default function FinanceiroPage() {
                 </div>
                 <div className="flex-1 flex min-h-0">
                     {/* Bar 1: Mercado Interno */}
-                    <div className="flex-1 flex flex-col items-center justify-center p-2 xl:p-3 border-r border-border min-w-0">
-                        <span className="text-[#374151] font-bold text-[10px] xl:text-lg mb-0.5 xl:mb-1 uppercase tracking-tight">Mercado Interno</span>
+                    <div className="flex-1 flex flex-col items-center justify-center p-1 xl:p-2 border-r border-border min-w-0">
+                        <span className="text-[#374151] font-bold text-[10px] xl:text-xs mb-0.5 uppercase tracking-tight">Mercado Interno</span>
                         <AnimatedCounter
                             value={finStats.metaMI > 0 ? (finStats.fatMI / finStats.metaMI) * 100 : 0}
                             format="percent"
-                            className="text-3xl xl:text-5xl font-black text-[#374151] drop-shadow-sm leading-none mb-0.5 xl:mb-1"
+                            className="text-2xl xl:text-3xl font-black text-[#374151] drop-shadow-sm leading-none mb-0.5"
                         />
-                        <div className="w-full max-w-[140px] xl:max-w-[80%]">
-                            <AnimatedProgressBar value={finStats.metaMI > 0 ? (finStats.fatMI / finStats.metaMI) * 100 : 0} height="h-2 xl:h-4" colorClass="bg-[#2563eb]" />
+                        <div className="w-full max-w-[140px] xl:max-w-[70%]">
+                            <AnimatedProgressBar value={finStats.metaMI > 0 ? (finStats.fatMI / finStats.metaMI) * 100 : 0} height="h-1.5 xl:h-2" colorClass="bg-[#2563eb]" />
                         </div>
                         <div className="w-full max-w-[140px] xl:max-w-[80%] flex justify-between text-[8px] xl:text-sm text-foreground mt-1 xl:mt-2 font-medium">
                             <span className="text-[#374151] font-bold">Meta: {finStats.metaMI.toLocaleString('pt-BR', { notation: "standard", maximumFractionDigits: 0 })}</span>
@@ -398,15 +398,15 @@ export default function FinanceiroPage() {
                         </div>
                     </div>
                     {/* Bar 2: Mercado Externo */}
-                    <div className="flex-1 flex flex-col items-center justify-center p-2 xl:p-3 min-w-0">
-                        <span className="text-[#374151] font-bold text-[10px] xl:text-lg mb-0.5 xl:mb-1 uppercase tracking-tight">Mercado Externo</span>
+                    <div className="flex-1 flex flex-col items-center justify-center p-1 xl:p-2 min-w-0">
+                        <span className="text-[#374151] font-bold text-[10px] xl:text-xs mb-0.5 uppercase tracking-tight">Mercado Externo</span>
                         <AnimatedCounter
                             value={finStats.metaME > 0 ? (finStats.fatME / finStats.metaME) * 100 : 0}
                             format="percent"
-                            className="text-3xl xl:text-5xl font-black text-[#374151] drop-shadow-sm leading-none mb-0.5 xl:mb-1"
+                            className="text-2xl xl:text-3xl font-black text-[#374151] drop-shadow-sm leading-none mb-0.5"
                         />
-                        <div className="w-full max-w-[140px] xl:max-w-[80%]">
-                            <AnimatedProgressBar value={finStats.metaME > 0 ? (finStats.fatME / finStats.metaME) * 100 : 0} height="h-2 xl:h-4" colorClass="bg-[#2563eb]" />
+                        <div className="w-full max-w-[140px] xl:max-w-[70%]">
+                            <AnimatedProgressBar value={finStats.metaME > 0 ? (finStats.fatME / finStats.metaME) * 100 : 0} height="h-1.5 xl:h-2" colorClass="bg-[#2563eb]" />
                         </div>
                         <div className="w-full max-w-[140px] xl:max-w-[80%] flex justify-between text-[8px] xl:text-sm text-foreground mt-1 xl:mt-2 font-medium">
                             <span className="text-[#374151] font-bold">Meta: {finStats.metaME.toLocaleString('pt-BR', { notation: "standard", maximumFractionDigits: 0 })}</span>
@@ -421,24 +421,24 @@ export default function FinanceiroPage() {
                 <div className="bg-[#2563eb] text-white py-1 px-3 text-center font-bold text-xs xl:text-lg uppercase tracking-wide shadow-md flex items-center justify-center gap-2">
                     <BarChart3 className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Faturamento Total
                 </div>
-                <div className="flex-1 flex flex-col items-center justify-center p-2 xl:p-3 min-h-0">
+                <div className="flex-1 flex flex-col items-center justify-center p-1 xl:p-2 min-h-0">
                     <div className="flex flex-col items-center w-full">
                         <AnimatedCounter
                             value={(finStats.fatMensal / finStats.metaGlobal) * 100}
                             format="percent"
-                            className="text-4xl xl:text-6xl font-black text-[#374151] drop-shadow-md leading-none mb-1"
+                            className="text-3xl xl:text-4xl font-black text-[#374151] drop-shadow-md leading-none mb-0.5"
                         />
-                        <div className="w-full max-w-[240px] xl:max-w-[80%] mb-2">
-                            <AnimatedProgressBar value={(finStats.fatMensal / finStats.metaGlobal) * 100} height="h-3 xl:h-5" colorClass="bg-[#2563eb]" />
+                        <div className="w-full max-w-[240px] xl:max-w-[70%] mb-1">
+                            <AnimatedProgressBar value={(finStats.fatMensal / finStats.metaGlobal) * 100} height="h-2 xl:h-3" colorClass="bg-[#2563eb]" />
                         </div>
-                        <div className="w-full max-w-[260px] xl:max-w-[80%] flex justify-between text-[10px] xl:text-base text-[#374151] font-bold px-1 gap-2">
-                            <div className="flex flex-col items-start bg-muted px-2 xl:px-3 py-1 rounded-lg border border-border min-w-0">
-                                <span className="text-[8px] xl:text-xs text-muted-foreground uppercase">Meta Global</span>
-                                <span className="text-[10px] xl:text-sm font-bold text-[#374151] truncate">{finStats.metaGlobal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                        <div className="w-full max-w-[260px] xl:max-w-[80%] flex justify-between text-[10px] xl:text-xs text-[#374151] font-bold px-1 gap-1">
+                            <div className="flex flex-col items-start bg-muted px-2 xl:px-2 py-0.5 rounded-lg border border-border min-w-0">
+                                <span className="text-[8px] xl:text-[10px] text-muted-foreground uppercase leading-tight">Meta Global</span>
+                                <span className="text-[10px] xl:text-xs font-bold text-[#374151] truncate">{finStats.metaGlobal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                             </div>
-                            <div className="flex flex-col items-end bg-[#a8e6cf]/20 px-2 xl:px-3 py-1 rounded-lg border border-[#a8e6cf]/50 min-w-0">
-                                <span className="text-[8px] xl:text-xs text-[#374151] uppercase">Realizado</span>
-                                <span className="text-[10px] xl:text-sm font-bold text-[#374151] truncate">{finStats.fatMensal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                            <div className="flex flex-col items-end bg-[#a8e6cf]/20 px-2 xl:px-2 py-0.5 rounded-lg border border-[#a8e6cf]/50 min-w-0">
+                                <span className="text-[8px] xl:text-[10px] text-[#374151] uppercase leading-tight">Realizado</span>
+                                <span className="text-[10px] xl:text-xs font-bold text-[#374151] truncate">{finStats.fatMensal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                             </div>
                         </div>
                     </div>
@@ -447,22 +447,22 @@ export default function FinanceiroPage() {
 
             {/* Desdobramento Carteira MI */}
             <div className="xl:flex-[3] bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col min-h-0">
-                <div className="bg-[#2563eb] text-white py-1 px-3 text-center font-bold text-xs xl:text-base uppercase tracking-wide shadow-md flex items-center justify-center gap-2">
+                <div className="bg-[#2563eb] text-white py-1 px-3 text-center font-bold text-xs xl:text-sm uppercase tracking-wide shadow-md flex items-center justify-center gap-2">
                     <Briefcase className="w-4 h-4 text-white" /> Desdobramento Carteira MI
                 </div>
-                <div className="flex-1 p-2 xl:p-4 flex flex-col justify-evenly gap-1 xl:gap-0 overflow-y-auto custom-scrollbar min-h-0">
+                <div className="flex-1 p-1 xl:p-2 flex flex-col justify-evenly gap-1 overflow-y-auto custom-scrollbar min-h-0">
                     {walletBreakdown.map((item: any, i: number) => {
                         const maxVal = Math.max(...walletBreakdown.map((w: any) => w.value), 1);
                         const pct = Math.max((item.value / maxVal) * 100, 1.5);
                         return (
-                            <div key={i} className="flex items-center gap-1 xl:gap-2 shrink-0">
-                                <span className="w-20 xl:w-40 text-right pr-1 font-bold text-[#374151] text-[9px] xl:text-sm truncate shrink-0 uppercase tracking-tight" title={item.name}>{item.name}</span>
-                                <div className="flex-1 h-6 xl:h-9 bg-muted/40 rounded-lg relative flex items-center">
+                            <div key={i} className="flex items-center gap-2 shrink-0">
+                                <span className="w-24 xl:w-32 text-right pr-1 font-bold text-[#374151] text-[9px] xl:text-xs truncate shrink-0 uppercase tracking-tight" title={item.name}>{item.name}</span>
+                                <div className="flex-1 h-5 xl:h-6 bg-muted/40 rounded-md relative flex items-center">
                                     <div
                                         style={{ width: `${pct}%`, backgroundColor: item.fill }}
-                                        className="h-full rounded-lg shadow-sm flex items-center transition-all duration-500"
+                                        className="h-full rounded-md shadow-sm flex items-center transition-all duration-500"
                                     />
-                                    <span className="ml-1 xl:ml-2 text-[#374151] font-bold text-[9px] xl:text-sm whitespace-nowrap">
+                                    <span className="ml-2 text-[#374151] font-bold text-[9px] xl:text-xs whitespace-nowrap">
                                         {`R$ ${item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                                     </span>
                                 </div>
@@ -484,19 +484,19 @@ export default function FinanceiroPage() {
                 ];
                 return (
                     <div className="xl:flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col min-h-0">
-                        <div className="bg-[#2563eb] text-white py-1 px-3 text-center font-bold text-xs xl:text-base uppercase tracking-wide shadow-md flex items-center justify-center gap-2">
+                        <div className="bg-[#2563eb] text-white py-1 px-3 text-center font-bold text-xs xl:text-sm uppercase tracking-wide shadow-md flex items-center justify-center gap-2">
                             <Briefcase className="w-4 h-4 text-white" /> Carteira de Pedidos
                         </div>
-                        <div className="flex-1 p-2 xl:p-4 flex flex-col justify-evenly gap-1 min-h-0">
+                        <div className="flex-1 p-1 xl:p-3 flex flex-col justify-evenly gap-1 min-h-0">
                             {carteiraItems.map((item, i) => (
-                                <div key={i} className="flex items-center gap-1 xl:gap-2 shrink-0">
-                                    <span className="w-20 xl:w-36 text-right pr-1 font-bold text-[#374151] text-[9px] xl:text-sm truncate shrink-0 uppercase tracking-tight">{item.label}</span>
-                                    <div className="flex-1 h-6 xl:h-9 bg-muted/40 rounded-lg relative flex items-center">
+                                <div key={i} className="flex items-center gap-2 shrink-0">
+                                    <span className="w-24 xl:w-32 text-right pr-1 font-bold text-[#374151] text-[9px] xl:text-xs truncate shrink-0 uppercase tracking-tight">{item.label}</span>
+                                    <div className="flex-1 h-6 xl:h-8 bg-muted/40 rounded-md relative flex items-center">
                                         <div
                                             style={{ width: `${Math.max(item.pct, 2)}%`, backgroundColor: item.color }}
-                                            className="h-full rounded-lg shadow-sm transition-all duration-500"
+                                            className="h-full rounded-md shadow-sm transition-all duration-500"
                                         />
-                                        <span className="ml-1 xl:ml-2 text-[#374151] font-bold text-[9px] xl:text-sm whitespace-nowrap">
+                                        <span className="ml-2 text-[#374151] font-bold text-[9px] xl:text-xs whitespace-nowrap">
                                             {`R$ ${item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                                         </span>
                                     </div>
