@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Target, TrendingDown, TrendingUp, Clock, Activity, BarChart3, ArrowDown, ArrowUp, Minus, Box, Layers, Calendar, CheckCircle2, XCircle } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, LabelList } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, LabelList, Legend, CartesianGrid } from "recharts";
 import { calculateWorkingDays } from "@/utils/paineis/calendar";
 import { startOfYear, endOfYear, startOfMonth, endOfMonth, format, isSameMonth } from "date-fns";
 
@@ -528,52 +528,123 @@ export default function ProducaoPage() {
             {/* ================= BOTTOM SECTION (58%) ================= */}
             <div className="h-auto xl:flex-1 flex flex-col xl:flex-row w-full gap-2 pb-2 min-h-0 pt-1 px-2 xl:px-0">
 
-                {/* COLUMN 1: Acompanhamento Diário Table (Larger Width) */}
-                <div className="w-full xl:w-[40%] bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col">
-                    <div className="bg-[#2563eb] text-white py-1 xl:py-2 px-2 xl:px-4 grid grid-cols-4 gap-2 font-bold text-xs xl:text-sm uppercase items-center sticky top-0 z-20 tracking-wide shadow-md cursor-pointer">
-                        <div className="flex items-center justify-center gap-2 hover:text-[#bfdbfe] transition-colors" onClick={() => handleSort('date')}>
-                            <Activity className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Data {sortConfig?.key === 'date' && (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-white" /> : <ArrowDown className="w-3 h-3 text-white" />)}
+                {/* COLUMN 1: Acompanhamento Diário Charts & Table */}
+                <div className="w-full xl:w-[40%] flex flex-col gap-2 overflow-hidden h-full">
+
+                    {/* TOP: Monthly Total Horizontal Bar Chart */}
+                    <div className="w-full bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col h-[280px] shrink-0">
+                        <div className="bg-[#2563eb] text-white py-1 xl:py-2 px-2 xl:px-3 text-center font-bold text-sm xl:text-base uppercase flex items-center justify-center gap-2 tracking-wide shadow-md shrink-0">
+                            <BarChart3 className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Resumo Mensal (Prod x Fat x Vend)
                         </div>
-                        <div className="flex items-center justify-center gap-2 hover:text-[#bfdbfe] transition-colors" onClick={() => handleSort('prodNum')}>
-                            Prod {sortConfig?.key === 'prodNum' && (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-white" /> : <ArrowDown className="w-3 h-3 text-white" />)}
-                        </div>
-                        <div className="flex items-center justify-center gap-2 hover:text-[#bfdbfe] transition-colors" onClick={() => handleSort('fatNum')}>
-                            Fat {sortConfig?.key === 'fatNum' && (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-white" /> : <ArrowDown className="w-3 h-3 text-white" />)}
-                        </div>
-                        <div className="flex items-center justify-center gap-2 hover:text-[#bfdbfe] transition-colors" onClick={() => handleSort('vendNum')}>
-                            Vend {sortConfig?.key === 'vendNum' && (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-white" /> : <ArrowDown className="w-3 h-3 text-white" />)}
+                        <div className="w-full flex-1 p-2">
+                            {isMounted ? (
+                                (() => {
+                                    // Calculate Totals Sum
+                                    const totalProd = dailyDataRaw.reduce((acc, curr) => acc + (Number(curr.prodNum) || 0), 0);
+                                    const totalFat = dailyDataRaw.reduce((acc, curr) => acc + (Number(curr.fatNum) || 0), 0);
+                                    const totalVend = dailyDataRaw.reduce((acc, curr) => acc + (Number(curr.vendNum) || 0), 0);
+                                    
+                                    const summaryData = [
+                                        { name: 'PROD', value: totalProd, fill: '#3b82f6' },
+                                        { name: 'FAT', value: totalFat, fill: '#60a5fa' },
+                                        { name: 'VEND', value: totalVend, fill: '#22c55e' },
+                                    ];
+
+                                    return (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart layout="vertical" data={summaryData} margin={{ top: 0, right: 30, left: 10, bottom: 0 }}>
+                                                <XAxis type="number" hide />
+                                                <YAxis type="category" dataKey="name" width={70} tick={{ fill: '#374151', fontSize: 18, fontWeight: 700 }} tickLine={false} axisLine={false} />
+                                                <Tooltip
+                                                    cursor={{ fill: 'rgba(168, 230, 207, 0.2)' }}
+                                                    contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', padding: '12px' }}
+                                                    itemStyle={{ color: '#374151', fontWeight: 'bold' }}
+                                                    labelStyle={{ display: 'none' }}
+                                                    formatter={(value: any) => value?.toLocaleString('pt-BR')}
+                                                />
+                                                <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={40}>
+                                                    {summaryData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.fill} />)}
+                                                    <LabelList
+                                                        dataKey="value"
+                                                        position="insideRight"
+                                                        content={(props: any) => {
+                                                            const { x, y, width, height, value, index } = props;
+                                                            // PROD is white, others are dark
+                                                            const isProd = summaryData[index]?.name === 'PROD';
+                                                            const color = isProd ? '#FFFFFF' : '#374151';
+                                                            return (
+                                                                <text
+                                                                    x={x + width - 10}
+                                                                    y={y + height / 2}
+                                                                    fill={color}
+                                                                    fontSize={14}
+                                                                    fontWeight="bold"
+                                                                    textAnchor="end"
+                                                                    dominantBaseline="central"
+                                                                >
+                                                                    {value?.toLocaleString('pt-BR')}
+                                                                </text>
+                                                            );
+                                                        }}
+                                                    />
+                                                </Bar>
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    );
+                                })()
+                            ) : (
+                                <div className="flex h-full items-center justify-center text-muted-foreground text-sm">Carregando dados...</div>
+                            )}
                         </div>
                     </div>
-                    <div className="flex-1 overflow-auto custom-scrollbar">
-                        <table className="w-full text-sm xl:text-lg text-foreground">
-                            <thead className="sr-only">
-                                <tr>
-                                    <th>Data</th>
-                                    <th>Prod</th>
-                                    <th>Fat</th>
-                                    <th>Vend</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-border/50">
-                                {sortedDailyData.map((row, i) => (
-                                    <tr key={i} className={`hover:bg-primary/5 transition-colors ${i % 2 === 0 ? 'bg-card' : 'bg-muted/20'}`}>
-                                        <td className="p-2 xl:p-3 text-center font-bold text-[#374151] align-middle">{formatDate(row.date)}</td>
-                                        <td className="p-2 xl:p-3 text-center font-bold text-[#374151] align-middle">
-                                            <div className="flex items-center justify-center gap-2 h-full">
-                                                <span className="text-right w-16 xl:w-20">{row.prod}</span>
-                                                <div className="flex items-center justify-center w-4 h-4">
-                                                    {row.status === 'down' && <ArrowDown className="w-3 h-3 xl:w-4 xl:h-4 text-red-500" />}
-                                                    {row.status === 'up' && <ArrowUp className="w-3 h-3 xl:w-4 xl:h-4 text-green-500" />}
-                                                    {row.status === 'neutral' && <Minus className="w-3 h-3 xl:w-4 xl:h-4 text-yellow-500" />}
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="p-2 xl:p-3 text-center font-medium text-[#374151] align-middle">{row.fat}</td>
-                                        <td className="p-2 xl:p-3 text-center font-medium text-[#374151] align-middle">{row.vend}</td>
+                    
+                    {/* BOTTOM: Table (Reduced Height / flexible) */}
+                    <div className="w-full flex-1 bg-card/95 backdrop-blur rounded-xl shadow-sm border border-border overflow-hidden flex flex-col min-h-0">
+                        <div className="bg-[#2563eb] text-white py-1 xl:py-2 px-2 xl:px-4 grid grid-cols-4 gap-2 font-bold text-xs xl:text-sm uppercase items-center sticky top-0 z-20 tracking-wide shadow-md cursor-pointer shrink-0">
+                            <div className="flex items-center justify-center gap-2 hover:text-[#bfdbfe] transition-colors" onClick={() => handleSort('date')}>
+                                <Activity className="w-4 h-4 xl:w-5 xl:h-5 text-white" /> Data {sortConfig?.key === 'date' && (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-white" /> : <ArrowDown className="w-3 h-3 text-white" />)}
+                            </div>
+                            <div className="flex items-center justify-center gap-2 hover:text-[#bfdbfe] transition-colors" onClick={() => handleSort('prodNum')}>
+                                Prod {sortConfig?.key === 'prodNum' && (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-white" /> : <ArrowDown className="w-3 h-3 text-white" />)}
+                            </div>
+                            <div className="flex items-center justify-center gap-2 hover:text-[#bfdbfe] transition-colors" onClick={() => handleSort('fatNum')}>
+                                Fat {sortConfig?.key === 'fatNum' && (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-white" /> : <ArrowDown className="w-3 h-3 text-white" />)}
+                            </div>
+                            <div className="flex items-center justify-center gap-2 hover:text-[#bfdbfe] transition-colors" onClick={() => handleSort('vendNum')}>
+                                Vend {sortConfig?.key === 'vendNum' && (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-white" /> : <ArrowDown className="w-3 h-3 text-white" />)}
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-auto custom-scrollbar">
+                            <table className="w-full text-sm xl:text-lg text-foreground">
+                                <thead className="sr-only">
+                                    <tr>
+                                        <th>Data</th>
+                                        <th>Prod</th>
+                                        <th>Fat</th>
+                                        <th>Vend</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="divide-y divide-border/50">
+                                    {sortedDailyData.map((row, i) => (
+                                        <tr key={i} className={`hover:bg-primary/5 transition-colors ${i % 2 === 0 ? 'bg-card' : 'bg-muted/20'}`}>
+                                            <td className="p-2 xl:p-3 text-center font-bold text-[#374151] align-middle">{formatDate(row.date)}</td>
+                                            <td className="p-2 xl:p-3 text-center font-bold text-[#374151] align-middle">
+                                                <div className="flex items-center justify-center gap-2 h-full">
+                                                    <span className="text-right w-16 xl:w-20">{row.prod}</span>
+                                                    <div className="flex items-center justify-center w-4 h-4">
+                                                        {row.status === 'down' && <ArrowDown className="w-3 h-3 xl:w-4 xl:h-4 text-red-500" />}
+                                                        {row.status === 'up' && <ArrowUp className="w-3 h-3 xl:w-4 xl:h-4 text-green-500" />}
+                                                        {row.status === 'neutral' && <Minus className="w-3 h-3 xl:w-4 xl:h-4 text-yellow-500" />}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="p-2 xl:p-3 text-center font-medium text-[#374151] align-middle">{row.fat}</td>
+                                            <td className="p-2 xl:p-3 text-center font-medium text-[#374151] align-middle">{row.vend}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
