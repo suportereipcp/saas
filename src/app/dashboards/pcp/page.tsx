@@ -229,8 +229,8 @@ export default function Home() {
 
     return (
         <div className="flex flex-col h-full lg:overflow-hidden overflow-y-auto gap-1 p-0 font-sans bg-background lg:pb-1">
-            {/* TOP SECTION (50%) */}
-            <div className="h-auto lg:h-[50%] flex flex-col lg:flex-row gap-1 min-h-0 shrink-0">
+            {/* TOP SECTION (65%) */}
+            <div className="h-auto lg:h-[65%] flex flex-col lg:flex-row gap-1 min-h-0 shrink-0">
                 {/* KPI Cards */}
                 <div className="w-full lg:w-[280px] xl:w-[320px] 2xl:w-[360px] flex flex-col gap-1 shrink-0 h-auto lg:h-full">
                     <div className="bg-[#2563eb] text-white p-1 rounded-lg text-center font-bold text-lg lg:text-xl uppercase tracking-wider border-b-4 border-[#2563eb] shadow-lg flex items-center justify-center gap-2 shrink-0">
@@ -262,7 +262,7 @@ export default function Home() {
 
                 {/* Right Tables/Charts */}
                 <div className="flex-1 flex flex-col gap-1 h-auto lg:h-full overflow-hidden">
-                    <div className="h-auto lg:h-[48%] flex flex-col lg:grid lg:grid-cols-3 gap-1 min-h-0">
+                    <div className="h-auto lg:h-[58%] flex flex-col lg:grid lg:grid-cols-3 gap-1 min-h-0">
                         {/* Table Resumo */}
                         <div className="flex flex-col bg-card/95 backdrop-blur rounded-lg shadow-sm border border-border h-[300px] lg:h-full overflow-hidden">
                             <div className="bg-[#2563eb] text-white py-0.5 px-2 text-center font-bold text-xs lg:text-sm uppercase flex items-center justify-center gap-2 shrink-0 tracking-wide">
