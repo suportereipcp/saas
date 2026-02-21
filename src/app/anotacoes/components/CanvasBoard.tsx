@@ -97,6 +97,28 @@ const getSafeScaleForImage = (editor: Editor, ids: any[]): number => {
     return 0.2; 
 };
 
+// Helper: Redimensiona imagem via Canvas 2D para garantir payload pequeno o suficiente para a Vercel
+// Limite: 800px na maior dimensão, JPEG quality 0.7
+const resizeImageToMaxSize = (base64: string, maxPx = 800, quality = 0.7): Promise<string> => {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+            const w = Math.max(1, Math.round(img.width * scale));
+            const h = Math.max(1, Math.round(img.height * scale));
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) { resolve(base64); return; }
+            ctx.drawImage(img, 0, 0, w, h);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = () => resolve(base64); // fallback: retorna original
+        img.src = base64;
+    });
+};
+
 export default function CanvasBoard() {
     const searchParams = useSearchParams();
     const router = useRouter();
@@ -246,9 +268,13 @@ export default function CanvasBoard() {
                     await new Promise(resolve => setTimeout(resolve, 800));
 
                     try {
-                        const ids = Array.from(editor.getCurrentPageShapeIds());
+                        let ids = Array.from(editor.getCurrentPageShapeIds());
+                        // Filtra formas com dimensões inválidas que causam crash no SVG export
+                        ids = ids.filter(id => {
+                            const bounds = editor.getShapePageBounds(id);
+                            return bounds && bounds.w > 0 && bounds.h > 0;
+                        });
                         if (ids.length > 0) {
-                            // REDUZIR TAMANHO AQUI TAMBÉM
                             const safeScale = getSafeScaleForImage(editor, ids);
                             // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             const result = await (editor as any).toImage(ids, { format: 'jpeg', quality: 0.6, scale: safeScale, background: true, padding: 32 });
@@ -691,7 +717,7 @@ export default function CanvasBoard() {
                         const imgResult = await (editor as any).toImage(ids, { format: 'jpeg', quality: 0.6, scale: safeScale, background: true, padding: 32 });
                         if (imgResult?.blob) {
                             const reader = new FileReader();
-                            processingImageBase64 = await new Promise<string>((resolve, reject) => {
+                            const rawBase64 = await new Promise<string>((resolve, reject) => {
                                 reader.onloadend = () => {
                                     if (typeof reader.result === 'string') resolve(reader.result);
                                     else reject(new Error("Failed to read blob"));
@@ -700,7 +726,10 @@ export default function CanvasBoard() {
                                 reader.readAsDataURL(imgResult.blob);
                             });
 
-                            // Limit to 3.5MB because Vercel Serverless Functions have a strict 4.5MB limit
+                            // Redimensiona para máximo 800px: garante payload < 300KB independente do tamanho do desenho
+                            processingImageBase64 = await resizeImageToMaxSize(rawBase64, 800, 0.75);
+
+                            // Vercel Serverless limit: 4.5MB. Com resize 800px isso nunca deve ser atingido.
                             if (processingImageBase64.length > 3.5 * 1024 * 1024) {
                                 console.warn("Image too large for background transcription");
                                 toast.warning("Imagem muito grande para transcrição automática. Tente dividir em duas notas.");
@@ -844,20 +873,22 @@ export default function CanvasBoard() {
         if (!editor) return "";
 
         try {
-            const ids = Array.from(editor.getCurrentPageShapeIds());
+            let ids = Array.from(editor.getCurrentPageShapeIds());
+            // Filtra formas com dimensões inválidas que causam crash no SVG export
+            ids = ids.filter(id => {
+                const bounds = editor.getShapePageBounds(id);
+                return bounds && bounds.w > 0 && bounds.h > 0;
+            });
             if (ids.length === 0) return "";
 
             // CACHE CHECK
-            // We calculate the hash of the current drawing
             const currentHash = getCanvasHash();
             
-            // If we are allowed to use cache, and hash matches last success
             if (useCache && lastTranscribedHash && currentHash === lastTranscribedHash && currentTranscription) {
                 console.log("Skipping transcription: Content unchanged since last analysis.");
-                return currentTranscription; // Return valid existing text
+                return currentTranscription;
             }
 
-            // Use editor.toImage with reduced scale for faster API transmission
             const safeScale = getSafeScaleForImage(editor, ids);
             const result = await (editor as any).toImage(ids, { format: 'jpeg', quality: 0.6, scale: safeScale, background: true, padding: 32 });
 
@@ -880,11 +911,14 @@ export default function CanvasBoard() {
             });
             const base64 = await base64Promise;
 
+            // Redimensiona para max 800px antes de enviar — garante payload < 300KB
+            const base64Resized = await resizeImageToMaxSize(base64, 800, 0.75);
+
             // Call API
             const response = await fetch('/api/transcribe', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image: base64 })
+                body: JSON.stringify({ image: base64Resized })
             });
 
             if (!response.ok) {
