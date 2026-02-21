@@ -726,13 +726,13 @@ export default function CanvasBoard() {
 
             try {
                 // Save to optimistic cache for the Memory page to pick up instantly
+                // NOTE: We intentionally exclude canvas_data to avoid localStorage quota issues
                 const OPTIMISTIC_KEY = 'optimistic_saving_notes';
                 const cachedDocs = JSON.parse(localStorage.getItem(OPTIMISTIC_KEY) || '[]');
                 const newOptDoc = {
                     id: finalNoteId,
                     user_id: userId,
                     title: title,
-                    canvas_data: snapshot,
                     tags: finalTags,
                     transcription: finalTranscription,
                     created_at: new Date().toISOString(),

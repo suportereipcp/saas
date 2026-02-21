@@ -75,22 +75,48 @@ export default function MemoryPage() {
                 try {
                     const OPTIMISTIC_KEY = 'optimistic_saving_notes';
                     const cached = JSON.parse(localStorage.getItem(OPTIMISTIC_KEY) || '[]');
-                    // Only keep cached notes that are NOT yet in the DB response
-                    const validCached = cached.filter((c: any) => !mergedNotes.some((sn: any) => sn.id === c.id));
                     
-                    if (validCached.length > 0) {
-                        // Put optimistic notes at the top
-                        mergedNotes = [...validCached, ...mergedNotes];
-                    }
-                    
-                    // Clean up cache: remove notes that HAVE appeared in the DB from localStorage
-                    if (validCached.length !== cached.length) {
-                        localStorage.setItem(OPTIMISTIC_KEY, JSON.stringify(validCached));
+                    if (cached.length > 0) {
+                        const cachedById = new Map(cached.map((c: any) => [c.id, c]));
+                        const survivingCache: any[] = [];
+                        
+                        // For notes already in DB: replace with optimistic version if the DB hasn't caught up yet
+                        mergedNotes = mergedNotes.map((dbNote: any) => {
+                            const optVersion = cachedById.get(dbNote.id);
+                            if (optVersion) {
+                                // Check if DB has caught up (updated_at >= optimistic updated_at)
+                                const dbTime = new Date(dbNote.updated_at).getTime();
+                                const optTime = new Date(optVersion.updated_at).getTime();
+                                if (dbTime >= optTime) {
+                                    // DB caught up, drop from cache
+                                    return dbNote;
+                                }
+                                // DB hasn't caught up yet, show optimistic version with DB data merged
+                                survivingCache.push(optVersion);
+                                return { ...dbNote, ...optVersion, canvas_data: dbNote.canvas_data };
+                            }
+                            return dbNote;
+                        });
+                        
+                        // For brand new notes not in DB yet: prepend them
+                        const dbIds = new Set(mergedNotes.map((n: any) => n.id));
+                        const brandNew = cached.filter((c: any) => !dbIds.has(c.id));
+                        survivingCache.push(...brandNew);
+                        
+                        if (brandNew.length > 0) {
+                            mergedNotes = [...brandNew, ...mergedNotes];
+                        }
+                        
+                        // Update cache in localStorage
+                        if (survivingCache.length !== cached.length) {
+                            localStorage.setItem(OPTIMISTIC_KEY, JSON.stringify(survivingCache));
+                        }
                     }
                 } catch (e) {
                     console.warn("Failed to parse optimistic notes", e);
                 }
             }
+            
             
             setNotes(mergedNotes);
 
