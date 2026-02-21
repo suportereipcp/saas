@@ -69,7 +69,30 @@ export default function MemoryPage() {
                 }
             }
 
-            setNotes(notesRes.data || []);
+            // Combine with optimistic UI notes
+            let mergedNotes = notesRes.data || [];
+            if (typeof window !== 'undefined') {
+                try {
+                    const OPTIMISTIC_KEY = 'optimistic_saving_notes';
+                    const cached = JSON.parse(localStorage.getItem(OPTIMISTIC_KEY) || '[]');
+                    // Only keep cached notes that are NOT yet in the DB response
+                    const validCached = cached.filter((c: any) => !mergedNotes.some((sn: any) => sn.id === c.id));
+                    
+                    if (validCached.length > 0) {
+                        // Put optimistic notes at the top
+                        mergedNotes = [...validCached, ...mergedNotes];
+                    }
+                    
+                    // Clean up cache: remove notes that HAVE appeared in the DB from localStorage
+                    if (validCached.length !== cached.length) {
+                        localStorage.setItem(OPTIMISTIC_KEY, JSON.stringify(validCached));
+                    }
+                } catch (e) {
+                    console.warn("Failed to parse optimistic notes", e);
+                }
+            }
+            
+            setNotes(mergedNotes);
 
             if (markersRes.error) {
                 console.warn("Markers warning:", markersRes.error.message);
@@ -265,25 +288,29 @@ export default function MemoryPage() {
                                 >
                                     {/* Action Buttons */}
                                     <div className="absolute top-4 right-4 z-10 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
-                                        <Link href={`/anotacoes?noteId=${note.id}`}>
-                                            <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-600 bg-emerald-50 hover:text-emerald-700 hover:bg-emerald-100 rounded-full" title="Editar Manuscrito Original">
-                                                <PenLine size={16} />
-                                            </Button>
-                                        </Link>
-                                        <Button
-                                            size="icon"
-                                            variant="ghost"
-                                            className="h-8 w-8 text-red-500 bg-red-50 hover:text-red-700 hover:bg-red-100 rounded-full"
-                                            title="Excluir Anotação"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                if (confirm("Tem certeza que deseja excluir?")) {
-                                                    handleDelete(note.id);
-                                                }
-                                            }}
-                                        >
-                                            <Trash2 size={16} />
-                                        </Button>
+                                        {!note.is_optimistic && (
+                                            <>
+                                                <Link href={`/anotacoes?noteId=${note.id}`}>
+                                                    <Button size="icon" variant="ghost" className="h-8 w-8 text-emerald-600 bg-emerald-50 hover:text-emerald-700 hover:bg-emerald-100 rounded-full" title="Editar Manuscrito Original">
+                                                        <PenLine size={16} />
+                                                    </Button>
+                                                </Link>
+                                                <Button
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    className="h-8 w-8 text-red-500 bg-red-50 hover:text-red-700 hover:bg-red-100 rounded-full"
+                                                    title="Excluir Anotação"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (confirm("Tem certeza que deseja excluir?")) {
+                                                            handleDelete(note.id);
+                                                        }
+                                                    }}
+                                                >
+                                                    <Trash2 size={16} />
+                                                </Button>
+                                            </>
+                                        )}
                                     </div>
 
                                     <h3 className="text-lg font-bold text-slate-800 mb-2">
@@ -298,7 +325,9 @@ export default function MemoryPage() {
                                             </p>
                                         ) : (
                                             <p className="text-slate-400 text-xs italic">
-                                                Sem transcrição ou resumo disponível.
+                                                {note.is_optimistic 
+                                                    ? "Salvando e processando informações em segundo plano..."
+                                                    : "Sem transcrição ou resumo disponível."}
                                             </p>
                                         )}
                                     </div>
