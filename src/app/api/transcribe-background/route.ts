@@ -4,14 +4,39 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 
 /**
  * Background Transcription Route
+/**
+ * Background Transcription Route
  * Receives noteId + image, transcribes, and updates the note directly.
  * Called fire-and-forget from the client after save.
  */
+
+export const maxDuration = 120; // Allow enough time for LLM
+
+// This configuration bypasses the default 1mb limit for JSON body in App Router (if Next version supports it)
+export const config = {
+    api: {
+        bodyParser: {
+            sizeLimit: '10mb'
+        }
+    }
+}
+
 export async function POST(req: NextRequest) {
     let noteId: string | null = null;
 
     try {
-        const body = await req.json();
+        const textData = await req.text();
+        if (!textData) {
+            return NextResponse.json({ error: "Empty body" }, { status: 400 });
+        }
+        
+        let body;
+        try {
+            body = JSON.parse(textData);
+        } catch (e) {
+            console.error("Failed to parse JSON body (could be payload too large cutoff):", e);
+            throw new Error("Invalid JSON body. Most likely the payload exceeded Next.js body limits.");
+        }
         noteId = body.noteId;
         const image = body.image;
 
