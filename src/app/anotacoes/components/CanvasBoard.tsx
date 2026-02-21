@@ -670,64 +670,85 @@ export default function CanvasBoard() {
                 return;
             }
 
-            // 1. DETERMINE IF TRANSCRIPTION WILL BE NEEDED (quick check, no image gen yet)
+            // 1. DETERMINE IF TRANSCRIPTION WILL BE NEEDED & GENERATE IMAGE
             const textWasModifiedInModal = transcriptionInputValue !== currentTranscription && transcriptionInputValue.trim() !== '';
             const currentHash = getCanvasHash();
             const drawingChanged = currentHash !== lastTranscribedHash;
-            const shouldTranscribe = drawingChanged || !textWasModifiedInModal;
+            let shouldTranscribe = drawingChanged || !textWasModifiedInModal;
+            let processingImageBase64 = "";
 
-            // Add PROCESSING tag if transcription will be needed
             if (shouldTranscribe) {
-                const ids = Array.from(editor.getCurrentPageShapeIds());
-                if (ids.length > 0) {
-                    finalTags = finalTags.filter(t =>
-                        t !== 'TRANSCRIPTION_SUCCESS' &&
-                        t !== 'TRANSCRIPTION_ERROR'
-                    );
-                    if (!finalTags.includes('PROCESSING_TRANSCRIPTION')) {
-                        finalTags.push('PROCESSING_TRANSCRIPTION');
+                try {
+                    const ids = Array.from(editor.getCurrentPageShapeIds());
+                    if (ids.length > 0) {
+                        const safeScale = getSafeScaleForImage(editor, ids);
+                        const imgResult = await (editor as any).toImage(ids, { format: 'jpeg', quality: 0.6, scale: safeScale, background: true, padding: 32 });
+                        if (imgResult?.blob) {
+                            const reader = new FileReader();
+                            processingImageBase64 = await new Promise<string>((resolve, reject) => {
+                                reader.onloadend = () => {
+                                    if (typeof reader.result === 'string') resolve(reader.result);
+                                    else reject(new Error("Failed to read blob"));
+                                };
+                                reader.onerror = reject;
+                                reader.readAsDataURL(imgResult.blob);
+                            });
+
+                            if (processingImageBase64.length > 6 * 1024 * 1024) {
+                                console.warn("Image too large for background transcription");
+                                toast.warning("Imagem muito grande para transcrição automática.");
+                                shouldTranscribe = false;
+                            } else {
+                                finalTags = finalTags.filter(t =>
+                                    t !== 'TRANSCRIPTION_SUCCESS' &&
+                                    t !== 'TRANSCRIPTION_ERROR'
+                                );
+                                if (!finalTags.includes('PROCESSING_TRANSCRIPTION')) {
+                                    finalTags.push('PROCESSING_TRANSCRIPTION');
+                                }
+                            }
+                        } else {
+                            shouldTranscribe = false;
+                        }
+                    } else {
+                        shouldTranscribe = false;
                     }
+                } catch (e) {
+                    console.warn("Background image gen failed before saving", e);
+                    shouldTranscribe = false;
                 }
             }
 
-            // 2. SAVE TO DB FIRST (fast — just serialize + network)
+            // 2. OPTIMISTIC UI: SAVE TO LOCAL CACHE AND REDIRECT IMMEDIATELY
             const snapshot = getSnapshot(editor.store);
             const title = `Anotação ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+            const finalNoteId = noteId || crypto.randomUUID();
 
-            let savedNoteId = noteId;
-            if (isEditing && noteId) {
-                const result = await supabase
-                    .schema('app_anotacoes')
-                    .from('notes')
-                    .update({
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        canvas_data: snapshot as any,
-                        tags: finalTags,
-                        transcription: finalTranscription,
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq('id', noteId);
-                if (result.error) throw result.error;
-            } else {
-                const result = await supabase
-                    .schema('app_anotacoes')
-                    .from('notes')
-                    .insert({
-                        user_id: userId,
-                        title: title,
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        canvas_data: snapshot as any,
-                        tags: finalTags,
-                        transcription: finalTranscription,
-                        updated_at: new Date().toISOString()
-                    })
-                    .select('id')
-                    .single();
-                if (result.error) throw result.error;
-                savedNoteId = result.data.id;
+            try {
+                // Save to optimistic cache for the Memory page to pick up instantly
+                const OPTIMISTIC_KEY = 'optimistic_saving_notes';
+                const cachedDocs = JSON.parse(localStorage.getItem(OPTIMISTIC_KEY) || '[]');
+                const newOptDoc = {
+                    id: finalNoteId,
+                    user_id: userId,
+                    title: title,
+                    canvas_data: snapshot,
+                    tags: finalTags,
+                    transcription: finalTranscription,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                    is_optimistic: true
+                };
+                
+                // Remove older version if updating
+                const filteredDocs = cachedDocs.filter((d: any) => d.id !== finalNoteId);
+                filteredDocs.push(newOptDoc);
+                localStorage.setItem(OPTIMISTIC_KEY, JSON.stringify(filteredDocs));
+            } catch (cacheErr) {
+                console.warn("Failed to write optimistic cache", cacheErr);
             }
 
-            // 3. CLEANUP & REDIRECT IMMEDIATELY (user sees fast save)
+            // CLEANUP LOCAL DRAFTS & REDIRECT IMMEDIATELY
             isDiscardingRef.current = true;
             const draftKey = `draft_note_${userId}_${noteId || 'new'}`;
             localStorage.removeItem(draftKey);
@@ -737,54 +758,72 @@ export default function CanvasBoard() {
             setIsSavingDialogOpen(false);
             router.push('/anotacoes/memory');
 
-            // 4. GENERATE IMAGE & FIRE TRANSCRIPTION IN BACKGROUND (after redirect)
-            // This runs after the user already left the page — non-blocking
-            if (isOnline && savedNoteId && shouldTranscribe) {
+            // 3. BACKGROUND TASKS: DB WRITE AND TRANSCRIPTION FIRE (Totally non-blocking)
+            Promise.resolve().then(async () => {
+                let dbSaveSuccess = true;
                 try {
-                    const ids = Array.from(editor.getCurrentPageShapeIds());
-                    if (ids.length > 0) {
-                        const safeScale = getSafeScaleForImage(editor, ids);
-                        const imgResult = await (editor as any).toImage(ids, { format: 'jpeg', quality: 0.6, scale: safeScale, background: true, padding: 32 });
-                        if (imgResult?.blob) {
-                            const reader = new FileReader();
-                            const base64 = await new Promise<string>((resolve, reject) => {
-                                reader.onloadend = () => {
-                                    if (typeof reader.result === 'string') resolve(reader.result);
-                                    else reject(new Error("Failed to read blob"));
-                                };
-                                reader.onerror = reject;
-                                reader.readAsDataURL(imgResult.blob);
+                    if (isEditing && noteId) {
+                        const result = await supabase
+                            .schema('app_anotacoes')
+                            .from('notes')
+                            .update({
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                canvas_data: snapshot as any,
+                                tags: finalTags,
+                                transcription: finalTranscription,
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('id', finalNoteId);
+                        if (result.error) throw result.error;
+                    } else {
+                        const result = await supabase
+                            .schema('app_anotacoes')
+                            .from('notes')
+                            .insert({
+                                id: finalNoteId, // Using the explicit UUID generated locally
+                                user_id: userId,
+                                title: title,
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                canvas_data: snapshot as any,
+                                tags: finalTags,
+                                transcription: finalTranscription,
+                                updated_at: new Date().toISOString()
                             });
-
-                            if (base64.length > 6 * 1024 * 1024) {
-                                console.warn("Image too large for background transcription");
-                                const { data: n } = await supabase.schema('app_anotacoes').from('notes').select('tags').eq('id', savedNoteId).single();
-                                const fixed = (n?.tags || []).filter((t: string) => t !== 'PROCESSING_TRANSCRIPTION');
-                                if (!fixed.includes('TRANSCRIPTION_ERROR')) fixed.push('TRANSCRIPTION_ERROR');
-                                await supabase.schema('app_anotacoes').from('notes').update({ tags: fixed }).eq('id', savedNoteId);
-                            } else {
-                                fetch('/api/transcribe-background', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ noteId: savedNoteId, image: base64 })
-                                }).catch(async (err) => {
-                                    console.warn("Background transcription fire failed:", err);
-                                    const { data: n } = await supabase.schema('app_anotacoes').from('notes').select('tags').eq('id', savedNoteId).single();
-                                    const fixed = (n?.tags || []).filter((t: string) => t !== 'PROCESSING_TRANSCRIPTION');
-                                    if (!fixed.includes('TRANSCRIPTION_ERROR')) fixed.push('TRANSCRIPTION_ERROR');
-                                    await supabase.schema('app_anotacoes').from('notes').update({ tags: fixed }).eq('id', savedNoteId);
-                                });
-                            }
-                        }
+                        if (result.error) throw result.error;
                     }
-                } catch (e) {
-                    console.warn("Background image gen failed, cleaning up tag", e);
-                    const { data: n } = await supabase.schema('app_anotacoes').from('notes').select('tags').eq('id', savedNoteId).single();
-                    const fixed = (n?.tags || []).filter((t: string) => t !== 'PROCESSING_TRANSCRIPTION');
-                    if (!fixed.includes('TRANSCRIPTION_ERROR')) fixed.push('TRANSCRIPTION_ERROR');
-                    await supabase.schema('app_anotacoes').from('notes').update({ tags: fixed }).eq('id', savedNoteId);
+                } catch (dbErr) {
+                    console.error("Background DB save failed:", dbErr);
+                    toast.error("Anotação salva apenas localmente. Falha ao enviar para nuvem.");
+                    dbSaveSuccess = false;
+                    // Optionally push back to offline queue here if needed
+                    saveToOfflineQueue(snapshot, title, finalTags, finalTranscription || '');
                 }
-            }
+
+                // Fire Transcription only if DB save succeeded
+                if (dbSaveSuccess && isOnline && finalNoteId && shouldTranscribe && processingImageBase64) {
+                    fetch('/api/transcribe-background', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ noteId: finalNoteId, image: processingImageBase64 })
+                    }).catch(async (err) => {
+                        console.warn("Background transcription fire failed:", err);
+                        const { data: n } = await supabase.schema('app_anotacoes').from('notes').select('tags').eq('id', finalNoteId).single();
+                        const fixed = (n?.tags || []).filter((t: string) => t !== 'PROCESSING_TRANSCRIPTION');
+                        if (!fixed.includes('TRANSCRIPTION_ERROR')) fixed.push('TRANSCRIPTION_ERROR');
+                        await supabase.schema('app_anotacoes').from('notes').update({ tags: fixed }).eq('id', finalNoteId);
+                    });
+                }
+                
+                // Cleanup optimistic cache after enough time for the real DB to show it
+                // (Or Memory Page polling will clean it up on next fetch if IDs match, but we can do a safe cleanup here too)
+                setTimeout(() => {
+                    try {
+                        const cached = JSON.parse(localStorage.getItem('optimistic_saving_notes') || '[]');
+                        const left = cached.filter((d: any) => d.id !== finalNoteId);
+                        localStorage.setItem('optimistic_saving_notes', JSON.stringify(left));
+                    } catch (e) { /* ignore */ }
+                }, 10000); // Remove from cache 10s later max
+            });
 
         } catch (error: any) {
             console.error("Save error:", error);
