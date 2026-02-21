@@ -119,40 +119,38 @@ export async function POST(req: NextRequest) {
         }
 
         // 2. Update the note with transcription result and remove processing tag
-        if (text) {
-            // Fetch current tags to safely remove the processing tag
-            const { data: currentNote } = await supabaseAdmin
-                .schema('app_anotacoes')
-                .from('notes')
-                .select('tags')
-                .eq('id', noteId)
-                .single();
-            
-            let newTags = currentNote?.tags || [];
-            newTags = newTags.filter((t: string) => 
-                t !== 'PROCESSING_TRANSCRIPTION' && 
-                t !== 'TRANSCRIPTION_ERROR'
-            );
-            
-            // Add Success Tag
-            if (!newTags.includes('TRANSCRIPTION_SUCCESS')) {
-                newTags.push('TRANSCRIPTION_SUCCESS');
-            }
+        // Always execute to ensure 'PROCESSING_TRANSCRIPTION' is removed
+        const { data: currentNote } = await supabaseAdmin
+            .schema('app_anotacoes')
+            .from('notes')
+            .select('tags')
+            .eq('id', noteId)
+            .single();
+        
+        let newTags = currentNote?.tags || [];
+        newTags = newTags.filter((t: string) => 
+            t !== 'PROCESSING_TRANSCRIPTION' && 
+            t !== 'TRANSCRIPTION_ERROR'
+        );
+        
+        // Add Success Tag
+        if (!newTags.includes('TRANSCRIPTION_SUCCESS')) {
+            newTags.push('TRANSCRIPTION_SUCCESS');
+        }
 
-            const { error: updateError } = await supabaseAdmin
-                .schema('app_anotacoes')
-                .from('notes')
-                .update({ 
-                    transcription: text, 
-                    tags: newTags,
-                    updated_at: new Date().toISOString() 
-                })
-                .eq('id', noteId);
+        const { error: updateError } = await supabaseAdmin
+            .schema('app_anotacoes')
+            .from('notes')
+            .update({ 
+                transcription: text, 
+                tags: newTags,
+                updated_at: new Date().toISOString() 
+            })
+            .eq('id', noteId);
 
-            if (updateError) {
-                console.error('[BG Transcribe] DB Update Error:', updateError);
-                throw updateError;
-            }
+        if (updateError) {
+            console.error('[BG Transcribe] DB Update Error:', updateError);
+            throw updateError;
         }
 
         return NextResponse.json({ success: true, text });

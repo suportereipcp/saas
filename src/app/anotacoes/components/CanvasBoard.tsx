@@ -460,7 +460,9 @@ export default function CanvasBoard() {
             // Set Initial Hash for Dirty Checking
             // Short delay to ensure shapes are rendered in store? Usually synchronous in tldraw store.
             setTimeout(() => {
-                setInitialHash(getCanvasHash());
+                const initHash = getCanvasHash();
+                setInitialHash(initHash);
+                setLastTranscribedHash(initHash);
             }, 100);
 
             setIsLoading(false);
