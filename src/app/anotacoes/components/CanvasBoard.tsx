@@ -223,8 +223,9 @@ export default function CanvasBoard() {
                     try {
                         const ids = Array.from(editor.getCurrentPageShapeIds());
                         if (ids.length > 0) {
+                            // REDUZIR TAMANHO AQUI TAMBÉM
                             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            const result = await (editor as any).toImage(ids, { format: 'png', background: true, padding: 32 });
+                            const result = await (editor as any).toImage(ids, { format: 'jpeg', quality: 0.6, scale: 0.5, background: true, padding: 32 });
                             if (result && result.blob) {
                                 const blob = result.blob;
                                 const reader = new FileReader();
@@ -624,7 +625,8 @@ export default function CanvasBoard() {
                     try {
                         const ids = Array.from(editor.getCurrentPageShapeIds());
                         if (ids.length > 0) {
-                            const imgResult = await (editor as any).toImage(ids, { format: 'jpeg', quality: 0.8, background: true, padding: 32 });
+                            // REDUZIR O TAMANHO DA IMAGEM GERADA PARA ACELERAR A TRANSCRIÇÃO (scale: 0.5)
+                            const imgResult = await (editor as any).toImage(ids, { format: 'jpeg', quality: 0.6, scale: 0.5, background: true, padding: 32 });
                             if (imgResult?.blob) {
                                 const reader = new FileReader();
                                 const base64Promise = new Promise<string>((resolve, reject) => {
@@ -787,8 +789,8 @@ export default function CanvasBoard() {
                 return currentTranscription; // Return valid existing text
             }
 
-            // Use editor.toImage to get a JPEG Blob directly (Lighter than PNG)
-            const result = await (editor as any).toImage(ids, { format: 'jpeg', quality: 0.8, background: true, padding: 32 });
+            // Use editor.toImage with reduced scale for faster API transmission
+            const result = await (editor as any).toImage(ids, { format: 'jpeg', quality: 0.6, scale: 0.5, background: true, padding: 32 });
 
             if (!result || !result.blob) {
                 throw new Error("Falha ao gerar imagem da anotação");
