@@ -72,6 +72,31 @@ function ScrollIndicator({ editor }: ScrollIndicatorProps) {
     );
 }
 
+// Helper: Calculate a safe image scale to prevent Out of Memory (OOM) crashes
+const getSafeScaleForImage = (editor: Editor, ids: any[]): number => {
+    try {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const id of ids) {
+            const bounds = editor.getShapePageBounds(id);
+            if (bounds) {
+                if (bounds.minX < minX) minX = bounds.minX;
+                if (bounds.minY < minY) minY = bounds.minY;
+                if (bounds.maxX > maxX) maxX = bounds.maxX;
+                if (bounds.maxY > maxY) maxY = bounds.maxY;
+            }
+        }
+        const width = maxX === -Infinity ? 0 : maxX - minX;
+        const height = maxY === -Infinity ? 0 : maxY - minY;
+        const maxDim = Math.max(width, height);
+        if (maxDim > 0) {
+             return Math.max(0.01, Math.min(0.5, 1500 / maxDim));
+        }
+    } catch (e) {
+        console.warn("Fallback scale due to bounds error", e);
+    }
+    return 0.2; 
+};
+
 export default function CanvasBoard() {
     const searchParams = useSearchParams();
     const router = useRouter();
@@ -224,8 +249,9 @@ export default function CanvasBoard() {
                         const ids = Array.from(editor.getCurrentPageShapeIds());
                         if (ids.length > 0) {
                             // REDUZIR TAMANHO AQUI TAMBÉM
+                            const safeScale = getSafeScaleForImage(editor, ids);
                             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            const result = await (editor as any).toImage(ids, { format: 'jpeg', quality: 0.6, scale: 0.5, background: true, padding: 32 });
+                            const result = await (editor as any).toImage(ids, { format: 'jpeg', quality: 0.6, scale: safeScale, background: true, padding: 32 });
                             if (result && result.blob) {
                                 const blob = result.blob;
                                 const reader = new FileReader();
@@ -458,13 +484,51 @@ export default function CanvasBoard() {
                 editor.setCurrentTool('draw');
             });
 
+            // CAMERA POSITIONING: Center on content or set default zoom
+            setTimeout(() => {
+                const shapeIds = Array.from(editor.getCurrentPageShapeIds());
+                if (shapeIds.length > 0 && noteId) {
+                    // Nota existente: centralizar câmera no conteúdo desenhado
+                    // Calculando bounding box manualmente para posicionar câmera
+                    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                    for (const id of shapeIds) {
+                        const bounds = editor.getShapePageBounds(id);
+                        if (bounds) {
+                            if (bounds.minX < minX) minX = bounds.minX;
+                            if (bounds.minY < minY) minY = bounds.minY;
+                            if (bounds.maxX > maxX) maxX = bounds.maxX;
+                            if (bounds.maxY > maxY) maxY = bounds.maxY;
+                        }
+                    }
+                    if (minX !== Infinity) {
+                        const contentW = maxX - minX;
+                        const contentH = maxY - minY;
+                        const vp = editor.getViewportScreenBounds();
+                        const padding = 64;
+                        // Calcular zoom necessário para encaixar o conteúdo com padding
+                        const zoomX = (vp.width - padding * 2) / contentW;
+                        const zoomY = (vp.height - padding * 2) / contentH;
+                        const zoom = Math.min(zoomX, zoomY, 1); // Nunca maior que 100%
+                        const centerX = minX + contentW / 2;
+                        const centerY = minY + contentH / 2;
+                        editor.setCamera({
+                            x: -(centerX - (vp.width / zoom) / 2),
+                            y: -(centerY - (vp.height / zoom) / 2),
+                            z: zoom
+                        });
+                    }
+                } else {
+                    // Nota nova: forçar zoom 100% na posição inicial
+                    editor.setCamera({ x: 0, y: 0, z: 1 });
+                }
+            }, 150);
+
             // Set Initial Hash for Dirty Checking
-            // Short delay to ensure shapes are rendered in store? Usually synchronous in tldraw store.
             setTimeout(() => {
                 const initHash = getCanvasHash();
                 setInitialHash(initHash);
                 setLastTranscribedHash(initHash);
-            }, 100);
+            }, 200);
 
             setIsLoading(false);
         };
@@ -595,7 +659,6 @@ export default function CanvasBoard() {
 
                 saveToOfflineQueue(snapshot, title, finalTags, finalTranscription || '');
 
-                // Cleanup: mesma lógica de pós-save online
                 isDiscardingRef.current = true;
                 const draftKey = `draft_note_${userId}_${noteId || 'new'}`;
                 localStorage.removeItem(draftKey);
@@ -604,71 +667,35 @@ export default function CanvasBoard() {
                 toast.success("Salvo localmente! Será sincronizado quando a internet voltar.", { duration: 4000 });
                 setIsSavingDialogOpen(false);
                 router.push('/anotacoes/memory');
-                return; // Sai sem tentar Supabase
+                return;
             }
 
-            // 1. DETERMINE IF TRANSCRIPTION IS NEEDED (Before saving)
-            // This allows us to add a "PROCESSING" tag to the DB immediately
-            let shouldTranscribe = false;
-            let processingImageBase64 = "";
+            // 1. DETERMINE IF TRANSCRIPTION WILL BE NEEDED (quick check, no image gen yet)
+            const textWasModifiedInModal = transcriptionInputValue !== currentTranscription && transcriptionInputValue.trim() !== '';
+            const currentHash = getCanvasHash();
+            const drawingChanged = currentHash !== lastTranscribedHash;
+            const shouldTranscribe = drawingChanged || !textWasModifiedInModal;
 
-            if (isOnline) {
-                const textWasModifiedInModal = transcriptionInputValue !== currentTranscription && transcriptionInputValue.trim() !== '';
-                const currentHash = getCanvasHash();
-                const drawingChanged = currentHash !== lastTranscribedHash;
-                
-                // Skip if user manually typed text AND drawing didn't change
-                shouldTranscribe = drawingChanged || !textWasModifiedInModal;
-
-                if (shouldTranscribe) {
-                    // Try to generate image now
-                    try {
-                        const ids = Array.from(editor.getCurrentPageShapeIds());
-                        if (ids.length > 0) {
-                            // REDUZIR O TAMANHO DA IMAGEM GERADA PARA ACELERAR A TRANSCRIÇÃO (scale: 0.5)
-                            const imgResult = await (editor as any).toImage(ids, { format: 'jpeg', quality: 0.6, scale: 0.5, background: true, padding: 32 });
-                            if (imgResult?.blob) {
-                                const reader = new FileReader();
-                                const base64Promise = new Promise<string>((resolve, reject) => {
-                                    reader.onloadend = () => {
-                                        if (typeof reader.result === 'string') resolve(reader.result);
-                                        else reject(new Error("Failed to read blob"));
-                                    };
-                                    reader.onerror = reject;
-                                    reader.readAsDataURL(imgResult.blob);
-                                });
-                                processingImageBase64 = await base64Promise;
-                                
-                                // Reset status tags
-                                finalTags = finalTags.filter(t => 
-                                    t !== 'TRANSCRIPTION_SUCCESS' && 
-                                    t !== 'TRANSCRIPTION_ERROR'
-                                );
-
-                                // Add visible tag for UI spinner
-                                if (!finalTags.includes('PROCESSING_TRANSCRIPTION')) {
-                                    finalTags.push('PROCESSING_TRANSCRIPTION');
-                                }
-                            } else {
-                                shouldTranscribe = false; // Failed to gen image
-                            }
-                        } else {
-                            shouldTranscribe = false; // Empty canvas
-                        }
-                    } catch (e) {
-                        console.warn("Image gen failed", e);
-                        shouldTranscribe = false;
+            // Add PROCESSING tag if transcription will be needed
+            if (shouldTranscribe) {
+                const ids = Array.from(editor.getCurrentPageShapeIds());
+                if (ids.length > 0) {
+                    finalTags = finalTags.filter(t =>
+                        t !== 'TRANSCRIPTION_SUCCESS' &&
+                        t !== 'TRANSCRIPTION_ERROR'
+                    );
+                    if (!finalTags.includes('PROCESSING_TRANSCRIPTION')) {
+                        finalTags.push('PROCESSING_TRANSCRIPTION');
                     }
                 }
             }
 
+            // 2. SAVE TO DB FIRST (fast — just serialize + network)
             const snapshot = getSnapshot(editor.store);
             const title = `Anotação ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
 
-            // 2. SAVE IMMEDIATELY (fast - just DB write)
             let savedNoteId = noteId;
             if (isEditing && noteId) {
-                // On EDIT: don't overwrite title (preserves original creation date label)
                 const result = await supabase
                     .schema('app_anotacoes')
                     .from('notes')
@@ -682,7 +709,6 @@ export default function CanvasBoard() {
                     .eq('id', noteId);
                 if (result.error) throw result.error;
             } else {
-                // On INSERT: include title with creation date
                 const result = await supabase
                     .schema('app_anotacoes')
                     .from('notes')
@@ -701,72 +727,68 @@ export default function CanvasBoard() {
                 savedNoteId = result.data.id;
             }
 
-            // Clear Local Draft on Success
-            // IMPORTANT: Set discarding flag FIRST to prevent auto-save from re-writing on unmount
+            // 3. CLEANUP & REDIRECT IMMEDIATELY (user sees fast save)
             isDiscardingRef.current = true;
             const draftKey = `draft_note_${userId}_${noteId || 'new'}`;
             localStorage.removeItem(draftKey);
+            localStorage.removeItem('notes_last_active');
 
-            // 3. FIRE BACKGROUND TRANSCRIPTION (non-blocking)
-            if (isOnline && savedNoteId && shouldTranscribe && processingImageBase64) {
-                // Check payload size roughly (limit is ~4.5MB for Vercel)
-                // Base64 size = (size * 4/3). 4.5MB * 1.33 = ~6M chars.
-                if (processingImageBase64.length > 6 * 1024 * 1024) {
-                     console.warn("Image too large for background transcription");
-                     toast.warning("Imagem muito grande para transcrição automática.");
-                     // Remove tag immediately
-                     const { data: currentTags } = await supabase
-                        .schema('app_anotacoes')
-                        .from('notes')
-                        .select('tags')
-                        .eq('id', savedNoteId)
-                        .single();
-                     const fixedTags = (currentTags?.tags || []).filter((t: string) => t !== 'PROCESSING_TRANSCRIPTION');
-                     if (!fixedTags.includes('TRANSCRIPTION_ERROR')) fixedTags.push('TRANSCRIPTION_ERROR');
-                     
-                     await supabase
-                        .schema('app_anotacoes')
-                        .from('notes')
-                        .update({ tags: fixedTags })
-                        .eq('id', savedNoteId);
-                } else {
-                    fetch('/api/transcribe-background', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ noteId: savedNoteId, image: processingImageBase64 })
-                    }).catch(async (err) => {
-                        console.warn("Background transcription fire failed:", err);
-                        // Cleanup tag on fetch failure
-                         const { data: currentTags } = await supabase
-                            .schema('app_anotacoes')
-                            .from('notes')
-                            .select('tags')
-                            .eq('id', savedNoteId)
-                            .single();
-                         const fixedTags = (currentTags?.tags || []).filter((t: string) => t !== 'PROCESSING_TRANSCRIPTION');
-                         // Add Error Tag
-                         if (!fixedTags.includes('TRANSCRIPTION_ERROR')) fixedTags.push('TRANSCRIPTION_ERROR');
+            toast.success("Anotação salva!");
+            setIsSavingDialogOpen(false);
+            router.push('/anotacoes/memory');
 
-                         await supabase
-                            .schema('app_anotacoes')
-                            .from('notes')
-                            .update({ tags: fixedTags })
-                            .eq('id', savedNoteId);
-                    });
+            // 4. GENERATE IMAGE & FIRE TRANSCRIPTION IN BACKGROUND (after redirect)
+            // This runs after the user already left the page — non-blocking
+            if (isOnline && savedNoteId && shouldTranscribe) {
+                try {
+                    const ids = Array.from(editor.getCurrentPageShapeIds());
+                    if (ids.length > 0) {
+                        const safeScale = getSafeScaleForImage(editor, ids);
+                        const imgResult = await (editor as any).toImage(ids, { format: 'jpeg', quality: 0.6, scale: safeScale, background: true, padding: 32 });
+                        if (imgResult?.blob) {
+                            const reader = new FileReader();
+                            const base64 = await new Promise<string>((resolve, reject) => {
+                                reader.onloadend = () => {
+                                    if (typeof reader.result === 'string') resolve(reader.result);
+                                    else reject(new Error("Failed to read blob"));
+                                };
+                                reader.onerror = reject;
+                                reader.readAsDataURL(imgResult.blob);
+                            });
+
+                            if (base64.length > 6 * 1024 * 1024) {
+                                console.warn("Image too large for background transcription");
+                                const { data: n } = await supabase.schema('app_anotacoes').from('notes').select('tags').eq('id', savedNoteId).single();
+                                const fixed = (n?.tags || []).filter((t: string) => t !== 'PROCESSING_TRANSCRIPTION');
+                                if (!fixed.includes('TRANSCRIPTION_ERROR')) fixed.push('TRANSCRIPTION_ERROR');
+                                await supabase.schema('app_anotacoes').from('notes').update({ tags: fixed }).eq('id', savedNoteId);
+                            } else {
+                                fetch('/api/transcribe-background', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ noteId: savedNoteId, image: base64 })
+                                }).catch(async (err) => {
+                                    console.warn("Background transcription fire failed:", err);
+                                    const { data: n } = await supabase.schema('app_anotacoes').from('notes').select('tags').eq('id', savedNoteId).single();
+                                    const fixed = (n?.tags || []).filter((t: string) => t !== 'PROCESSING_TRANSCRIPTION');
+                                    if (!fixed.includes('TRANSCRIPTION_ERROR')) fixed.push('TRANSCRIPTION_ERROR');
+                                    await supabase.schema('app_anotacoes').from('notes').update({ tags: fixed }).eq('id', savedNoteId);
+                                });
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn("Background image gen failed, cleaning up tag", e);
+                    const { data: n } = await supabase.schema('app_anotacoes').from('notes').select('tags').eq('id', savedNoteId).single();
+                    const fixed = (n?.tags || []).filter((t: string) => t !== 'PROCESSING_TRANSCRIPTION');
+                    if (!fixed.includes('TRANSCRIPTION_ERROR')) fixed.push('TRANSCRIPTION_ERROR');
+                    await supabase.schema('app_anotacoes').from('notes').update({ tags: fixed }).eq('id', savedNoteId);
                 }
             }
-
-            toast.success("Anotação salva! A transcrição será atualizada em breve.");
-
-            // 4. REDIRECT IMMEDIATELY
-            // Clear persistence to ensure next open is fresh
-            localStorage.removeItem('notes_last_active');
-            router.push('/anotacoes/memory');
 
         } catch (error: any) {
             console.error("Save error:", error);
             toast.error(`Erro ao salvar: ${error.message}. O rascunho continua salvo neste dispositivo.`);
-        } finally {
             setIsSavingDialogOpen(false);
         }
     };
@@ -790,7 +812,8 @@ export default function CanvasBoard() {
             }
 
             // Use editor.toImage with reduced scale for faster API transmission
-            const result = await (editor as any).toImage(ids, { format: 'jpeg', quality: 0.6, scale: 0.5, background: true, padding: 32 });
+            const safeScale = getSafeScaleForImage(editor, ids);
+            const result = await (editor as any).toImage(ids, { format: 'jpeg', quality: 0.6, scale: safeScale, background: true, padding: 32 });
 
             if (!result || !result.blob) {
                 throw new Error("Falha ao gerar imagem da anotação");
