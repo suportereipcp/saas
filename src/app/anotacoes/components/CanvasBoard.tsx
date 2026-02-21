@@ -72,6 +72,39 @@ function ScrollIndicator({ editor }: ScrollIndicatorProps) {
     );
 }
 
+interface ZoomIndicatorProps {
+    editor: Editor | null;
+}
+
+function ZoomIndicator({ editor }: ZoomIndicatorProps) {
+    const [zoom, setZoom] = useState(100);
+
+    useEffect(() => {
+        if (!editor) return;
+
+        const updateState = () => {
+            const z = editor.getZoomLevel();
+            setZoom(Math.round(z * 100));
+        };
+
+        updateState();
+
+        const cleanup = editor.store.listen(() => {
+            updateState();
+        });
+
+        return () => cleanup();
+    }, [editor]);
+
+    if (!editor) return null;
+
+    return (
+        <div className="absolute top-4 right-4 z-50 bg-white shadow-sm border border-slate-200 px-3 py-1.5 rounded-full flex items-center justify-center pointer-events-none select-none">
+            <span className="text-xs font-medium text-slate-500">{zoom}%</span>
+        </div>
+    );
+}
+
 // Helper: Calculate a safe image scale to prevent Out of Memory (OOM) crashes
 const getSafeScaleForImage = (editor: Editor, ids: any[]): number => {
     try {
@@ -1143,6 +1176,9 @@ export default function CanvasBoard() {
 
             {/* Visual Right Scrollbar - ISOLATED COMPONENT */}
             <ScrollIndicator editor={editor} />
+            
+            {/* Visual Zoom Percentage - ISOLATED COMPONENT */}
+            <ZoomIndicator editor={editor} />
 
             <TaggingModal
                 open={taggingOpen}
