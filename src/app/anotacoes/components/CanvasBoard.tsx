@@ -679,7 +679,13 @@ export default function CanvasBoard() {
 
             if (shouldTranscribe) {
                 try {
-                    const ids = Array.from(editor.getCurrentPageShapeIds());
+                    let ids = Array.from(editor.getCurrentPageShapeIds());
+                    // Filter out zero or negative dimension shapes which cause <foreignObject> SVG export crashes
+                    ids = ids.filter(id => {
+                        const bounds = editor.getShapePageBounds(id);
+                        return bounds && bounds.w > 0 && bounds.h > 0;
+                    });
+
                     if (ids.length > 0) {
                         const safeScale = getSafeScaleForImage(editor, ids);
                         const imgResult = await (editor as any).toImage(ids, { format: 'jpeg', quality: 0.6, scale: safeScale, background: true, padding: 32 });
@@ -694,9 +700,10 @@ export default function CanvasBoard() {
                                 reader.readAsDataURL(imgResult.blob);
                             });
 
-                            if (processingImageBase64.length > 6 * 1024 * 1024) {
+                            // Limit to 3.5MB because Vercel Serverless Functions have a strict 4.5MB limit
+                            if (processingImageBase64.length > 3.5 * 1024 * 1024) {
                                 console.warn("Image too large for background transcription");
-                                toast.warning("Imagem muito grande para transcrição automática.");
+                                toast.warning("Imagem muito grande para transcrição automática. Tente dividir em duas notas.");
                                 shouldTranscribe = false;
                             } else {
                                 finalTags = finalTags.filter(t =>
