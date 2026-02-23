@@ -29,8 +29,6 @@ yarn-error.log*
 .env.production.local
 *.pem
 
-# Mas LIBERA o nosso exemplo (Obrigatório para a equipe)
-!.env.example
 
 # Vercel
 .vercel
