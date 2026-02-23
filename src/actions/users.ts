@@ -72,6 +72,10 @@ export async function createUser(prevState: ActionState, formData: FormData): Pr
         revalidatePath("/admin");
         return { success: "Usuário criado com sucesso!" };
     } catch (error: any) {
+        // Provide friendly messages for common Supabase Auth errors
+        if (error.message?.toLowerCase().includes("already registered") || error.message?.toLowerCase().includes("user already exists")) {
+            return { error: "Este e-mail já está cadastrado no sistema." };
+        }
         return { error: error.message || "Erro ao criar usuário." };
     }
 }
@@ -121,7 +125,6 @@ export async function updateUser(prevState: ActionState, formData: FormData): Pr
         // If it's empty string we might want to save it as null or empty string.
         if (sector !== undefined) profileUpdates.sector = sector;
 
-        const centroCusto = formData.get("centroCusto") as string | null;
         if (centroCusto !== undefined) profileUpdates.centro_custo = centroCusto;
 
         profileUpdates.is_super_admin = isSuperAdmin;
