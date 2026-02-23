@@ -58,6 +58,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.0.9",
-    "typescript": "^5"
+    "typescript": "^5",
+    "webpack": "^5.105.2"
   }
 }
