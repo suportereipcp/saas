@@ -38,6 +38,7 @@ ENV KOKORO_BASE_URL=$KOKORO_BASE_URL
 ENV KOKORO_API_KEY=$KOKORO_API_KEY
 # ----------------------------------------------------
 
+
 # Cria o build (Gera a pasta .next/standalone)
 RUN npm run build
 
