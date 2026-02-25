@@ -42,13 +42,13 @@ export async function saveInventoryCount(prevState: ActionState, formData: FormD
         if (existingItem) {
             // Check if already finalized/approved
             if (existingItem.contado) {
-                 return { error: "Este item já foi finalizado e não aceita novas contagens." };
+                return { error: "Este item já foi finalizado e não aceita novas contagens." };
             }
 
             const currentArray = existingItem.qtd_fisica || [];
             const newArray = [...currentArray, qtd];
 
-            let finalContado = false; 
+            let finalContado = false;
 
             // 1st Count: LOCK IMMEDIATELY using contado=true.
             // This ensures Operator CANNOT proceed to 2nd count until Admin Rejects (unlocks).
@@ -100,7 +100,7 @@ export async function saveInventoryCount(prevState: ActionState, formData: FormD
 
         revalidatePath("/inventario-rotativo");
         revalidatePath("/inventario-rotativo/acompanhamento");
-        
+
         return { success: "Contagem salva com sucesso!" };
 
     } catch (error: any) {
@@ -112,18 +112,62 @@ export async function saveInventoryCount(prevState: ActionState, formData: FormD
 export type InventoryReportItem = {
     it_codigo: string;
     desc_item: string;
-    total_qtd: number;
-    status_geral: "liberado" | "pendente"; // Liberado se todos CCs confirmaram
+    total_qtd: number; // Sum of latest count from ALL CCs (partial + confirmed)
+    status_geral: "liberado" | "pendente"; // Liberado only when ALL CCs confirmed
     details: {
         id: string;
         centro_custo: string;
-        qtd_fisica: number;
+        qtd_fisica: number; // Latest count value
         contado: boolean;
         updated_at: string;
-        counts_count: number; // To track if we hit limit of 3
+        counts_count: number; // Number of counts (1, 2, or 3)
         counts_history: number[];
+        cc_status: "aguardando_2a" | "contagem_2a" | "contagem_3a" | "liberado";
     }[];
 };
+
+/**
+ * Determines the counting status for a single CC record.
+ * - 1 count: "aguardando_2a" (waiting for 2nd count / pending admin)
+ * - 2 counts matching: "liberado" (auto-approved)
+ * - 2 counts divergent + contado=false: "contagem_2a" (needs recount, goes to 3rd)
+ * - 2 counts divergent + contado=true: "liberado" (admin-approved despite divergence)
+ * - 3+ counts + contado=true: "liberado" (admin final decision)
+ * - 3+ counts + contado=false: "contagem_3a" (pending)
+ */
+function getCcStatus(record: any): "aguardando_2a" | "contagem_2a" | "contagem_3a" | "liberado" {
+    const counts: number[] = record.qtd_fisica || [];
+    const len = counts.length;
+    const contado = record.contado || false;
+
+    if (len === 0) return "aguardando_2a";
+
+    if (len === 1) {
+        // 1st count submitted, locked (contado=true), waiting admin decision
+        return "aguardando_2a";
+    }
+
+    if (len === 2) {
+        const c1 = counts[0];
+        const c2 = counts[1];
+        if (c1 === c2) {
+            // Two matching counts = auto-confirmed
+            return "liberado";
+        }
+        if (contado) {
+            // Admin approved despite divergence
+            return "liberado";
+        }
+        // Divergent, unlocked for 3rd count
+        return "contagem_2a";
+    }
+
+    // 3+ counts
+    if (contado) {
+        return "liberado"; // Admin final decision
+    }
+    return "contagem_3a"; // Still pending
+}
 
 export async function getInventoryReport(startDate: string, endDate: string) {
     try {
@@ -143,11 +187,11 @@ export async function getInventoryReport(startDate: string, endDate: string) {
 
         try {
             const { data: items } = await supabaseAdmin
-                .schema('datasul' as any) 
+                .schema('datasul' as any)
                 .from('item')
                 .select('it_codigo, desc_item')
                 .in('it_codigo', itemCodes);
-            
+
             if (items) {
                 items.forEach((i: any) => {
                     descriptions[i.it_codigo] = i.desc_item;
@@ -160,22 +204,25 @@ export async function getInventoryReport(startDate: string, endDate: string) {
         const reportMap = new Map<string, InventoryReportItem>();
 
         records.forEach(record => {
-            const currentQtd = record.qtd_fisica && record.qtd_fisica.length > 0 
-                ? record.qtd_fisica[record.qtd_fisica.length - 1] 
+            // Always use the LATEST count from this CC
+            const currentQtd = record.qtd_fisica && record.qtd_fisica.length > 0
+                ? record.qtd_fisica[record.qtd_fisica.length - 1]
                 : 0;
+
+            const ccStatus = getCcStatus(record);
 
             if (!reportMap.has(record.it_codigo)) {
                 reportMap.set(record.it_codigo, {
                     it_codigo: record.it_codigo,
                     desc_item: descriptions[record.it_codigo] || "Item sem descrição",
                     total_qtd: 0,
-                    status_geral: "liberado", 
+                    status_geral: "liberado", // Assume liberado, set to pendente if any CC isn't confirmed
                     details: []
                 });
             }
 
             const group = reportMap.get(record.it_codigo)!;
-            
+
             group.details.push({
                 id: record.id,
                 centro_custo: record.centro_custo || "N/A",
@@ -183,18 +230,17 @@ export async function getInventoryReport(startDate: string, endDate: string) {
                 contado: record.contado || false,
                 updated_at: record.updated_at,
                 counts_count: record.qtd_fisica ? record.qtd_fisica.length : 0,
-                counts_history: record.qtd_fisica || []
+                counts_history: record.qtd_fisica || [],
+                cc_status: ccStatus
             });
 
-            // Updated Status Logic:
-            // "Liberado" if contado=true AND we have confirmed results (counts > 1).
-            // If only 1 count and contado=true -> It is "Pending Admin".
-            const isConfirmed = record.contado && (record.qtd_fisica && record.qtd_fisica.length > 1);
+            // ALWAYS sum the latest count into total_qtd (partial counts included)
+            group.total_qtd += currentQtd;
 
-            if (isConfirmed) {
-                group.total_qtd += currentQtd;
-            } else {
-                group.status_geral = "pendente"; // It's pending admin or pending operator.
+            // Status geral: "liberado" ONLY if ALL CCs are confirmed
+            // If any single CC is not "liberado", the whole item is "pendente"
+            if (ccStatus !== "liberado") {
+                group.status_geral = "pendente";
             }
         });
 
@@ -202,7 +248,42 @@ export async function getInventoryReport(startDate: string, endDate: string) {
 
     } catch (error) {
         console.error("getInventoryReport Error:", error);
-        return []; 
+        return [];
+    }
+}
+
+/**
+ * Fetches a mapping of centro_custo code -> sector name from public.profiles.
+ * Multiple CC codes can have the same sector name. Handles arrays or comma-separated strings.
+ */
+export async function getCcSectorMap(): Promise<Record<string, string>> {
+    try {
+        const { data: profiles, error } = await supabaseAdmin
+            .from("profiles")
+            .select("centro_custo, sector")
+            .not("centro_custo", "is", null)
+            .not("sector", "is", null);
+
+        if (error) throw error;
+
+        const map: Record<string, string> = {};
+        if (profiles) {
+            profiles.forEach((p: any) => {
+                if (p.centro_custo && p.sector) {
+                    const ccs = Array.isArray(p.centro_custo)
+                        ? p.centro_custo
+                        : String(p.centro_custo).split(',').map(s => s.trim());
+
+                    ccs.forEach((cc: string) => {
+                        if (cc) map[cc] = p.sector;
+                    });
+                }
+            });
+        }
+        return map;
+    } catch (error) {
+        console.warn("getCcSectorMap Error:", error);
+        return {};
     }
 }
 
@@ -212,9 +293,9 @@ export async function getPendingOperatorItems(userCC: string, startDate?: string
             .schema('inventario' as any)
             .from("inventario_rotativo")
             .select("*");
-            
+
         if (!isAdmin) {
-             query = query.eq("centro_custo", userCC);
+            query = query.eq("centro_custo", userCC);
         }
 
         if (startDate && endDate) {
@@ -224,35 +305,35 @@ export async function getPendingOperatorItems(userCC: string, startDate?: string
         }
 
         const { data: records, error } = await query
-            .order("contado", { ascending: true }) 
+            .order("contado", { ascending: true })
             .order("created_at", { ascending: false });
 
         if (error) throw error;
-        
+
         const itemCodes = Array.from(new Set(records.map(r => r.it_codigo)));
         let descriptions: Record<string, string> = {};
 
         try {
-             const { data: items } = await supabaseAdmin
-                .schema('datasul' as any) 
+            const { data: items } = await supabaseAdmin
+                .schema('datasul' as any)
                 .from('item')
                 .select('it_codigo, desc_item')
                 .in('it_codigo', itemCodes);
-            
-             if (items) {
-                 items.forEach((i: any) => {
-                     descriptions[i.it_codigo] = i.desc_item;
-                 });
-             }
+
+            if (items) {
+                items.forEach((i: any) => {
+                    descriptions[i.it_codigo] = i.desc_item;
+                });
+            }
         } catch (e) {
-             // Ignore
+            // Ignore
         }
 
         return records.map(r => ({
             id: r.id,
             it_codigo: r.it_codigo,
             desc_item: descriptions[r.it_codigo] || "",
-            counts: r.qtd_fisica || [], 
+            counts: r.qtd_fisica || [],
             dt_contagem: r.dt_contagem,
             contado: r.contado
         }));
@@ -323,24 +404,24 @@ export async function approveInventoryItem(itemId: string, action: 'approve' | '
         if (action === 'reject') {
             await supabaseAdmin.schema('inventario' as any).from("inventario_rotativo")
                 .update({ contado: false, updated_at: new Date().toISOString() }).eq("id", itemId);
-            
+
             revalidatePath("/inventario-rotativo/acompanhamento");
             return { success: "Item reprovado. Solicitada nova contagem." };
         }
 
         // APPROVE LOGIC
         if (action === 'approve') {
-            
+
             // Override with Admin Selected Value (Tie-Breaker)
             if (selectedValue !== undefined && selectedValue !== null) {
                 const newArray = [...counts, selectedValue];
-                 await supabaseAdmin.schema('inventario' as any).from("inventario_rotativo")
-                    .update({ 
-                        contado: true, 
+                await supabaseAdmin.schema('inventario' as any).from("inventario_rotativo")
+                    .update({
+                        contado: true,
                         qtd_fisica: newArray,
-                        updated_at: new Date().toISOString() 
+                        updated_at: new Date().toISOString()
                     }).eq("id", itemId);
-                
+
                 revalidatePath("/inventario-rotativo/acompanhamento");
                 return { success: "Valor selecionado e contagem finalizada." };
             }
@@ -356,12 +437,12 @@ export async function approveInventoryItem(itemId: string, action: 'approve' | '
                 // This makes existing logic assume it's "Matched" and finalized.
                 const val = counts[0];
                 const newArray = [val, val];
-                
+
                 await supabaseAdmin.schema('inventario' as any).from("inventario_rotativo")
-                    .update({ 
-                        contado: true, 
+                    .update({
+                        contado: true,
                         qtd_fisica: newArray,
-                        updated_at: new Date().toISOString() 
+                        updated_at: new Date().toISOString()
                     }).eq("id", itemId);
 
                 revalidatePath("/inventario-rotativo/acompanhamento");
@@ -372,12 +453,12 @@ export async function approveInventoryItem(itemId: string, action: 'approve' | '
             else if (countIndex === 2) {
                 const c1 = counts[0];
                 const c2 = counts[1];
-                
+
                 if (c1 === c2) {
                     shouldApprove = true;
                     message = "Valores conferem. Contagem finalizada.";
                 } else {
-                    shouldApprove = true; 
+                    shouldApprove = true;
                     message = "Aprovado com divergência (decisão do admin).";
                 }
             }
@@ -389,7 +470,7 @@ export async function approveInventoryItem(itemId: string, action: 'approve' | '
             if (shouldApprove) {
                 await supabaseAdmin.schema('inventario' as any).from("inventario_rotativo")
                     .update({ contado: true, updated_at: new Date().toISOString() }).eq("id", itemId);
-                
+
                 revalidatePath("/inventario-rotativo/acompanhamento");
                 return { success: message };
             }
@@ -398,6 +479,6 @@ export async function approveInventoryItem(itemId: string, action: 'approve' | '
         return { error: "Ação desconhecida." };
 
     } catch (error: any) {
-         return { error: "Erro: " + error.message };
+        return { error: "Erro: " + error.message };
     }
 }
