@@ -24,15 +24,5 @@ export default async function AcompanhamentoPage() {
         );
     }
 
-
-    return (
-        <div className="flex flex-col gap-6 max-w-[1600px] mx-auto w-full">
-             <div className="flex flex-col gap-2">
-                <h1 className="text-3xl font-bold tracking-tight text-[#374151]">Acompanhamento da Gestão</h1>
-                <p className="text-muted-foreground">Visão geral e liberação de inventário.</p>
-            </div>
-            
-            <InventoryManagerView />
-        </div>
-    );
+    return <InventoryManagerView />;
 }

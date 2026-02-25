@@ -27,10 +27,10 @@ export default async function InventarioLayout({
 
     // Define Links
     const links: SidebarLink[] = [
-        { 
-            label: "Contagens", 
-            href: "/inventario-rotativo", 
-            icon: "clipboard-list" 
+        {
+            label: "Contagens",
+            href: "/inventario-rotativo",
+            icon: "clipboard-list"
         }
     ];
 
@@ -48,6 +48,7 @@ export default async function InventarioLayout({
             userEmail={user.email}
             userName={profile?.full_name}
             links={links}
+            fullWidth
         >
             {children}
         </PortalShell>
