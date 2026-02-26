@@ -547,32 +547,42 @@ export default function OperadorPage() {
       {/* BOTÃO MESTRE ÚNICO FLUTUANTE NO RODAPÉ                    */}
       {/* ========================================================= */}
       {!isAnyPlatoParadoNaoJustificado && (
-        <div className="fixed bottom-0 left-0 lg:left-64 xl:left-64 right-0 p-3 sm:p-5 xl:p-8 bg-background/95 backdrop-blur border-t border-border flex justify-center shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] z-40 transition-all">
-          <div className="w-full max-w-5xl xl:max-w-[70vw] flex gap-4">
+        <div className="sticky bottom-4 sm:bottom-8 xl:bottom-12 z-40 flex justify-center w-full px-2 sm:px-6 pt-4 pb-2 mt-auto pointer-events-none">
+          <style>{`
+            @keyframes soft-pulse-scale {
+              0%, 100% { transform: scale(1); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); }
+              50% { transform: scale(1.02); box-shadow: 0 20px 25px -5px rgba(5, 150, 105, 0.3), 0 8px 10px -6px rgba(5, 150, 105, 0.4); }
+            }
+            .animate-soft-pulse {
+              animation: soft-pulse-scale 2.5s ease-in-out infinite;
+            }
+          `}</style>
+          
+          <div className="w-full max-w-5xl xl:max-w-[70vw] flex gap-4 pointer-events-auto">
             
             {/* BOTÃO INTELIGENTE: INICIAR OU ABRIR MENU DE AÇÕES */}
             {temPlatoParaIniciar ? (
                <Button 
                 size="lg"
-                className="w-full h-16 sm:h-20 xl:h-28 text-lg sm:text-xl xl:text-4xl font-black tracking-widest uppercase rounded-2xl shadow-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-all transform hover:-translate-y-1"
+                className="w-full h-16 sm:h-20 xl:h-24 text-base sm:text-xl xl:text-3xl font-black tracking-widest uppercase rounded-full shadow-2xl bg-emerald-600 hover:bg-emerald-700 text-white transition-all transform hover:-translate-y-1"
                 onClick={iniciarSessoesSelecionadas}
                 disabled={actionLoading || !(globalOperador || buscaGlobalOperador)}
                >
-                 {actionLoading ? <Loader2 className="w-8 h-8 xl:w-12 xl:h-12 animate-spin" /> : <Play className="w-8 h-8 xl:w-12 xl:h-12 mr-3 xl:mr-6 fill-white" />}
+                 {actionLoading ? <Loader2 className="w-8 h-8 xl:w-10 xl:h-10 animate-spin" /> : <Play className="w-6 h-6 sm:w-8 sm:h-8 xl:w-10 xl:h-10 mr-3 xl:mr-6 fill-white" />}
                  Iniciar Platos Selecionados
                </Button>
             ) : sessoesAtivas.length > 0 ? (
                <Button 
                 size="lg"
                 variant="default"
-                className="w-full h-16 sm:h-20 xl:h-28 text-lg sm:text-xl xl:text-4xl font-black tracking-widest uppercase rounded-2xl shadow-lg transition-all transform hover:-translate-y-1"
+                className="w-full h-16 sm:h-20 xl:h-24 text-base sm:text-xl xl:text-3xl font-black tracking-widest uppercase rounded-full shadow-2xl transition-all hover:brightness-110 bg-emerald-600 hover:bg-emerald-600 text-white animate-soft-pulse"
                 onClick={() => setModalAcoesOpen(true)}
                >
-                 <Settings className="w-6 h-6 sm:w-8 sm:h-8 xl:w-12 xl:h-12 mr-3 xl:mr-6" />
+                 <Settings className="w-6 h-6 sm:w-8 sm:h-8 xl:w-10 xl:h-10 mr-3 xl:mr-6" />
                  Gerenciar Produção / Finalizar
                </Button>
             ) : (
-              <div className="w-full h-16 sm:h-20 xl:h-28 flex items-center justify-center text-sm sm:text-lg xl:text-3xl font-bold text-muted-foreground uppercase tracking-widest bg-muted/50 rounded-2xl border border-dashed border-border px-4 text-center">
+              <div className="w-full h-16 sm:h-20 xl:h-24 flex items-center justify-center text-xs sm:text-lg xl:text-2xl font-bold text-muted-foreground uppercase tracking-widest bg-muted/80 backdrop-blur-md rounded-full border-[3px] border-dashed border-border px-4 text-center shadow-lg transition-all">
                 Selecione produtos para iniciar a máquina
               </div>
             )}
