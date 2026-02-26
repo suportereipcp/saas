@@ -344,30 +344,30 @@ export default function OperadorPage() {
     <div className="flex flex-col min-h-[100vh] w-full bg-background relative pb-28">
       
       {/* HEADER DE NAVEGAÇÃO SUPERIOR (Simples) */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-card">
-        <Button onClick={() => setViewMode("maquinas")} variant="ghost" size="lg" className="text-lg">
-          <ArrowLeft className="w-5 h-5 mr-2" />
+      <div className="flex items-center justify-between px-4 sm:px-6 py-4 xl:py-6 border-b border-border bg-card">
+        <Button onClick={() => setViewMode("maquinas")} variant="ghost" size="lg" className="text-base sm:text-lg xl:text-2xl xl:h-14">
+          <ArrowLeft className="w-5 h-5 xl:w-8 xl:h-8 mr-2" />
           Voltar
         </Button>
-        <div className="text-2xl font-black px-4 py-2 bg-muted rounded-xl border border-border">
+        <div className="text-xl sm:text-2xl xl:text-4xl font-black px-4 py-2 xl:px-8 xl:py-4 bg-muted rounded-xl border border-border">
           PRENSA {maquinaAtiva.num_maq}
         </div>
       </div>
 
-      <div className="flex-1 px-4 sm:px-6 py-6 pb-12 flex flex-col items-center">
+      <div className="flex-1 px-2 sm:px-6 py-6 xl:py-10 pb-12 flex flex-col items-center">
         
         {/* OPERADOR RESPONSÁVEL (Fixo no topo da View) */}
         {!isAnyPlatoParadoNaoJustificado && (
-          <div className="w-full max-w-5xl mb-6">
+          <div className="w-full max-w-5xl xl:max-w-[90vw] 2xl:max-w-[80vw] mb-6 xl:mb-10">
             <Card className="border-border shadow-sm">
-              <CardContent className="pt-6 pb-6 flex items-center justify-between gap-4">
+              <CardContent className="pt-6 pb-6 xl:pt-8 xl:pb-8 flex items-center justify-between gap-4">
                 <div className="flex-1">
-                  <h3 className="text-sm font-bold text-muted-foreground uppercase mb-2">Operador Responsável (Para novos Inícios)</h3>
+                  <h3 className="text-sm xl:text-xl font-bold text-muted-foreground uppercase mb-2">Operador Responsável</h3>
                   {globalOperador ? (
-                    <div className="flex items-center justify-between p-3 bg-muted border border-border/50 rounded-lg">
-                      <span className="font-bold text-xl">{globalOperador}</span>
-                      <Button variant="ghost" onClick={() => { setGlobalOperador(""); setBuscaGlobalOperador(""); }} className="h-10 w-10 p-0">
-                        <XCircle className="w-6 h-6 text-muted-foreground hover:text-destructive" />
+                    <div className="flex items-center justify-between p-3 xl:p-5 bg-muted border border-border/50 rounded-lg">
+                      <span className="font-bold text-xl xl:text-3xl">{globalOperador}</span>
+                      <Button variant="ghost" onClick={() => { setGlobalOperador(""); setBuscaGlobalOperador(""); }} className="h-10 w-10 xl:h-14 xl:w-14 p-0">
+                        <XCircle className="w-6 h-6 xl:w-10 xl:h-10 text-muted-foreground hover:text-destructive" />
                       </Button>
                     </div>
                   ) : (
@@ -378,10 +378,10 @@ export default function OperadorPage() {
                         value={buscaGlobalOperador}
                         onChange={(e) => searchGlobalOperadorAsync(e.target.value)}
                         placeholder="Matrícula ou Nome do Operador..."
-                        className="flex h-12 w-full rounded-md border border-input bg-background pl-12 pr-4 text-base ring-offset-background file:border-0 file:text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex h-12 xl:h-16 w-full rounded-md border border-input bg-background pl-12 pr-4 text-base xl:text-2xl ring-offset-background file:border-0 file:text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
                       />
                       {buscaGlobalOperador && (
-                        <div className="absolute z-30 w-full mt-1 bg-popover border border-border rounded-md shadow-xl max-h-48 overflow-y-auto">
+                        <div className="absolute z-30 w-full mt-1 bg-popover border border-border rounded-md shadow-xl max-h-48 xl:max-h-72 overflow-y-auto">
                           {globalOperadorOptions.length === 0 ? (
                             <p className="text-sm text-center py-4 text-muted-foreground">Operador não localizado.</p>
                           ) : globalOperadorOptions.map(op => (
@@ -407,36 +407,36 @@ export default function OperadorPage() {
         {/* ========================================================= */}
         {/* CONTAINER DA MÁQUINA (Borda Dupla Colorida e Status Global) */}
         {/* ========================================================= */}
-        <div className={`w-full max-w-5xl border-[8px] rounded-3xl overflow-visible shadow-2xl ${statusColorClass} flex flex-col relative`}>
+        <div className={`w-full max-w-5xl xl:max-w-[90vw] 2xl:max-w-[80vw] border-[6px] sm:border-[8px] xl:border-[12px] rounded-2xl xl:rounded-3xl overflow-visible shadow-2xl ${statusColorClass} flex flex-col relative`}>
           
           {/* HEADER DO CONTAINER */}
-          <div className={`w-full py-4 text-center text-2xl sm:text-3xl font-black tracking-[0.2em] shadow-sm ${statusHeaderBgClass}`}>
+          <div className={`w-full py-3 sm:py-4 xl:py-8 text-center text-xl sm:text-3xl xl:text-5xl font-black tracking-[0.1em] sm:tracking-[0.2em] shadow-sm ${statusHeaderBgClass}`}>
             {statusGlobal}
           </div>
 
           {/* GRID DOS PLATORES MANTIDOS NUMA ÚNICA DOBRA */}
-          <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-6 h-full min-h-[350px]">
+          <div className="p-3 sm:p-6 xl:p-10 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 xl:gap-8 h-full min-h-[350px] xl:min-h-[500px]">
             {/* Se houver qualquer parada Não Justificada, trancamos a máquina pedindo Justificativa */}
             {isAnyPlatoParadoNaoJustificado ? (
-              <div className="col-span-1 md:col-span-3 flex flex-col items-center justify-center p-8 bg-background/80 backdrop-blur-sm rounded-xl border border-destructive/30 space-y-8">
-                <div className="flex flex-col items-center gap-3 text-destructive font-black text-3xl text-center">
-                  <AlertTriangle className="w-16 h-16 animate-pulse" />
+              <div className="col-span-1 md:col-span-3 flex flex-col items-center justify-center p-6 sm:p-8 xl:p-16 bg-background/80 backdrop-blur-sm rounded-xl border border-destructive/30 space-y-6 sm:space-y-8 xl:space-y-12">
+                <div className="flex flex-col items-center gap-3 text-destructive font-black text-2xl sm:text-3xl xl:text-6xl text-center">
+                  <AlertTriangle className="w-12 h-12 sm:w-16 sm:h-16 xl:w-28 xl:h-28 animate-pulse" />
                   <span>A MÁQUINA PAROU. QUAL O MOTIVO?</span>
                   {paradasDaMaquina.filter(p => !p.justificada).map(parada => (
-                    <span key={parada.id} className="text-xl font-medium text-foreground mt-2">
+                    <span key={parada.id} className="text-lg sm:text-xl xl:text-3xl font-medium text-foreground mt-2">
                       Parada desde {new Date(parada.inicio_parada).toLocaleTimeString("pt-BR")}
                     </span>
                   ))}
                 </div>
                 
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 w-full max-w-4xl">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 xl:gap-6 w-full max-w-4xl xl:max-w-7xl">
                   {paradasDaMaquina.filter(p => !p.justificada).map(parada => (
                     MOTIVOS_PARADA.map((motivo) => (
                       <Button
                         key={motivo.id}
                         variant="outline"
                         onClick={() => justificarParada(parada.id, motivo.id)}
-                        className="h-20 text-lg font-bold border-destructive/40 hover:bg-destructive hover:text-white"
+                        className="h-16 sm:h-20 xl:h-28 text-base sm:text-lg xl:text-3xl font-bold border-destructive/40 hover:bg-destructive hover:text-white whitespace-normal break-words"
                       >
                         {motivo.label}
                       </Button>
@@ -453,68 +453,68 @@ export default function OperadorPage() {
 
                 return (
                   <Card key={plato} className="flex flex-col border-border shadow-sm h-full bg-background/90 backdrop-blur">
-                    <CardHeader className="py-3 px-4 border-b border-border/50 bg-muted/30">
+                    <CardHeader className="py-2.5 px-3 sm:py-3 sm:px-4 xl:py-6 xl:px-8 border-b border-border/50 bg-muted/30">
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-lg text-foreground flex items-center gap-2">
-                          <Layers className="w-5 h-5" /> Plato {plato}
+                        <span className="font-bold text-base sm:text-lg xl:text-3xl text-foreground flex items-center gap-2">
+                          <Layers className="w-5 h-5 xl:w-8 xl:h-8" /> Plato {plato}
                         </span>
                         {sessaoAtiva ? (
-                          <Badge className="bg-emerald-600 text-white hover:bg-emerald-700">Ativo</Badge>
+                          <Badge className="bg-emerald-600 text-white hover:bg-emerald-700 xl:text-xl xl:py-2 xl:px-4">Ativo</Badge>
                         ) : (
-                          <Badge variant="outline" className="text-muted-foreground">Livre</Badge>
+                          <Badge variant="outline" className="text-muted-foreground xl:text-xl xl:py-2 xl:px-4">Livre</Badge>
                         )}
                       </div>
                     </CardHeader>
 
-                    <CardContent className="p-4 flex-1 flex flex-col justify-center">
+                    <CardContent className="p-4 xl:p-8 flex-1 flex flex-col justify-center">
                       {sessaoAtiva ? (
                         /* PLATO OCUPADO */
-                        <div className="flex flex-col space-y-4">
+                        <div className="flex flex-col space-y-4 xl:space-y-10">
                           <div className="text-center">
-                            <span className="text-sm font-semibold text-muted-foreground block uppercase mb-1">Produto</span>
-                            <span className="text-2xl font-black text-foreground">{sessaoAtiva.produto_codigo}</span>
+                            <span className="text-xs sm:text-sm xl:text-xl font-semibold text-muted-foreground block uppercase mb-1">Produto</span>
+                            <span className="text-2xl xl:text-5xl font-black text-foreground">{sessaoAtiva.produto_codigo}</span>
                           </div>
                           
-                          <div className="bg-muted p-3 rounded-lg border border-border/50 text-center">
-                            <span className="text-xs uppercase font-bold text-muted-foreground tracking-wider mb-1 block">Peças Produzidas</span>
-                            <span className="text-4xl font-black text-primary font-mono">{pulsosCount[sessaoAtiva.id] || 0}</span>
+                          <div className="bg-muted p-4 xl:p-8 rounded-lg xl:rounded-2xl border border-border/50 text-center">
+                            <span className="text-xs xl:text-xl uppercase font-bold text-muted-foreground tracking-wider mb-2 block">Peças Produzidas</span>
+                            <span className="text-5xl xl:text-8xl font-black text-primary font-mono">{pulsosCount[sessaoAtiva.id] || 0}</span>
                           </div>
                           
-                          <div className="text-center pt-2">
-                            <span className="text-sm font-medium text-muted-foreground">Operador: <strong className="text-foreground">{sessaoAtiva.operador_matricula}</strong></span>
+                          <div className="text-center pt-2 xl:pt-6">
+                            <span className="text-sm xl:text-2xl font-medium text-muted-foreground">Operador: <strong className="text-foreground">{sessaoAtiva.operador_matricula}</strong></span>
                           </div>
                         </div>
                       ) : (
                         /* PLATO LIVRE (BUSCA DE PRODUTO) */
-                        <div className="flex flex-col space-y-3 justify-center h-full">
-                          <span className="text-sm font-semibold text-muted-foreground">Vincular Produto</span>
+                        <div className="flex flex-col space-y-4 xl:space-y-8 justify-center h-full">
+                          <span className="text-sm xl:text-xl font-semibold text-muted-foreground text-center">Vincular Produto</span>
                           {formData.produto ? (
-                            <div className="flex items-center justify-between p-3 bg-primary/10 border border-primary/20 rounded-lg">
-                              <span className="font-bold text-lg text-primary truncate max-w-[120px]">{formData.produto}</span>
-                              <Button variant="ghost" onClick={() => { updateForm(plato, "produto", ""); updateForm(plato, "buscaProduto", ""); }} className="h-8 w-8 p-0">
-                                <XCircle className="w-5 h-5 text-muted-foreground" />
+                            <div className="flex items-center justify-between p-3 xl:p-6 bg-primary/10 border border-primary/20 rounded-lg">
+                              <span className="font-bold text-lg xl:text-3xl text-primary truncate max-w-[150px] xl:max-w-xs">{formData.produto}</span>
+                              <Button variant="ghost" onClick={() => { updateForm(plato, "produto", ""); updateForm(plato, "buscaProduto", ""); }} className="h-8 w-8 xl:h-14 xl:w-14 p-0">
+                                <XCircle className="w-5 h-5 xl:w-8 xl:h-8 text-muted-foreground" />
                               </Button>
                             </div>
                           ) : (
                             <div className="relative">
-                              <Search className="absolute left-3 top-3.5 w-4 h-4 text-muted-foreground" />
+                              <Search className="absolute left-3 xl:left-5 top-3.5 xl:top-5 w-4 h-4 xl:w-6 xl:h-6 text-muted-foreground" />
                               <input
                                 type="text"
                                 value={formData.buscaProduto}
                                 onChange={(e) => searchProdutoAsync(plato, e.target.value)}
                                 placeholder="Cód/Nome..."
-                                className="flex h-11 w-full rounded-md border border-input bg-background pl-9 pr-2 text-sm ring-offset-background file:border-0 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1"
+                                className="flex h-11 xl:h-16 w-full rounded-md border border-input bg-background pl-9 xl:pl-14 pr-2 text-sm xl:text-xl ring-offset-background file:border-0 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2"
                               />
                               {formData.buscaProduto && (
-                                <div className="absolute z-20 w-full mt-1 bg-popover border border-border rounded-md shadow-xl max-h-48 overflow-y-auto">
+                                <div className="absolute z-20 w-full mt-1 bg-popover border border-border rounded-md shadow-xl max-h-48 xl:max-h-72 overflow-y-auto">
                                   {pOptions.map((prod) => (
                                     <button
                                       key={prod.codigo_item}
                                       onClick={() => updateForm(plato, "produto", prod.codigo_item)}
-                                      className="w-full p-3 text-left hover:bg-muted border-b border-border/50 transition-colors"
+                                      className="w-full p-3 xl:p-5 text-left hover:bg-muted border-b border-border/50 transition-colors"
                                     >
-                                      <span className="font-bold text-foreground block">{prod.codigo_item}</span>
-                                      <span className="text-xs text-muted-foreground block truncate">{prod.descricao}</span>
+                                      <span className="font-bold text-foreground block xl:text-xl">{prod.codigo_item}</span>
+                                      <span className="text-xs xl:text-base text-muted-foreground block truncate">{prod.descricao}</span>
                                     </button>
                                   ))}
                                 </div>
@@ -538,32 +538,32 @@ export default function OperadorPage() {
       {/* BOTÃO MESTRE ÚNICO FLUTUANTE NO RODAPÉ                    */}
       {/* ========================================================= */}
       {!isAnyPlatoParadoNaoJustificado && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 sm:p-6 bg-background/95 backdrop-blur border-t border-border flex justify-center shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] z-40">
-          <div className="w-full max-w-5xl flex gap-4">
+        <div className="fixed bottom-0 left-0 right-0 p-3 sm:p-5 xl:p-8 bg-background/95 backdrop-blur border-t border-border flex justify-center shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] z-40">
+          <div className="w-full max-w-5xl xl:max-w-[70vw] flex gap-4">
             
             {/* BOTÃO INTELIGENTE: INICIAR OU ABRIR MENU DE AÇÕES */}
             {temPlatoParaIniciar ? (
                <Button 
                 size="lg"
-                className="w-full h-16 sm:h-20 text-xl sm:text-2xl font-black tracking-wider uppercase rounded-2xl shadow-lg bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="w-full h-16 sm:h-20 xl:h-28 text-lg sm:text-xl xl:text-4xl font-black tracking-widest uppercase rounded-2xl shadow-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-all transform hover:-translate-y-1"
                 onClick={iniciarSessoesSelecionadas}
                 disabled={actionLoading || !(globalOperador || buscaGlobalOperador)}
                >
-                 {actionLoading ? <Loader2 className="w-8 h-8 animate-spin" /> : <Play className="w-8 h-8 mr-3 fill-white" />}
+                 {actionLoading ? <Loader2 className="w-8 h-8 xl:w-12 xl:h-12 animate-spin" /> : <Play className="w-8 h-8 xl:w-12 xl:h-12 mr-3 xl:mr-6 fill-white" />}
                  Iniciar Platos Selecionados
                </Button>
             ) : sessoesAtivas.length > 0 ? (
                <Button 
                 size="lg"
                 variant="default"
-                className="w-full h-16 sm:h-20 text-xl sm:text-2xl font-black tracking-wider uppercase rounded-2xl shadow-lg"
+                className="w-full h-16 sm:h-20 xl:h-28 text-lg sm:text-xl xl:text-4xl font-black tracking-widest uppercase rounded-2xl shadow-lg transition-all transform hover:-translate-y-1"
                 onClick={() => setModalAcoesOpen(true)}
                >
-                 <Settings className="w-8 h-8 mr-3" />
+                 <Settings className="w-6 h-6 sm:w-8 sm:h-8 xl:w-12 xl:h-12 mr-3 xl:mr-6" />
                  Gerenciar Produção / Finalizar
                </Button>
             ) : (
-              <div className="w-full h-16 sm:h-20 flex items-center justify-center text-lg font-bold text-muted-foreground uppercase tracking-widest bg-muted/50 rounded-2xl border border-dashed border-border">
+              <div className="w-full h-16 sm:h-20 xl:h-28 flex items-center justify-center text-sm sm:text-lg xl:text-3xl font-bold text-muted-foreground uppercase tracking-widest bg-muted/50 rounded-2xl border border-dashed border-border px-4 text-center">
                 Selecione produtos para iniciar a máquina
               </div>
             )}
@@ -576,56 +576,56 @@ export default function OperadorPage() {
       {/* MODAL / POPUP DE FINALIZAÇÃO E REFUGOS                    */}
       {/* ========================================================= */}
       {modalAcoesOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-background rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden border border-border flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-background rounded-3xl shadow-2xl w-full max-w-3xl xl:max-w-5xl overflow-hidden border border-border flex flex-col max-h-[90vh]">
             
-            <div className="px-6 py-5 border-b border-border bg-muted/40 flex justify-between items-center">
-              <h2 className="text-2xl font-black uppercase text-foreground">Gerenciar Platos Ativos</h2>
-              <Button variant="ghost" onClick={() => setModalAcoesOpen(false)} className="rounded-full w-12 h-12 p-0 bg-background hover:bg-muted border border-border">
-                <XCircle className="w-7 h-7" />
+            <div className="px-6 py-5 xl:py-8 border-b border-border bg-muted/40 flex justify-between items-center">
+              <h2 className="text-xl sm:text-2xl xl:text-4xl font-black uppercase text-foreground">Gerenciar Platos Ativos</h2>
+              <Button variant="ghost" onClick={() => setModalAcoesOpen(false)} className="rounded-full w-12 h-12 xl:w-16 xl:h-16 p-0 bg-background hover:bg-muted border border-border">
+                <XCircle className="w-7 h-7 xl:w-10 xl:h-10" />
               </Button>
             </div>
 
-            <div className="p-6 overflow-y-auto flex-1 space-y-6">
+            <div className="p-4 sm:p-6 xl:p-10 overflow-y-auto flex-1 space-y-4 xl:space-y-8">
               {sessoesAtivas.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">Nenhum plato em produção nesta máquina.</p>
+                <p className="text-center text-muted-foreground py-8 xl:text-2xl">Nenhum plato em produção nesta máquina.</p>
               ) : (
                 sessoesAtivas.map(sessao => (
                   <Card key={sessao.id} className="border-border shadow-sm">
-                    <CardHeader className="py-3 px-5 bg-muted/20 border-b border-border/50">
+                    <CardHeader className="py-3 px-5 xl:py-5 xl:px-8 bg-muted/20 border-b border-border/50">
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-lg">PLATO {sessao.plato}</span>
-                        <Badge className="bg-primary/20 text-primary hover:bg-primary/30 text-sm">Em Andamento</Badge>
+                        <span className="font-bold text-lg xl:text-2xl">PLATO {sessao.plato}</span>
+                        <Badge className="bg-primary/20 text-primary hover:bg-primary/30 text-sm xl:text-xl xl:py-2">Em Andamento</Badge>
                       </div>
                     </CardHeader>
-                    <CardContent className="p-5 flex flex-col sm:flex-row gap-6 items-center">
+                    <CardContent className="p-4 sm:p-5 xl:p-8 flex flex-col sm:flex-row gap-6 items-center">
                       
-                      <div className="flex-1 space-y-2 text-center sm:text-left">
-                        <p className="text-sm text-muted-foreground uppercase font-semibold">Produto</p>
-                        <p className="text-2xl font-black text-foreground">{sessao.produto_codigo}</p>
-                        <p className="text-sm font-medium">Operador: {sessao.operador_matricula}</p>
-                        <p className="text-lg font-bold text-emerald-600 dark:text-emerald-500 mt-2">Peças: {pulsosCount[sessao.id] || 0}</p>
+                      <div className="flex-1 space-y-2 xl:space-y-4 text-center sm:text-left">
+                        <p className="text-sm xl:text-lg text-muted-foreground uppercase font-semibold">Produto</p>
+                        <p className="text-2xl xl:text-4xl font-black text-foreground">{sessao.produto_codigo}</p>
+                        <p className="text-sm xl:text-xl font-medium">Operador: {sessao.operador_matricula}</p>
+                        <p className="text-lg xl:text-3xl font-bold text-emerald-600 dark:text-emerald-500 mt-2">Peças: {pulsosCount[sessao.id] || 0}</p>
                       </div>
 
-                      <div className="w-full sm:w-auto flex flex-col space-y-3 min-w-[200px]">
+                      <div className="w-full sm:w-auto flex flex-col space-y-3 xl:space-y-5 min-w-[200px] xl:min-w-[300px]">
                         <div>
-                          <label className="text-sm font-bold block mb-1 uppercase text-muted-foreground">Qtd. Refugos</label>
+                          <label className="text-sm xl:text-xl font-bold block mb-1 uppercase text-muted-foreground">Qtd. Refugos</label>
                           <input
                             type="number"
                             min={0}
                             placeholder="0"
                             value={refugosForms[sessao.id] || ""}
                             onChange={(e) => setRefugosForms({ ...refugosForms, [sessao.id]: Number(e.target.value) })}
-                            className="h-14 w-full rounded-md border border-input bg-background px-4 text-center font-bold text-xl focus:ring-2 focus:ring-primary outline-none transition-all"
+                            className="h-14 xl:h-20 w-full rounded-md border border-input bg-background px-4 text-center font-bold text-xl xl:text-4xl focus:ring-2 focus:ring-primary outline-none transition-all"
                           />
                         </div>
                         <Button
                           variant="destructive"
                           disabled={actionLoading}
                           onClick={() => finalizarPlatoUnico(sessao.id)}
-                          className="h-14 font-black uppercase text-sm"
+                          className="h-14 xl:h-20 font-black uppercase text-sm xl:text-2xl"
                         >
-                          {actionLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5 mr-2" />}
+                          {actionLoading ? <Loader2 className="w-5 h-5 xl:w-8 xl:h-8 animate-spin" /> : <CheckCircle2 className="w-5 h-5 xl:w-8 xl:h-8 mr-2" />}
                           Finalizar Plato {sessao.plato}
                         </Button>
                       </div>
@@ -636,9 +636,9 @@ export default function OperadorPage() {
               )}
             </div>
 
-            <div className="px-6 py-5 border-t border-border bg-muted/40 flex justify-end">
-               <Button size="lg" variant="outline" onClick={() => setModalAcoesOpen(false)} className="text-lg font-bold px-8">
-                 Voltar
+            <div className="px-6 py-5 xl:py-8 border-t border-border bg-muted/40 flex justify-end">
+               <Button size="lg" variant="outline" onClick={() => setModalAcoesOpen(false)} className="text-lg xl:text-3xl xl:h-16 font-bold px-8 xl:px-12">
+                 Fechar Pop-up
                </Button>
             </div>
 
