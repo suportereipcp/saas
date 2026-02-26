@@ -415,7 +415,7 @@ export default function OperadorPage() {
           </div>
 
           {/* GRID DOS PLATORES MANTIDOS NUMA ÚNICA DOBRA */}
-          <div className="p-3 sm:p-6 xl:p-10 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 xl:gap-8 h-full min-h-[350px] xl:min-h-[500px]">
+          <div className="p-3 sm:p-6 xl:p-10 grid grid-cols-1 gap-4 sm:gap-6 xl:gap-8 h-full min-h-[350px] xl:min-h-[500px]">
             {/* Se houver qualquer parada Não Justificada, trancamos a máquina pedindo Justificativa */}
             {isAnyPlatoParadoNaoJustificado ? (
               <div className="col-span-1 md:col-span-3 flex flex-col items-center justify-center p-6 sm:p-8 xl:p-16 bg-background/80 backdrop-blur-sm rounded-xl border border-destructive/30 space-y-6 sm:space-y-8 xl:space-y-12">
@@ -483,6 +483,15 @@ export default function OperadorPage() {
                           <div className="text-center pt-2 xl:pt-6">
                             <span className="text-sm xl:text-2xl font-medium text-muted-foreground">Operador: <strong className="text-foreground">{sessaoAtiva.operador_matricula}</strong></span>
                           </div>
+                        </div>
+                      ) : sessoesAtivas.length > 0 ? (
+                        /* PLATO BLOQUEADO (HÁ OUTRAS SESSÕES ATIVAS NA MÁQUINA) */
+                        <div className="flex flex-col space-y-4 justify-center items-center h-full text-center">
+                          <AlertTriangle className="w-12 h-12 xl:w-20 xl:h-20 text-muted-foreground mx-auto opacity-30" />
+                          <span className="text-lg xl:text-2xl font-black text-muted-foreground uppercase opacity-50">Plato Bloqueado</span>
+                          <span className="text-xs sm:text-sm xl:text-lg text-muted-foreground max-w-xs xl:max-w-md mx-auto opacity-70">
+                            Aguarde a finalização de todas as ordens desta máquina para configurar novos itens.
+                          </span>
                         </div>
                       ) : (
                         /* PLATO LIVRE (BUSCA DE PRODUTO) */
