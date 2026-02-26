@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
-import { Loader2, RefreshCw, Factory, CheckCircle, Clock, XCircle, ArrowLeft } from "lucide-react";
+import { Loader2, RefreshCw, CheckCircle, Clock, XCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -62,9 +62,9 @@ export default function GestaoPage() {
   const statusBadge = (status: string) => {
     switch (status) {
       case "em_andamento":
-        return <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/50">Em Andamento</Badge>;
+        return <Badge className="bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/50">Em Andamento</Badge>;
       case "finalizado":
-        return <Badge className="bg-sky-500/20 text-sky-400 border-sky-500/50">Finalizado</Badge>;
+        return <Badge className="bg-sky-500/20 text-sky-600 dark:text-sky-400 border-sky-500/50">Finalizado</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -73,79 +73,67 @@ export default function GestaoPage() {
   const exportBadge = (status: string) => {
     switch (status) {
       case "pendente":
-        return <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/50"><Clock className="w-3 h-3 mr-1" />Pendente</Badge>;
+        return <Badge className="bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/50"><Clock className="w-3 h-3 mr-1" />Pendente</Badge>;
       case "processado":
-        return <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/50"><CheckCircle className="w-3 h-3 mr-1" />Processado</Badge>;
+        return <Badge className="bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/50"><CheckCircle className="w-3 h-3 mr-1" />Processado</Badge>;
       case "erro":
-        return <Badge className="bg-red-500/20 text-red-400 border-red-500/50"><XCircle className="w-3 h-3 mr-1" />Erro</Badge>;
+        return <Badge className="bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/50"><XCircle className="w-3 h-3 mr-1" />Erro</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white p-4 sm:p-8 max-w-6xl mx-auto space-y-6">
-      {/* Header */}
+    <div className="flex flex-col gap-6 w-full py-8 px-4 sm:px-6 lg:px-8">
+      {/* Top Controls */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex items-center gap-3">
-          <a href="/portal" className="text-neutral-400 hover:text-white transition">
-            <ArrowLeft className="w-5 h-5" />
-          </a>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <Factory className="w-6 h-6 text-emerald-400" />
-              Gestão de Produção
-            </h1>
-            <p className="text-neutral-500 text-sm mt-1">Visão gerencial das sessões e exportações</p>
-          </div>
+        {/* Tabs */}
+        <div className="flex gap-1 bg-muted p-1 rounded-lg w-fit">
+          <button
+            onClick={() => setTab("sessoes")}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition ${
+              tab === "sessoes" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Sessões ({sessoes.length})
+          </button>
+          <button
+            onClick={() => setTab("export")}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition ${
+              tab === "export" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Fila Datasul ({exportQueue.length})
+          </button>
         </div>
-        <Button onClick={fetchData} disabled={loading} variant="outline" className="border-neutral-700 text-neutral-300">
-          {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-          Atualizar
-        </Button>
-      </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-neutral-900 p-1 rounded-lg w-fit">
-        <button
-          onClick={() => setTab("sessoes")}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition ${
-            tab === "sessoes" ? "bg-neutral-800 text-white" : "text-neutral-400 hover:text-white"
-          }`}
-        >
-          Sessões ({sessoes.length})
-        </button>
-        <button
-          onClick={() => setTab("export")}
-          className={`px-4 py-2 rounded-md text-sm font-medium transition ${
-            tab === "export" ? "bg-neutral-800 text-white" : "text-neutral-400 hover:text-white"
-          }`}
-        >
-          Fila Datasul ({exportQueue.length})
-        </button>
+        <Button onClick={fetchData} disabled={loading} variant="outline" className="border-border text-foreground shrink-0">
+          {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+          Atualizar Dados
+        </Button>
       </div>
 
       {/* Content */}
       {loading ? (
         <div className="flex justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-neutral-500" />
+          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
         </div>
       ) : tab === "sessoes" ? (
         <div className="space-y-3">
           {sessoes.length === 0 ? (
-            <p className="text-center text-neutral-500 py-12">Nenhuma sessão registrada.</p>
+            <p className="text-center text-muted-foreground py-12">Nenhuma sessão registrada.</p>
           ) : (
             sessoes.map((s) => (
-              <Card key={s.id} className="bg-neutral-900 border-neutral-800 hover:border-neutral-700 transition">
+              <Card key={s.id} className="hover:shadow-md transition-shadow border-border/50">
                 <CardContent className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 py-4">
                   <div className="flex-1 space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-lg">{s.maquinas?.num_maq || "-"}</span>
-                      <span className="text-neutral-600">|</span>
-                      <span className="text-neutral-300">{s.produto_codigo || "-"}</span>
+                      <span className="font-bold text-lg text-foreground">{s.maquinas?.num_maq || "-"}</span>
+                      <span className="text-muted-foreground">|</span>
+                      <span className="text-foreground">{s.produto_codigo || "-"}</span>
                       {statusBadge(s.status)}
                     </div>
-                    <p className="text-sm text-neutral-500">
+                    <p className="text-sm text-muted-foreground">
                       Operador: {s.operador_matricula} · Início:{" "}
                       {new Date(s.inicio_sessao).toLocaleString("pt-BR", {
                         day: "2-digit",
@@ -165,7 +153,7 @@ export default function GestaoPage() {
                     </p>
                   </div>
                   {s.status === "finalizado" && s.total_refugo > 0 && (
-                    <Badge variant="secondary" className="text-red-400">Refugos: {s.total_refugo}</Badge>
+                    <Badge variant="destructive" className="bg-red-500/10 text-destructive border-destructive/20 hover:bg-red-500/20">Refugos: {s.total_refugo}</Badge>
                   )}
                 </CardContent>
               </Card>
@@ -175,22 +163,22 @@ export default function GestaoPage() {
       ) : (
         <div className="space-y-3">
           {exportQueue.length === 0 ? (
-            <p className="text-center text-neutral-500 py-12">Fila de exportação vazia.</p>
+            <p className="text-center text-muted-foreground py-12">Fila de exportação vazia.</p>
           ) : (
             exportQueue.map((e) => (
-              <Card key={e.id} className="bg-neutral-900 border-neutral-800">
+              <Card key={e.id} className="border-border/50 hover:border-border transition-colors">
                 <CardContent className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 py-4">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-bold">{e.item_codigo || "-"}</span>
-                      <span className="text-neutral-500">·</span>
-                      <span className="text-neutral-300">{e.quantidade_total} peças</span>
+                      <span className="font-bold text-foreground">{e.item_codigo || "-"}</span>
+                      <span className="text-muted-foreground">·</span>
+                      <span className="text-foreground">{e.quantidade_total} peças</span>
                       {exportBadge(e.status_importacao)}
                     </div>
-                    <p className="text-xs text-neutral-500">
+                    <p className="text-xs text-muted-foreground">
                       {new Date(e.data_finalizacao).toLocaleString("pt-BR")}
                     </p>
-                    {e.log_erro && <p className="text-xs text-red-400 mt-1">{e.log_erro}</p>}
+                    {e.log_erro && <p className="text-xs text-destructive mt-1">{e.log_erro}</p>}
                   </div>
                 </CardContent>
               </Card>

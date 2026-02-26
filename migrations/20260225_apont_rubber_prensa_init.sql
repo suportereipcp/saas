@@ -162,6 +162,18 @@ CREATE POLICY "service_all_sync" ON apont_rubber_prensa.sync_state FOR ALL TO se
 CREATE POLICY "service_all_paradas" ON apont_rubber_prensa.paradas_maquina FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- =====================================================================
+-- PERMISSÕES GERAIS (GRANTs)
+-- Necessárias para schemas customizados no Supabase API
+-- =====================================================================
+
+GRANT USAGE ON SCHEMA apont_rubber_prensa TO authenticated, anon;
+GRANT SELECT ON ALL TABLES IN SCHEMA apont_rubber_prensa TO authenticated, anon;
+GRANT INSERT, UPDATE ON apont_rubber_prensa.sessoes_producao TO authenticated;
+GRANT INSERT, UPDATE ON apont_rubber_prensa.paradas_maquina TO authenticated;
+GRANT INSERT ON apont_rubber_prensa.export_datasul TO authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA apont_rubber_prensa TO authenticated, anon;
+
+-- =====================================================================
 -- REGISTRO DO APP NO PORTAL
 -- =====================================================================
 

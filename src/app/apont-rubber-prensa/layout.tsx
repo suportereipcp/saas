@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
+import { PortalShell } from "@/components/portal-shell";
+import { SidebarLink } from "@/components/portal-sidebar";
 
 export default async function ApontRubberPrensaLayout({
   children,
@@ -15,5 +17,40 @@ export default async function ApontRubberPrensaLayout({
     return redirect("/login");
   }
 
-  return <>{children}</>;
+  // Obter perfil para nome, e checar se é admin para ver a gestão
+  const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name, is_super_admin")
+      .eq("id", user.id)
+      .single();
+
+  const isAdmin = profile?.is_super_admin || false;
+
+  // Montar Links da Sidebar
+  const links: SidebarLink[] = [
+      {
+          label: "Chão de Fábrica",
+          href: "/apont-rubber-prensa/operador",
+          icon: "gauge"
+      }
+  ];
+
+  if (isAdmin) {
+      links.push({
+          label: "Gestão",
+          href: "/apont-rubber-prensa/gestao",
+          icon: "activity" 
+      });
+  }
+
+  return (
+    <PortalShell
+        userEmail={user.email}
+        userName={profile?.full_name}
+        links={links}
+        fullWidth
+    >
+        {children}
+    </PortalShell>
+  );
 }

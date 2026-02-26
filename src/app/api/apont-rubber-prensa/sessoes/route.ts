@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   { db: { schema: "apont_rubber_prensa" } }
 );
 
@@ -13,12 +13,19 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { maquina_id, produto_codigo, plato = 1, operador_matricula } = body;
 
+    console.log("[INICIAR SESSAO API] PAYLOAD:", body);
+    
+    // Log para ver se estamos com service role ou anon no NextJS API context
+    const hasServiceRole = !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+    console.log("[INICIAR SESSAO API] Has Service Role Key no .env?", hasServiceRole);
+
     if (!maquina_id || !produto_codigo || !operador_matricula) {
+      console.log("[INICIAR SESSAO API] Erro Validacao de campos!");
       return NextResponse.json({ error: "Campos obrigatórios: maquina_id, produto_codigo, operador_matricula" }, { status: 400 });
     }
 
     // Verifica se já existe sessão ativa para este plato desta máquina
-    const { data: existing } = await supabase
+    const { data: existing, error: errExist } = await supabase
       .from("sessoes_producao")
       .select("id")
       .eq("maquina_id", maquina_id)
@@ -26,6 +33,11 @@ export async function POST(req: NextRequest) {
       .eq("status", "em_andamento")
       .limit(1)
       .single();
+
+    if (errExist && errExist.code !== "PGRST116") {
+      console.error("[INICIAR SESSAO API] Erro consulta sessoes_producao (existente):", errExist);
+      throw errExist;
+    }
 
     if (existing) {
       return NextResponse.json({ error: `Plato ${plato} já possui sessão ativa` }, { status: 409 });
@@ -39,10 +51,15 @@ export async function POST(req: NextRequest) {
       status: "em_andamento",
     }).select().single();
 
-    if (error) throw error;
+    if (error) {
+      console.error("[INICIAR SESSAO API] Erro ao inserir sesso_producao:", error);
+      throw error;
+    }
 
+    console.log("[INICIAR SESSAO API] Sucesso! ID:", data.id);
     return NextResponse.json({ data }, { status: 201 });
   } catch (error: any) {
+    console.error("[INICIAR SESSAO API] FATAL ERROR:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
