@@ -1,0 +1,20 @@
+FROM node:20-alpine
+WORKDIR /app
+
+# Instala dependências mínimas
+COPY package.json package-lock.json ./
+RUN npm install --omit=dev mysql2 @supabase/supabase-js
+
+# Instala ts-node e typescript para rodar .ts diretamente
+RUN npm install -g tsx
+
+# Copia apenas o script de sincronização
+COPY scripts/sync-prensa.ts ./scripts/sync-prensa.ts
+
+# Variáveis de ambiente (devem ser configuradas no Easypanel)
+ENV MARIADB_APONTAMENTOS_URL=""
+ENV SUPABASE_URL=""
+ENV SUPABASE_SERVICE_ROLE_KEY=""
+ENV SYNC_INTERVAL_MS="10000"
+
+CMD ["tsx", "scripts/sync-prensa.ts"]
