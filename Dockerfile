@@ -48,7 +48,7 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 
-ENV NODE_ENV production
+ENV NODE_ENV=production
 
 # Instala ferramentas necessárias para rodar ts_node/tsx e rodar sh scripts no alpine
 RUN apk add --no-cache bash curl
@@ -80,8 +80,8 @@ USER nextjs
 
 # Expõe a porta e configura Host.
 EXPOSE 3000
-ENV PORT 3000
-ENV HOSTNAME "0.0.0.0"
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
 # Inicia direto pelo script bash que lança o Next + TSX Cron juntos
 CMD ["./run_prod.sh"]
