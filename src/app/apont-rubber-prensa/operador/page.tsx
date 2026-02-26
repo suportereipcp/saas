@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
-import { Loader2, Play, Square, AlertTriangle, Package, Gauge, Layers, Search } from "lucide-react";
+import { Loader2, Play, Square, AlertTriangle, Layers, Search, Factory, ArrowLeft, XCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,38 +57,69 @@ const MOTIVOS_PARADA = [
 ];
 
 export default function OperadorPage() {
+  const [viewMode, setViewMode] = useState<"maquinas" | "painel">("maquinas");
+  const [selectedMaquina, setSelectedMaquina] = useState<string>("");
+
   const [maquinas, setMaquinas] = useState<Maquina[]>([]);
-  const [produtos, setProdutos] = useState<Produto[]>([]);
-  const [operadores, setOperadores] = useState<Operador[]>([]);
+  // Global state removal (now we only fetch what we need)
   const [sessoesAtivas, setSessoesAtivas] = useState<SessaoAtiva[]>([]);
   const [paradasPendentes, setParadasPendentes] = useState<Parada[]>([]);
   const [pulsosCount, setPulsosCount] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Campos de formulário para nova sessão
-  const [selectedMaquina, setSelectedMaquina] = useState("");
-  const [selectedProduto, setSelectedProduto] = useState("");
-  const [selectedPlato, setSelectedPlato] = useState(1);
-  const [matricula, setMatricula] = useState("");
-  const [buscaOperador, setBuscaOperador] = useState("");
+  // Estado Global do Operador
+  const [globalOperador, setGlobalOperador] = useState("");
+  const [buscaGlobalOperador, setBuscaGlobalOperador] = useState("");
+  const [globalOperadorOptions, setGlobalOperadorOptions] = useState<Operador[]>([]);
+
+  // Estado dos formulários de início (produtos por plato)
+  const [formsData, setFormsData] = useState<Record<number, { produto: string; buscaProduto: string }>>({});
+  const [produtoOptions, setProdutoOptions] = useState<Record<number, Produto[]>>({});
+  // Refugos por sessão ativa
   const [refugos, setRefugos] = useState<Record<string, number>>({});
 
-  // Máquina ativa selecionada
   const maquinaAtiva = maquinas.find((m) => m.id === selectedMaquina);
 
   const loadCadastros = useCallback(async () => {
-    const [maqResult, prodResult, opResult] = await Promise.all([
-      supabase.schema("apont_rubber_prensa").from("maquinas").select("*").eq("ativo", true),
-      supabase.schema("apont_rubber_prensa").from("vw_produtos_datasul").select("*"),
-      supabase.schema("apont_rubber_prensa").from("vw_operadores_datasul").select("*"),
-    ]);
-    setMaquinas(maqResult.data || []);
-    setProdutos(prodResult.data || []);
-    setOperadores(opResult.data || []);
+    const { data } = await supabase.schema("apont_rubber_prensa").from("maquinas").select("*").eq("ativo", true).order("num_maq");
+    setMaquinas(data || []);
   }, []);
 
-  // Busca todas as sessões ativas (todos os platos, todas as máquinas)
+  const searchProdutoAsync = async (plato: number, query: string) => {
+    updateForm(plato, "buscaProduto", query);
+    if (!query || query.length < 2) {
+      setProdutoOptions((prev) => ({ ...prev, [plato]: [] }));
+      return;
+    }
+    try {
+      const res = await fetch(`/api/apont-rubber-prensa/produtos?q=${encodeURIComponent(query)}`);
+      if (res.ok) {
+        const { data } = await res.json();
+        setProdutoOptions((prev) => ({ ...prev, [plato]: data || [] }));
+      }
+    } catch (e) {
+      console.error("fetch produto:", e);
+    }
+  };
+
+  const searchGlobalOperadorAsync = async (query: string) => {
+    setBuscaGlobalOperador(query);
+    if (!query || query.length < 2) {
+      setGlobalOperadorOptions([]);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/apont-rubber-prensa/operadores?q=${encodeURIComponent(query)}`);
+      if (res.ok) {
+        const { data } = await res.json();
+        setGlobalOperadorOptions(data || []);
+      }
+    } catch (e) {
+      console.error("fetch operador:", e);
+    }
+  };
+
   const checkSessoesAtivas = useCallback(async () => {
     const { data } = await supabase
       .schema("apont_rubber_prensa")
@@ -100,7 +131,6 @@ export default function OperadorPage() {
     const sessoes = data || [];
     setSessoesAtivas(sessoes);
 
-    // Conta pulsos por sessão
     const counts: Record<string, number> = {};
     for (const s of sessoes) {
       const { count } = await supabase
@@ -112,7 +142,6 @@ export default function OperadorPage() {
     }
     setPulsosCount(counts);
 
-    // Busca paradas não justificadas
     if (sessoes.length > 0) {
       const sessaoIds = sessoes.map((s) => s.id);
       const { data: paradas } = await supabase
@@ -139,9 +168,23 @@ export default function OperadorPage() {
     return () => clearInterval(interval);
   }, [loadCadastros, checkSessoesAtivas]);
 
-  // Iniciar sessão de produção para um plato
-  const iniciarSessao = async () => {
-    if (!selectedMaquina || !selectedProduto || !matricula) return;
+  const updateForm = (plato: number, key: "produto" | "buscaProduto", val: string) => {
+    setFormsData((prev) => ({
+      ...prev,
+      [plato]: { ...(prev[plato] || { produto: "", buscaProduto: "" }), [key]: val },
+    }));
+  };
+
+  const iniciarSessao = async (plato: number) => {
+    const data = formsData[plato];
+    if (!selectedMaquina) return;
+    
+    // Aceita tanto a seleção validada quanto o texto livre digitado caso não selecione na lista
+    const produtoFinal = data?.produto || data?.buscaProduto;
+    const operadorFinal = globalOperador || buscaGlobalOperador;
+    
+    if (!produtoFinal || !operadorFinal) return;
+    
     setActionLoading(true);
     try {
       const res = await fetch("/api/apont-rubber-prensa/sessoes", {
@@ -149,13 +192,14 @@ export default function OperadorPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           maquina_id: selectedMaquina,
-          produto_codigo: selectedProduto,
-          plato: selectedPlato,
-          operador_matricula: matricula,
+          produto_codigo: produtoFinal,
+          plato: plato,
+          operador_matricula: operadorFinal,
         }),
       });
       if (res.ok) {
-        setSelectedProduto("");
+        // Limpa formulário daquele plato
+        setFormsData((prev) => ({ ...prev, [plato]: { produto: "", buscaProduto: "" } }));
         await checkSessoesAtivas();
       }
     } finally {
@@ -163,7 +207,6 @@ export default function OperadorPage() {
     }
   };
 
-  // Finalizar uma sessão (um plato)
   const finalizarSessao = async (sessaoId: string) => {
     setActionLoading(true);
     try {
@@ -175,13 +218,18 @@ export default function OperadorPage() {
           total_refugo: refugos[sessaoId] || 0,
         }),
       });
+      // Limpa refugo do estado
+      setRefugos((prev) => {
+        const next = { ...prev };
+        delete next[sessaoId];
+        return next;
+      });
       await checkSessoesAtivas();
     } finally {
       setActionLoading(false);
     }
   };
 
-  // Justificar parada
   const justificarParada = async (paradaId: string, motivoId: string) => {
     await fetch("/api/apont-rubber-prensa/paradas", {
       method: "PATCH",
@@ -197,275 +245,317 @@ export default function OperadorPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-neutral-950">
-        <Loader2 className="w-10 h-10 animate-spin text-emerald-400" />
+      <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
+        <Loader2 className="w-10 h-10 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
-  // Verifica quais platos já têm sessão ativa para a máquina selecionada
-  const platosOcupados = sessoesAtivas
-    .filter((s) => s.maquina_id === selectedMaquina)
-    .map((s) => s.plato);
+  // ==========================================
+  // VIEW: DASHBOARD DE MÁQUINAS
+  // ==========================================
+  if (viewMode === "maquinas") {
+    return (
+      <div className="flex flex-col gap-8 w-full py-8 px-4 sm:px-6 lg:px-8">
+        {maquinas.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <Factory className="w-12 h-12 text-muted-foreground mb-4" />
+            <h2 className="text-xl font-bold text-foreground">Nenhuma Máquina Encontrada</h2>
+            <p className="text-muted-foreground mt-2 max-w-md">
+              Não há máquinas ativas cadastradas no sistema. Por favor, libere os Exposed Schemas na API do Supabase e certifique-se de registrar suas prensas na tabela <code>maquinas</code>.
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-6">
+            {maquinas.map((maq) => {
+              const ocupados = sessoesAtivas.filter((s) => s.maquina_id === maq.id).length;
+              const paradas = sessoesAtivas
+                .filter((s) => s.maquina_id === maq.id)
+                .some((s) => paradasPendentes.some((p) => p.sessao_id === s.id));
 
-  return (
-    <div className="min-h-screen bg-neutral-950 text-white p-4 sm:p-6 max-w-2xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">
-          <Gauge className="inline w-6 h-6 mr-2 text-emerald-400" />
-          Apontamento Prensa
-        </h1>
-        <a href="/portal" className="text-sm text-neutral-400 hover:text-white transition">← Portal</a>
-      </div>
+              // Card minimalista: fundo verde (primary) claro/escuro, borda leve, texto grande
+              let bgClass = "bg-primary/10 border-primary/30 hover:bg-primary/20 hover:border-primary/50 text-foreground";
+              
+              if (paradas) {
+                 bgClass = "bg-destructive/10 border-destructive/30 hover:bg-destructive/20 hover:border-destructive/50 text-foreground";
+              } else if (ocupados > 0) {
+                 bgClass = "bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/20 hover:border-emerald-500/50 text-emerald-600 dark:text-emerald-400";
+              }
 
-      {/* ---- SESSÕES ATIVAS (PLATOS EM PRODUÇÃO) ---- */}
-      {sessoesAtivas.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-emerald-400 flex items-center gap-2">
-            <Layers className="w-5 h-5" />
-            Platos em Produção
-          </h2>
-
-          {sessoesAtivas.map((sessao) => {
-            const maq = maquinas.find((m) => m.id === sessao.maquina_id);
-            const prod = produtos.find((p) => p.codigo_item === sessao.produto_codigo);
-
-            return (
-              <Card key={sessao.id} className="bg-neutral-900 border-emerald-500/30">
-                <CardContent className="py-4 space-y-3">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/50">
-                        Plato {sessao.plato}
-                      </Badge>
-                      <span className="font-bold">{maq?.num_maq || "-"}</span>
-                      <span className="text-neutral-600">|</span>
-                      <span className="text-neutral-300">{sessao.produto_codigo}</span>
-                    </div>
-                    <Badge variant="default" className="bg-emerald-500/20 text-emerald-400 border-emerald-500/50">
-                      Produzindo
-                    </Badge>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-3 text-center">
-                    <div>
-                      <span className="text-xs text-neutral-500 block">Operador</span>
-                      <span className="font-semibold">{sessao.operador_matricula}</span>
-                    </div>
-                    <div>
-                      <span className="text-xs text-neutral-500 block">Início</span>
-                      <span className="font-semibold">
-                        {new Date(sessao.inicio_sessao).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-xs text-neutral-500 block">Ciclos</span>
-                      <span className="text-2xl font-bold font-mono text-emerald-400">{pulsosCount[sessao.id] || 0}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-end gap-2">
-                    <div className="flex-1">
-                      <label className="text-xs text-neutral-500 block mb-1">Refugos</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={refugos[sessao.id] || 0}
-                        onChange={(e) => setRefugos({ ...refugos, [sessao.id]: Number(e.target.value) })}
-                        className="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-center"
-                      />
-                    </div>
-                    <Button
-                      onClick={() => finalizarSessao(sessao.id)}
-                      disabled={actionLoading}
-                      size="sm"
-                      className="bg-red-600 hover:bg-red-700 text-white h-[42px] px-4"
-                    >
-                      {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Square className="w-4 h-4 mr-1" />}
-                      Finalizar
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Paradas Pendentes */}
-      {paradasPendentes.length > 0 && (
-        <Card className="bg-neutral-900 border-amber-500/30">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-amber-400 text-lg flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5" />
-              Paradas Pendentes ({paradasPendentes.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {paradasPendentes.map((parada) => {
-              const sessao = sessoesAtivas.find((s) => s.id === parada.sessao_id);
               return (
-                <div key={parada.id} className="bg-neutral-800/50 rounded-lg p-4 space-y-3">
-                  <p className="text-sm text-neutral-300">
-                    Plato {sessao?.plato || "?"} — Início: {new Date(parada.inicio_parada).toLocaleTimeString("pt-BR")}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {MOTIVOS_PARADA.map((motivo) => (
-                      <button
-                        key={motivo.id}
-                        onClick={() => justificarParada(parada.id, motivo.id)}
-                        className="text-xs px-3 py-2 bg-neutral-700 hover:bg-amber-600 rounded-md transition-colors"
-                      >
-                        {motivo.label}
-                      </button>
-                    ))}
-                  </div>
+                <div 
+                  key={maq.id} 
+                  className={`cursor-pointer rounded-2xl flex flex-col items-center justify-center w-[160px] h-[160px] border-2 transition-transform duration-200 hover:scale-105 ${bgClass}`}
+                  onClick={() => { setSelectedMaquina(maq.id); setViewMode("painel"); }}
+                >
+                   <span className="text-xl sm:text-2xl font-black uppercase tracking-widest text-center px-1">
+                     Prensa {maq.num_maq}
+                   </span>
                 </div>
               );
             })}
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
-      {/* ---- FORMULÁRIO NOVA SESSÃO (PLATO) ---- */}
-      <Card className="bg-neutral-900 border-neutral-800">
-        <CardHeader>
-          <CardTitle className="text-lg">Iniciar Plato</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          {/* Operador */}
-          <div>
-            <label className="text-xs text-neutral-500 uppercase tracking-wider block mb-1">Operador</label>
-            {matricula ? (
-              <div className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/50 rounded-lg">
-                <span className="font-bold text-emerald-400">{matricula}</span>
-                <span className="text-neutral-300">— {operadores.find((o) => o.matricula === matricula)?.nome || ""}</span>
-                <button onClick={() => { setMatricula(""); setBuscaOperador(""); }} className="ml-auto text-xs text-neutral-500 hover:text-red-400">✕</button>
+  // ==========================================
+  // VIEW: PAINEL DA MÁQUINA SELECIONADA
+  // ==========================================
+  if (!maquinaAtiva) return null;
+
+  return (
+    <div className="flex flex-col gap-6 w-full py-6 px-4 sm:px-6 lg:px-8">
+      {/* Botão de Retorno Simples */}
+      <div className="flex items-center">
+        <Button 
+          onClick={() => setViewMode("maquinas")}
+          variant="outline"
+          size="lg"
+          className="text-lg py-6 px-6"
+        >
+          <ArrowLeft className="w-6 h-6 mr-2" />
+          Voltar às Máquinas
+        </Button>
+      </div>
+
+      {/* Operador Global */}
+      <Card className="border-border bg-card shadow-sm">
+        <CardContent className="pt-6">
+          <div className="space-y-4">
+            <h2 className="text-xl font-bold flex items-center gap-2 text-foreground">
+              Operador Responsável
+            </h2>
+            {globalOperador ? (
+              <div className="flex items-center justify-between p-4 bg-muted border border-border/50 rounded-lg w-full max-w-2xl">
+                <div>
+                  <p className="font-bold text-xl text-foreground">{globalOperador}</p>
+                </div>
+                <Button 
+                  variant="ghost"
+                  onClick={() => { setGlobalOperador(""); setBuscaGlobalOperador(""); }}
+                  className="text-muted-foreground hover:text-destructive h-12 w-12 p-0"
+                >
+                  <XCircle className="w-6 h-6" />
+                </Button>
               </div>
             ) : (
-              <>
-                <div className="relative mb-2">
-                  <Search className="absolute left-3 top-3.5 w-4 h-4 text-neutral-500" />
-                  <input
-                    type="text"
-                    value={buscaOperador}
-                    onChange={(e) => setBuscaOperador(e.target.value)}
-                    placeholder="Buscar por matrícula ou nome..."
-                    className="w-full pl-10 pr-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white"
-                  />
-                </div>
-                <div className="space-y-1 max-h-40 overflow-y-auto">
-                  {operadores
-                    .filter((o) => {
-                      if (!buscaOperador) return false;
-                      const q = buscaOperador.toLowerCase();
-                      return o.matricula.toLowerCase().includes(q) || o.nome.toLowerCase().includes(q);
-                    })
-                    .slice(0, 10)
-                    .map((op) => (
-                      <button
-                        key={op.matricula}
-                        onClick={() => { setMatricula(op.matricula); setBuscaOperador(""); }}
-                        className="w-full p-2 rounded-lg border border-neutral-700 bg-neutral-800 text-left hover:border-emerald-500 transition-all"
-                      >
-                        <span className="font-bold text-emerald-400">{op.matricula}</span>
-                        <span className="text-neutral-400 ml-2">{op.nome}</span>
-                      </button>
-                    ))}
-                </div>
-              </>
+              <div className="relative w-full max-w-2xl">
+                <Search className="absolute left-4 top-4 w-6 h-6 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={buscaGlobalOperador}
+                  onChange={(e) => searchGlobalOperadorAsync(e.target.value)}
+                  placeholder="Matrícula ou Nome do Operador..."
+                  className="flex h-14 w-full rounded-md border border-input bg-background pl-12 pr-4 py-2 text-lg ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                />
+                {buscaGlobalOperador && (
+                  <div className="absolute z-20 w-full mt-1 bg-popover border border-border rounded-md shadow-xl max-h-48 overflow-y-auto">
+                    {(() => {
+                      const filtrados = globalOperadorOptions;
+                      if (filtrados.length === 0) {
+                        return <p className="text-sm text-center py-4 text-muted-foreground">Operador não localizado. Tente outra matrícula, ou clique &apos;Iniciar&apos; nos platos.</p>;
+                      }
+                      return filtrados.map(op => (
+                        <button
+                          key={op.matricula}
+                          onClick={() => { setGlobalOperador(op.matricula); setBuscaGlobalOperador(""); }}
+                          className="w-full px-4 py-4 text-left hover:bg-muted flex flex-col items-start focus:bg-muted focus:outline-none border-b border-border/50 last:border-0"
+                        >
+                          <span className="font-bold text-foreground text-lg">{op.matricula}</span>
+                          <span className="text-sm text-muted-foreground">{op.nome}</span>
+                        </button>
+                      ));
+                    })()}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {!(globalOperador || buscaGlobalOperador) && (
+              <p className="text-sm text-muted-foreground">O operador informado acima assinará os próximos inícios de plato.</p>
             )}
           </div>
-
-          {/* Máquina */}
-          <div>
-            <label className="text-xs text-neutral-500 uppercase tracking-wider block mb-1">Máquina</label>
-            <div className="grid grid-cols-2 gap-2">
-              {maquinas.map((maq) => (
-                <button
-                  key={maq.id}
-                  onClick={() => { setSelectedMaquina(maq.id); setSelectedPlato(1); }}
-                  className={`p-3 rounded-lg border text-left transition-all ${
-                    selectedMaquina === maq.id
-                      ? "border-emerald-500 bg-emerald-500/10 text-emerald-400"
-                      : "border-neutral-700 bg-neutral-800 text-neutral-300 hover:border-neutral-600"
-                  }`}
-                >
-                  <span className="text-lg font-bold block">{maq.num_maq}</span>
-                  <span className="text-xs text-neutral-500">{maq.nome || ""} · {maq.qtd_platos} plato(s)</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Plato */}
-          {selectedMaquina && maquinaAtiva && (
-            <div>
-              <label className="text-xs text-neutral-500 uppercase tracking-wider block mb-1">
-                <Layers className="inline w-4 h-4 mr-1" />
-                Plato
-              </label>
-              <div className="flex gap-2">
-                {Array.from({ length: maquinaAtiva.qtd_platos }, (_, i) => i + 1).map((plato) => {
-                  const ocupado = platosOcupados.includes(plato);
-                  return (
-                    <button
-                      key={plato}
-                      onClick={() => !ocupado && setSelectedPlato(plato)}
-                      disabled={ocupado}
-                      className={`flex-1 p-3 rounded-lg border text-center transition-all ${
-                        ocupado
-                          ? "border-neutral-800 bg-neutral-800/50 text-neutral-600 cursor-not-allowed"
-                          : selectedPlato === plato
-                          ? "border-emerald-500 bg-emerald-500/10 text-emerald-400"
-                          : "border-neutral-700 bg-neutral-800 text-neutral-300 hover:border-neutral-600"
-                      }`}
-                    >
-                      <span className="text-lg font-bold block">{plato}</span>
-                      <span className="text-xs">{ocupado ? "Em uso" : "Livre"}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Produto */}
-          <div>
-            <label className="text-xs text-neutral-500 uppercase tracking-wider block mb-1">
-              <Package className="inline w-4 h-4 mr-1" />
-              Produto
-            </label>
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {produtos.map((prod) => (
-                <button
-                  key={prod.codigo_item}
-                  onClick={() => setSelectedProduto(prod.codigo_item)}
-                  className={`w-full p-3 rounded-lg border text-left transition-all ${
-                    selectedProduto === prod.codigo_item
-                      ? "border-emerald-500 bg-emerald-500/10 text-emerald-400"
-                      : "border-neutral-700 bg-neutral-800 text-neutral-300 hover:border-neutral-600"
-                  }`}
-                >
-                  <span className="font-bold">{prod.codigo_item}</span>
-                  <span className="text-xs text-neutral-500 block">{prod.descricao} · {prod.cavidades} cav.</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Botão Iniciar */}
-          <Button
-            onClick={iniciarSessao}
-            disabled={actionLoading || !selectedMaquina || !selectedProduto || !matricula || platosOcupados.includes(selectedPlato)}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-14 text-lg"
-          >
-            {actionLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5 mr-2" />}
-            Iniciar Plato {selectedPlato}
-          </Button>
         </CardContent>
       </Card>
+
+      {/* Grid de Platos - Otimizado para Tablet com Layout Vertical (1 por linha) */}
+      <div className="flex flex-col gap-6">
+        {Array.from({ length: maquinaAtiva.qtd_platos }, (_, i) => i + 1).map((plato) => {
+          const sessaoAtiva = sessoesAtivas.find((s) => s.maquina_id === maquinaAtiva.id && s.plato === plato);
+          const paradasPlato = paradasPendentes.filter((p) => p.sessao_id === sessaoAtiva?.id);
+          const formData = formsData[plato] || { produto: "", buscaProduto: "" };
+          const pOptions = produtoOptions[plato] || [];
+
+          return (
+            <div key={plato} className="flex flex-col h-full">
+              <div className="flex items-center gap-2 mb-3 px-1">
+                <Layers className="w-6 h-6 text-primary" />
+                <h2 className="text-2xl font-bold text-foreground">Plato {plato}</h2>
+              </div>
+
+              {sessaoAtiva ? (
+                /* --- PLATO EM PRODUÇÃO --- */
+                <Card className="flex-1 border-primary/20 shadow-sm flex flex-col">
+                  <CardHeader className="pb-3 border-b border-border/50 bg-muted/20">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <Badge variant="default" className="mb-2 bg-emerald-600 hover:bg-emerald-700 text-sm py-1">
+                          Produzindo
+                        </Badge>
+                        <CardTitle className="text-2xl">{sessaoAtiva.produto_codigo}</CardTitle>
+                        {/* Descrição Produto - No estado atual não temos a lista de todos, o display só mostra o código da sessão.
+                            Seria necessário buscar mas para não onerar vamos focar no Código e Produtividade */}
+                      </div>
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="pt-4 flex-1 flex flex-col justify-between space-y-6">
+                    <div>
+                      {/* Paradas Pendentes */}
+                      {paradasPlato.length > 0 && (
+                        <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg space-y-3 mb-6">
+                          <div className="flex items-center gap-2 text-destructive font-semibold text-lg">
+                            <AlertTriangle className="w-6 h-6" />
+                            <span>Máquina Parada!</span>
+                          </div>
+                          {paradasPlato.map(parada => (
+                            <div key={parada.id} className="space-y-4">
+                              <p className="font-medium text-foreground">
+                                Desde as {new Date(parada.inicio_parada).toLocaleTimeString("pt-BR")}
+                              </p>
+                              <div className="grid grid-cols-2 gap-3">
+                                {MOTIVOS_PARADA.map((motivo) => (
+                                  <Button
+                                    key={motivo.id}
+                                    variant="outline"
+                                    onClick={() => justificarParada(parada.id, motivo.id)}
+                                    className="h-14 text-sm font-semibold border-destructive/30 hover:bg-destructive hover:text-destructive-foreground"
+                                  >
+                                    {motivo.label}
+                                  </Button>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-muted p-4 rounded-lg border border-border/50">
+                          <span className="text-sm text-muted-foreground block mb-1 uppercase tracking-wider font-semibold">Operador</span>
+                          <span className="font-bold text-2xl text-foreground">
+                            {sessaoAtiva.operador_matricula}
+                          </span>
+                        </div>
+                        <div className="bg-muted p-4 rounded-lg border border-border/50 text-right">
+                          <span className="text-sm text-muted-foreground block mb-1 uppercase tracking-wider font-semibold">Peças Feitas</span>
+                          <span className="text-4xl font-black text-primary font-mono">
+                            {pulsosCount[sessaoAtiva.id] || 0}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4 pt-4 border-t border-border/50 mt-auto">
+                      <div>
+                        <label className="text-lg text-foreground font-semibold block mb-2">Refugos (Opcional)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={refugos[sessaoAtiva.id] || 0}
+                          onChange={(e) => setRefugos({ ...refugos, [sessaoAtiva.id]: Number(e.target.value) })}
+                          className="flex h-16 w-full rounded-md border border-input bg-background px-4 py-2 text-2xl font-bold text-center ring-offset-background file:border-0 file:bg-transparent file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        />
+                      </div>
+
+                      <Button
+                        onClick={() => finalizarSessao(sessaoAtiva.id)}
+                        disabled={actionLoading || paradasPlato.length > 0}
+                        variant="destructive"
+                        className="w-full h-16 text-xl font-bold"
+                      >
+                        {actionLoading ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <Square className="w-6 h-6 mr-2" />}
+                        Finalizar Produção
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                /* --- PLATO LIVRE (FORMULÁRIO) --- */
+                <Card className="flex-1 border-dashed bg-muted/10 shadow-sm flex flex-col">
+                  <CardHeader className="pb-4">
+                    <Badge variant="outline" className="self-start text-muted-foreground text-sm">Plato Livre</Badge>
+                  </CardHeader>
+                  <CardContent className="pt-0 flex-1 flex flex-col justify-between space-y-6">
+                    <div className="space-y-6">
+                      
+                      {/* Produto Async Search */}
+                      <div className="space-y-2 flex-col flex h-full">
+                        <label className="text-lg font-semibold text-foreground">Produto</label>
+                        {formData.produto ? (
+                          <div className="flex items-center justify-between p-4 bg-primary/10 border border-primary/30 rounded-lg">
+                            <div className="truncate pr-2">
+                              <p className="font-bold text-lg text-primary">{formData.produto}</p>
+                              <p className="text-sm text-foreground truncate">{pOptions.find(p => p.codigo_item === formData.produto)?.descricao || ""}</p>
+                            </div>
+                            <Button 
+                              variant="ghost"
+                              onClick={() => { updateForm(plato, "produto", ""); updateForm(plato, "buscaProduto", ""); }}
+                              className="text-muted-foreground hover:text-destructive h-12 w-12 shrink-0 p-0"
+                            >
+                              <XCircle className="w-6 h-6" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="relative flex-1">
+                            <Search className="absolute left-4 top-4 w-6 h-6 text-muted-foreground" />
+                            <input
+                              type="text"
+                              value={formData.buscaProduto}
+                              onChange={(e) => searchProdutoAsync(plato, e.target.value)}
+                              placeholder="Digite código/nome..."
+                              className="flex h-14 w-full rounded-md border border-input bg-background pl-12 pr-4 py-2 text-lg ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            />
+                            {formData.buscaProduto && (
+                              <div className="absolute z-10 w-full mt-1 bg-popover border border-border rounded-md shadow-xl max-h-60 overflow-y-auto">
+                                {pOptions.length === 0 ? (
+                                  <p className="text-sm text-muted-foreground p-4 text-center">Digite mais caracteres para buscar...</p>
+                                ) : pOptions.map((prod) => (
+                                  <button
+                                    key={prod.codigo_item}
+                                    onClick={() => updateForm(plato, "produto", prod.codigo_item)}
+                                    className="w-full px-4 py-4 text-left hover:bg-muted focus:bg-muted focus:outline-none border-b border-border/50 last:border-0 transition-colors"
+                                  >
+                                    <span className="font-bold text-lg text-foreground block">{prod.codigo_item}</span>
+                                    <span className="text-sm text-muted-foreground block truncate">{prod.descricao}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="pt-4 mt-auto">
+                      <Button
+                        onClick={() => iniciarSessao(plato)}
+                        disabled={actionLoading || !(formData.produto || formData.buscaProduto) || !(globalOperador || buscaGlobalOperador)}
+                        className="w-full h-16 text-xl font-bold rounded-xl"
+                      >
+                        {actionLoading ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <Play className="w-6 h-6 mr-2" />}
+                        INICIAR PLATO {plato}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
