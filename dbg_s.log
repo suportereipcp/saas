@@ -1,0 +1,49 @@
+[dotenv@17.2.3] injecting env (17) from .env.local -- tip: ­ƒùé´©Å backup and recover secrets: https://dotenvx.com/ops
+-> SYNC STATE ATUAL: {
+  id: 1,
+  ultimo_mariadb_id: 142,
+  ultima_sincronizacao: '2026-02-26T13:33:48.488+00:00'
+}
+-> ├ÜLTIMOS 10 PULSOS: [
+  {
+    mariadb_id: '142_p1',
+    sessao_id: '57ca292a-8ffe-46f9-a6b7-3df51dde7054'
+  },
+  {
+    mariadb_id: '141_p1',
+    sessao_id: '57ca292a-8ffe-46f9-a6b7-3df51dde7054'
+  },
+  {
+    mariadb_id: '140_p1',
+    sessao_id: '57ca292a-8ffe-46f9-a6b7-3df51dde7054'
+  },
+  {
+    mariadb_id: '139_p1',
+    sessao_id: '57ca292a-8ffe-46f9-a6b7-3df51dde7054'
+  },
+  {
+    mariadb_id: '138_p1',
+    sessao_id: '57ca292a-8ffe-46f9-a6b7-3df51dde7054'
+  },
+  {
+    mariadb_id: '137_p1',
+    sessao_id: '57ca292a-8ffe-46f9-a6b7-3df51dde7054'
+  },
+  {
+    mariadb_id: '136_p1',
+    sessao_id: '57ca292a-8ffe-46f9-a6b7-3df51dde7054'
+  },
+  {
+    mariadb_id: '135_p1',
+    sessao_id: '57ca292a-8ffe-46f9-a6b7-3df51dde7054'
+  },
+  {
+    mariadb_id: '134_p1',
+    sessao_id: '57ca292a-8ffe-46f9-a6b7-3df51dde7054'
+  },
+  {
+    mariadb_id: '133_p1',
+    sessao_id: '57ca292a-8ffe-46f9-a6b7-3df51dde7054'
+  }
+]
+-> ├ÜLTIMOS WEBHOOKS: null

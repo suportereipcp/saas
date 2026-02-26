@@ -133,12 +133,14 @@ export default function OperadorPage() {
 
     const counts: Record<string, number> = {};
     for (const s of sessoes) {
-      const { count } = await supabase
+      const { data: pulsos } = await supabase
         .schema("apont_rubber_prensa")
         .from("pulsos_producao")
-        .select("*", { count: "exact", head: true })
+        .select("qtd_pecas")
         .eq("sessao_id", s.id);
-      counts[s.id] = count || 0;
+      
+      const sumPecas = (pulsos || []).reduce((acc, p) => acc + (p.qtd_pecas || 0), 0);
+      counts[s.id] = sumPecas;
     }
     setPulsosCount(counts);
 
@@ -149,7 +151,7 @@ export default function OperadorPage() {
         .from("paradas_maquina")
         .select("*")
         .in("sessao_id", sessaoIds)
-        .eq("justificada", false);
+        .is("fim_parada", null); // Traz todas as paradas em aberto (justificadas ou não)
       setParadasPendentes(paradas || []);
     } else {
       setParadasPendentes([]);
@@ -385,6 +387,7 @@ export default function OperadorPage() {
         {Array.from({ length: maquinaAtiva.qtd_platos }, (_, i) => i + 1).map((plato) => {
           const sessaoAtiva = sessoesAtivas.find((s) => s.maquina_id === maquinaAtiva.id && s.plato === plato);
           const paradasPlato = paradasPendentes.filter((p) => p.sessao_id === sessaoAtiva?.id);
+          const paradaAberta = paradasPlato[0]; // Só deve haver 1 parada sem fim por sessão
           const formData = formsData[plato] || { produto: "", buscaProduto: "" };
           const pOptions = produtoOptions[plato] || [];
 
@@ -412,74 +415,83 @@ export default function OperadorPage() {
                   </CardHeader>
 
                   <CardContent className="pt-4 flex-1 flex flex-col justify-between space-y-6">
-                    <div>
-                      {/* Paradas Pendentes */}
-                      {paradasPlato.length > 0 && (
-                        <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg space-y-3 mb-6">
-                          <div className="flex items-center gap-2 text-destructive font-semibold text-lg">
-                            <AlertTriangle className="w-6 h-6" />
-                            <span>Máquina Parada!</span>
-                          </div>
-                          {paradasPlato.map(parada => (
-                            <div key={parada.id} className="space-y-4">
-                              <p className="font-medium text-foreground">
-                                Desde as {new Date(parada.inicio_parada).toLocaleTimeString("pt-BR")}
-                              </p>
-                              <div className="grid grid-cols-2 gap-3">
-                                {MOTIVOS_PARADA.map((motivo) => (
-                                  <Button
-                                    key={motivo.id}
-                                    variant="outline"
-                                    onClick={() => justificarParada(parada.id, motivo.id)}
-                                    className="h-14 text-sm font-semibold border-destructive/30 hover:bg-destructive hover:text-destructive-foreground"
-                                  >
-                                    {motivo.label}
-                                  </Button>
-                                ))}
-                              </div>
-                            </div>
+                    {paradaAberta && !paradaAberta.justificada ? (
+                      /* --- TELA VERMELHA DE BLOQUEIO (Parada Não Justificada) --- */
+                      <div className="flex-1 flex flex-col justify-center bg-destructive/10 border border-destructive/20 rounded-lg p-6 space-y-6">
+                        <div className="flex items-center gap-3 text-destructive font-bold text-2xl">
+                          <AlertTriangle className="w-8 h-8" />
+                          <span>Máquina Parada! Motivo?</span>
+                        </div>
+                        <p className="font-medium text-lg text-foreground">
+                          Ociosa desde as {new Date(paradaAberta.inicio_parada).toLocaleTimeString("pt-BR")}.
+                        </p>
+                        <div className="grid grid-cols-2 gap-4">
+                          {MOTIVOS_PARADA.map((motivo) => (
+                            <Button
+                              key={motivo.id}
+                              variant="outline"
+                              onClick={() => justificarParada(paradaAberta.id, motivo.id)}
+                              className="h-16 text-md font-bold border-destructive/30 hover:bg-destructive hover:text-destructive-foreground whitespace-normal break-words py-2 leading-tight"
+                            >
+                              {motivo.label}
+                            </Button>
                           ))}
                         </div>
-                      )}
+                      </div>
+                    ) : (
+                      /* --- TELA VERDE DE PRODUÇÃO (Normal ou Parada Justificada) --- */
+                      <div className="flex-1 flex flex-col justify-between">
+                        <div>
+                          {paradaAberta && paradaAberta.justificada && (
+                            <div className="mb-6 p-4 rounded-lg bg-orange-500/10 border border-orange-500/30 flex items-center gap-3 text-orange-600 dark:text-orange-400">
+                              <AlertTriangle className="w-6 h-6" />
+                              <div className="flex flex-col">
+                                <span className="font-bold">Aguardando Retorno...</span>
+                                <span className="text-sm">Motivo: {MOTIVOS_PARADA.find(m => m.id === paradaAberta.motivo_id)?.label}</span>
+                              </div>
+                            </div>
+                          )}
 
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-muted p-4 rounded-lg border border-border/50">
-                          <span className="text-sm text-muted-foreground block mb-1 uppercase tracking-wider font-semibold">Operador</span>
-                          <span className="font-bold text-2xl text-foreground">
-                            {sessaoAtiva.operador_matricula}
-                          </span>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-muted p-4 rounded-lg border border-border/50">
+                              <span className="text-sm text-muted-foreground block mb-1 uppercase tracking-wider font-semibold">Operador</span>
+                              <span className="font-bold text-2xl text-foreground">
+                                {sessaoAtiva.operador_matricula}
+                              </span>
+                            </div>
+                            <div className="bg-muted p-4 rounded-lg border border-border/50 text-right">
+                              <span className="text-sm text-muted-foreground block mb-1 uppercase tracking-wider font-semibold">Peças Feitas</span>
+                              <span className="text-4xl font-black text-primary font-mono">
+                                {pulsosCount[sessaoAtiva.id] || 0}
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="bg-muted p-4 rounded-lg border border-border/50 text-right">
-                          <span className="text-sm text-muted-foreground block mb-1 uppercase tracking-wider font-semibold">Peças Feitas</span>
-                          <span className="text-4xl font-black text-primary font-mono">
-                            {pulsosCount[sessaoAtiva.id] || 0}
-                          </span>
+
+                        <div className="space-y-4 pt-4 border-t border-border/50 mt-auto">
+                          <div>
+                            <label className="text-lg text-foreground font-semibold block mb-2">Refugos (Opcional)</label>
+                            <input
+                              type="number"
+                              min={0}
+                              value={refugos[sessaoAtiva.id] || 0}
+                              onChange={(e) => setRefugos({ ...refugos, [sessaoAtiva.id]: Number(e.target.value) })}
+                              className="flex h-16 w-full rounded-md border border-input bg-background px-4 py-2 text-2xl font-bold text-center ring-offset-background file:border-0 file:bg-transparent file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                            />
+                          </div>
+
+                          <Button
+                            onClick={() => finalizarSessao(sessaoAtiva.id)}
+                            disabled={actionLoading}
+                            variant="destructive"
+                            className="w-full h-16 text-xl font-bold"
+                          >
+                            {actionLoading ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <Square className="w-6 h-6 mr-2" />}
+                            Finalizar Produção
+                          </Button>
                         </div>
                       </div>
-                    </div>
-
-                    <div className="space-y-4 pt-4 border-t border-border/50 mt-auto">
-                      <div>
-                        <label className="text-lg text-foreground font-semibold block mb-2">Refugos (Opcional)</label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={refugos[sessaoAtiva.id] || 0}
-                          onChange={(e) => setRefugos({ ...refugos, [sessaoAtiva.id]: Number(e.target.value) })}
-                          className="flex h-16 w-full rounded-md border border-input bg-background px-4 py-2 text-2xl font-bold text-center ring-offset-background file:border-0 file:bg-transparent file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                        />
-                      </div>
-
-                      <Button
-                        onClick={() => finalizarSessao(sessaoAtiva.id)}
-                        disabled={actionLoading || paradasPlato.length > 0}
-                        variant="destructive"
-                        className="w-full h-16 text-xl font-bold"
-                      >
-                        {actionLoading ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <Square className="w-6 h-6 mr-2" />}
-                        Finalizar Produção
-                      </Button>
-                    </div>
+                    )}
                   </CardContent>
                 </Card>
               ) : (

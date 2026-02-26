@@ -107,7 +107,34 @@ async function getUltimoPulsoTimestamp(sessaoId: string): Promise<Date | null> {
 }
 
 /**
- * Cria evento de parada automática
+ * Verifica se existe uma parada em aberto para a sessão
+ */
+async function getParadaAberta(sessaoId: string) {
+  const { data } = await supabase
+    .from("paradas_maquina")
+    .select("id, justificada, motivo_id")
+    .eq("sessao_id", sessaoId)
+    .is("fim_parada", null)
+    .limit(1)
+    .maybeSingle();
+  return data;
+}
+
+/**
+ * Fecha uma parada em aberto
+ */
+async function fecharParada(paradaId: string, timestampFim: Date) {
+  await supabase
+    .from("paradas_maquina")
+    .update({ 
+      fim_parada: timestampFim.toISOString(),
+      // Se fechou sem o operador justificar na tela, marca como "Automática / Expirada" mas na real ele sempre vai ter que justificar na UI.
+    })
+    .eq("id", paradaId);
+}
+
+/**
+ * Cria evento de parada (início de parada sem fim definido)
  */
 async function criarParada(maquinaNumMaq: string, sessaoId: string, inicioParada: Date): Promise<void> {
   const { data: maquina } = await supabase
@@ -124,17 +151,18 @@ async function criarParada(maquinaNumMaq: string, sessaoId: string, inicioParada
     inicio_parada: inicioParada.toISOString(),
     classificacao: "nao_planejada",
     justificada: false,
+    // fim_parada é NULL por default no banco
   });
 
   if (error) {
     console.error("[SYNC] Erro ao criar parada:", error.message);
   } else {
-    console.log(`[SYNC] ⚠️ Parada detectada na máquina ${maquinaNumMaq}`);
+    console.log(`[SYNC] ⚠️ Status alterado para PARADA na máquina ${maquinaNumMaq} (Iniciada às ${inicioParada.toISOString()})`);
   }
 }
 
 /**
- * Ciclo principal de sincronização
+ * Pílar A: Ciclo Principal de Sincronização de Dados via MariaDB (Eventos)
  */
 async function syncCycle(): Promise<void> {
   let mariaConnection: mysql.Connection | null = null;
@@ -153,11 +181,10 @@ async function syncCycle(): Promise<void> {
     );
 
     if (!rows || rows.length === 0) {
-      return; // Nenhum pulso novo
+      return; 
     }
 
     console.log(`[SYNC] ${rows.length} novo(s) pulso(s) encontrado(s) (a partir do ID ${lastId})`);
-
     let maxId = lastId;
 
     for (const row of rows) {
@@ -165,34 +192,33 @@ async function syncCycle(): Promise<void> {
       const sessoes = await getSessoesAtivas(numMaq);
 
       if (sessoes.length === 0) {
-        // Sem sessão ativa para esta máquina, apenas registra o ID
+        // Sem sessão ativa para esta máquina, ignora contagem mas avança o LSN
         maxId = Math.max(maxId, row.id);
         continue;
       }
 
       const timestampCiclo = new Date(row.timestamp);
 
-      // Cria pulsos para CADA plato/sessão ativa (1 ciclo CLP = N platos)
       for (const sessao of sessoes) {
-        // Calcula intervalo desde o último pulso desta sessão
         const ultimoPulsoTs = await getUltimoPulsoTimestamp(sessao.id);
         let intervaloSegundos: number | null = null;
 
         if (ultimoPulsoTs) {
           intervaloSegundos = Math.round((timestampCiclo.getTime() - ultimoPulsoTs.getTime()) / 1000);
-
-          // Detecção de parada: intervalo > tempo de ciclo ideal
-          const tempoCicloIdeal = await getTempoCicloIdeal(sessao.produto_codigo);
-          if (intervaloSegundos > tempoCicloIdeal) {
-            await criarParada(numMaq, sessao.id, ultimoPulsoTs);
-          }
         }
 
-        // Busca cavidades do Datasul para multiplicar
+        // --- CÓDIGO NOVO: Fecha Paradas Abertas ---
+        // Se a máquina bateu pulso, significa que ela VOLTOU a operar.
+        const paradaAberta = await getParadaAberta(sessao.id);
+        if (paradaAberta) {
+          await fecharParada(paradaAberta.id, timestampCiclo);
+          console.log(`[SYNC] ✅ Parada fechada para máquina ${numMaq}, plato ${sessao.plato} (Voltou a produzir)`);
+        }
+
+        // Busca cavidades
         const cavidades = await getCavidades(sessao.produto_codigo);
 
-        // Insere o pulso no Supabase (qtd_pecas = 1 ciclo * cavidades)
-        // mariadb_id com sufixo do plato para evitar conflito unique
+        // Insere o pulso
         const pulsoId = `${row.id}_p${sessao.plato}`;
         const { error } = await supabase.from("pulsos_producao").insert({
           sessao_id: sessao.id,
@@ -202,17 +228,14 @@ async function syncCycle(): Promise<void> {
           mariadb_id: pulsoId,
         });
 
-        if (error) {
-          if (!error.message.includes("duplicate") && !error.message.includes("unique")) {
-            console.error(`[SYNC] Erro ao inserir pulso ${row.id} plato ${sessao.plato}:`, error.message);
-          }
+        if (error && !error.message.includes("duplicate") && !error.message.includes("unique")) {
+          console.error(`[SYNC] Erro ao inserir pulso ${row.id} plato ${sessao.plato}:`, error.message);
         }
       }
 
       maxId = Math.max(maxId, row.id);
     }
 
-    // Atualiza o último ID sincronizado
     if (maxId > lastId) {
       await setLastSyncedId(maxId);
       console.log(`[SYNC] ✅ Sincronizado até o ID ${maxId}`);
@@ -224,9 +247,54 @@ async function syncCycle(): Promise<void> {
       try {
         await mariaConnection.end();
       } catch {
-        // Ignora erro ao fechar conexão
+        // Ignora erro
       }
     }
+  }
+}
+
+/**
+ * Pilar B: Watchdog (Processo Contínuo de Monitoramento de Paradas por Atraso)
+ */
+async function watchdogCycle(): Promise<void> {
+  try {
+    // Busca todas as sessões "Em Andamento" de todas as máquinas
+    const { data: sessoesGlobais } = await supabase
+      .from("sessoes_producao")
+      .select("id, produto_codigo, plato, maquina_id, iniciado_em")
+      .eq("status", "em_andamento");
+
+    if (!sessoesGlobais || sessoesGlobais.length === 0) return;
+
+    // Cache simples de IDs de máquinas para NumMaq
+    const { data: maquinas } = await supabase.from("maquinas").select("id, num_maq");
+    const maqMap = new Map();
+    (maquinas || []).forEach(m => maqMap.set(m.id, m.num_maq));
+
+    for (const sessao of sessoesGlobais) {
+      // 1. Se já existe uma parada em aberto para este plato/sessão, não fazemos nada (a máquina JÁ ESTÁ constando como parada).
+      const paradaAberta = await getParadaAberta(sessao.id);
+      if (paradaAberta) continue;
+
+      // 2. Calcula quanto tempo faz desde a última atividade
+      const ultimoPulsoTs = await getUltimoPulsoTimestamp(sessao.id);
+      // Aqui usamos o timestamp do último pulso OU o momento em que o operador deu "Iniciar Produção" na tela
+      const startRef = ultimoPulsoTs || new Date(sessao.iniciado_em);
+      
+      const segundosOcioso = Math.round((Date.now() - startRef.getTime()) / 1000);
+      const tempoCicloIdeal = await getTempoCicloIdeal(sessao.produto_codigo);
+      
+      // REGRA DE NEGÓCIO DA FÁBRICA: 60% a mais do que o tempo de ciclo do produto (Multiplier = 1.6)
+      const limiteSegundos = tempoCicloIdeal * 1.6;
+
+      if (segundosOcioso > limiteSegundos) {
+        const numMaq = maqMap.get(sessao.maquina_id) || "unknown";
+        // Registra uma nova parada. O "inicio_parada" retroativo será exatamente o momento do último pulso/início para exatidão do OEE.
+        await criarParada(numMaq, sessao.id, startRef);
+      }
+    }
+  } catch (err: any) {
+    console.error("[WATCHDOG] ❌ Erro no watchdog:", err.message);
   }
 }
 
@@ -237,7 +305,6 @@ async function main() {
   console.log(` Intervalo: ${SYNC_INTERVAL_MS / 1000}s`);
   console.log("===========================================");
 
-  // Validação de variáveis
   if (!MARIADB_URL) {
     console.error("[SYNC] MARIADB_APONTAMENTOS_URL não configurada!");
     process.exit(1);
@@ -247,9 +314,9 @@ async function main() {
     process.exit(1);
   }
 
-  // Loop infinito com intervalo
   while (true) {
     await syncCycle();
+    await watchdogCycle(); // Novo: Detecta atrasos cruciais instantaneamente
     await new Promise((resolve) => setTimeout(resolve, SYNC_INTERVAL_MS));
   }
 }
