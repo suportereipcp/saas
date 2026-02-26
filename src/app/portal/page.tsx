@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase-server";
-import { Bot, Package, Shield, Activity, NotebookPen, LayoutDashboard, Ticket, ClipboardList } from "lucide-react";
+import { Bot, Package, Shield, Activity, NotebookPen, LayoutDashboard, Ticket, ClipboardList, Gauge } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -21,6 +21,8 @@ const getAppIcon = (code: string) => {
             return Ticket;
         case "inventario_rotativo":
             return ClipboardList;
+        case "apont_rubber_prensa":
+            return Gauge;
         default:
             return Package; // Default icon
     }
@@ -43,6 +45,8 @@ const getAppHref = (code: string) => {
             return "/shift-app";
         case "inventario_rotativo":
             return "/inventario-rotativo";
+        case "apont_rubber_prensa":
+            return "/apont-rubber-prensa";
         default:
             return `/${code}`;
     }
