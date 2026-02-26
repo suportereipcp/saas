@@ -75,6 +75,9 @@ RUN chmod +x ./run_prod.sh
 # Copiar os tsx/typescript handlers local global para o entrypoint
 RUN npm install -g tsx typescript
 
+# Instalar dependências exclusivas dos scripts (não embutidas pelo Next standalone)
+RUN npm install mysql2 @supabase/supabase-js dotenv
+
 # Define permissões e usuário
 USER nextjs
 
