@@ -1,15 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  { db: { schema: "apont_rubber_prensa" } }
-);
+async function getSupabase() {
+  const cookieStore = await cookies();
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll() {}
+      },
+      db: { schema: "apont_rubber_prensa" }
+    }
+  );
+}
 
 // PATCH: Justificar uma parada
 export async function PATCH(req: NextRequest) {
   try {
+    const supabase = await getSupabase();
     const body = await req.json();
     const { parada_id, motivo_id, classificacao } = body;
 
