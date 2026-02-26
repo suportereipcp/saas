@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
-import { Loader2, Play, Square, AlertTriangle, Package, Gauge, Layers } from "lucide-react";
+import { Loader2, Play, Square, AlertTriangle, Package, Gauge, Layers, Search } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,11 @@ interface Produto {
   descricao: string;
   tempo_ciclo_ideal_segundos: number;
   cavidades: number;
+}
+
+interface Operador {
+  matricula: string;
+  nome: string;
 }
 
 interface SessaoAtiva {
@@ -54,6 +59,7 @@ const MOTIVOS_PARADA = [
 export default function OperadorPage() {
   const [maquinas, setMaquinas] = useState<Maquina[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
+  const [operadores, setOperadores] = useState<Operador[]>([]);
   const [sessoesAtivas, setSessoesAtivas] = useState<SessaoAtiva[]>([]);
   const [paradasPendentes, setParadasPendentes] = useState<Parada[]>([]);
   const [pulsosCount, setPulsosCount] = useState<Record<string, number>>({});
@@ -65,18 +71,21 @@ export default function OperadorPage() {
   const [selectedProduto, setSelectedProduto] = useState("");
   const [selectedPlato, setSelectedPlato] = useState(1);
   const [matricula, setMatricula] = useState("");
+  const [buscaOperador, setBuscaOperador] = useState("");
   const [refugos, setRefugos] = useState<Record<string, number>>({});
 
   // Máquina ativa selecionada
   const maquinaAtiva = maquinas.find((m) => m.id === selectedMaquina);
 
   const loadCadastros = useCallback(async () => {
-    const [maqResult, prodResult] = await Promise.all([
+    const [maqResult, prodResult, opResult] = await Promise.all([
       supabase.schema("apont_rubber_prensa").from("maquinas").select("*").eq("ativo", true),
       supabase.schema("apont_rubber_prensa").from("vw_produtos_datasul").select("*"),
+      supabase.schema("apont_rubber_prensa").from("vw_operadores_datasul").select("*"),
     ]);
     setMaquinas(maqResult.data || []);
     setProdutos(prodResult.data || []);
+    setOperadores(opResult.data || []);
   }, []);
 
   // Busca todas as sessões ativas (todos os platos, todas as máquinas)
@@ -325,16 +334,48 @@ export default function OperadorPage() {
           <CardTitle className="text-lg">Iniciar Plato</CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
-          {/* Matrícula */}
+          {/* Operador */}
           <div>
-            <label className="text-xs text-neutral-500 uppercase tracking-wider block mb-1">Matrícula do Operador</label>
-            <input
-              type="text"
-              value={matricula}
-              onChange={(e) => setMatricula(e.target.value)}
-              placeholder="Ex: 12345"
-              className="w-full px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white text-lg"
-            />
+            <label className="text-xs text-neutral-500 uppercase tracking-wider block mb-1">Operador</label>
+            {matricula ? (
+              <div className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/50 rounded-lg">
+                <span className="font-bold text-emerald-400">{matricula}</span>
+                <span className="text-neutral-300">— {operadores.find((o) => o.matricula === matricula)?.nome || ""}</span>
+                <button onClick={() => { setMatricula(""); setBuscaOperador(""); }} className="ml-auto text-xs text-neutral-500 hover:text-red-400">✕</button>
+              </div>
+            ) : (
+              <>
+                <div className="relative mb-2">
+                  <Search className="absolute left-3 top-3.5 w-4 h-4 text-neutral-500" />
+                  <input
+                    type="text"
+                    value={buscaOperador}
+                    onChange={(e) => setBuscaOperador(e.target.value)}
+                    placeholder="Buscar por matrícula ou nome..."
+                    className="w-full pl-10 pr-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white"
+                  />
+                </div>
+                <div className="space-y-1 max-h-40 overflow-y-auto">
+                  {operadores
+                    .filter((o) => {
+                      if (!buscaOperador) return false;
+                      const q = buscaOperador.toLowerCase();
+                      return o.matricula.toLowerCase().includes(q) || o.nome.toLowerCase().includes(q);
+                    })
+                    .slice(0, 10)
+                    .map((op) => (
+                      <button
+                        key={op.matricula}
+                        onClick={() => { setMatricula(op.matricula); setBuscaOperador(""); }}
+                        className="w-full p-2 rounded-lg border border-neutral-700 bg-neutral-800 text-left hover:border-emerald-500 transition-all"
+                      >
+                        <span className="font-bold text-emerald-400">{op.matricula}</span>
+                        <span className="text-neutral-400 ml-2">{op.nome}</span>
+                      </button>
+                    ))}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Máquina */}
