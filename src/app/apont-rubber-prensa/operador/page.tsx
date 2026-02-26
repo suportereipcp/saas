@@ -547,7 +547,7 @@ export default function OperadorPage() {
       {/* BOTÃO MESTRE ÚNICO FLUTUANTE NO RODAPÉ                    */}
       {/* ========================================================= */}
       {!isAnyPlatoParadoNaoJustificado && (
-        <div className="fixed bottom-0 left-0 right-0 p-3 sm:p-5 xl:p-8 bg-background/95 backdrop-blur border-t border-border flex justify-center shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] z-40">
+        <div className="fixed bottom-0 left-0 lg:left-64 xl:left-64 right-0 p-3 sm:p-5 xl:p-8 bg-background/95 backdrop-blur border-t border-border flex justify-center shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] z-40 transition-all">
           <div className="w-full max-w-5xl xl:max-w-[70vw] flex gap-4">
             
             {/* BOTÃO INTELIGENTE: INICIAR OU ABRIR MENU DE AÇÕES */}
@@ -616,18 +616,7 @@ export default function OperadorPage() {
                         <p className="text-lg xl:text-3xl font-bold text-emerald-600 dark:text-emerald-500 mt-2">Peças: {pulsosCount[sessao.id] || 0}</p>
                       </div>
 
-                      <div className="w-full sm:w-auto flex flex-col space-y-3 xl:space-y-5 min-w-[200px] xl:min-w-[300px]">
-                        <div>
-                          <label className="text-sm xl:text-xl font-bold block mb-1 uppercase text-muted-foreground">Qtd. Refugos</label>
-                          <input
-                            type="number"
-                            min={0}
-                            placeholder="0"
-                            value={refugosForms[sessao.id] || ""}
-                            onChange={(e) => setRefugosForms({ ...refugosForms, [sessao.id]: Number(e.target.value) })}
-                            className="h-14 xl:h-20 w-full rounded-md border border-input bg-background px-4 text-center font-bold text-xl xl:text-4xl focus:ring-2 focus:ring-primary outline-none transition-all"
-                          />
-                        </div>
+                      <div className="w-full sm:w-auto flex flex-col justify-center min-w-[200px] xl:min-w-[300px]">
                         <Button
                           variant="destructive"
                           disabled={actionLoading}
