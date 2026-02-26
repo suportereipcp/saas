@@ -112,7 +112,7 @@ async function getUltimoPulsoTimestamp(sessaoId: string): Promise<Date | null> {
 async function getParadaAberta(sessaoId: string) {
   const { data } = await supabase
     .from("paradas_maquina")
-    .select("id, justificada, motivo_id")
+    .select("id, justificada, motivo_id, created_at")
     .eq("sessao_id", sessaoId)
     .is("fim_parada", null)
     .limit(1)
@@ -272,9 +272,42 @@ async function watchdogCycle(): Promise<void> {
     (maquinas || []).forEach(m => maqMap.set(m.id, m.num_maq));
 
     for (const sessao of sessoesGlobais) {
-      // 1. Se já existe uma parada em aberto para este plato/sessão, não fazemos nada (a máquina JÁ ESTÁ constando como parada).
+      // 1. Se já existe uma parada em aberto para este plato/sessão, monitoramos o ABANDONO
       const paradaAberta = await getParadaAberta(sessao.id);
-      if (paradaAberta) continue;
+      if (paradaAberta) {
+        if (!paradaAberta.justificada) {
+          // REGRA DE ABANDONO: 5 minutos (300.000 ms) APÓS o alerta ter sido gerado
+          const timeoutAbandono = 5 * 60 * 1000;
+          const tempoDesdeAlerta = Date.now() - new Date(paradaAberta.created_at).getTime();
+          
+          if (tempoDesdeAlerta > timeoutAbandono) {
+            console.log(`[WATCHDOG] 🛑 Sessão ${sessao.id} abandonada por > 5 min. Finalizando forçadamente.`);
+            
+            // 1. Fechar a parada pendente
+            await supabase
+              .from("paradas_maquina")
+              .update({ 
+                fim_parada: new Date().toISOString(), 
+                motivo_id: "outro", 
+                justificada: true 
+              })
+              .eq("id", paradaAberta.id);
+              
+            // 2. Finalizar a Sessão de Produção, liberando o Plato
+            await supabase
+              .from("sessoes_producao")
+              .update({ 
+                status: "finalizada", 
+                fim_sessao: new Date().toISOString(), 
+                total_refugo: 0 
+              })
+              .eq("id", sessao.id);
+          }
+        }
+        
+        // Se a máquina JÁ ESTÁ constando como parada, não criamos uma parada duplicada e pulamos a validação de ociosidade
+        continue;
+      }
 
       // 2. Calcula quanto tempo faz desde a última atividade
       const ultimoPulsoTs = await getUltimoPulsoTimestamp(sessao.id);
