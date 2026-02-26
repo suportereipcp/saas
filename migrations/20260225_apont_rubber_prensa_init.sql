@@ -22,7 +22,7 @@ CREATE TABLE apont_rubber_prensa.maquinas (
     criado_em TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Tabela auxiliar: tempos de ciclo de engenharia (não existe no Datasul)
+-- Tabela auxiliar: override manual de tempos (opcional, prioridade sobre Datasul)
 CREATE TABLE apont_rubber_prensa.config_engenharia (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     codigo_item TEXT UNIQUE NOT NULL,
@@ -31,15 +31,31 @@ CREATE TABLE apont_rubber_prensa.config_engenharia (
 );
 
 -- VIEW de produtos (leitura direta do Datasul)
--- Puxa código, descrição e cavidades (lote-multipl) do ERP
-CREATE OR REPLACE VIEW apont_rubber_prensa.vw_produtos_datasul AS
+-- Tempo de ciclo = (tempo_maquin * cavidades + tempo_homem) em minutos → segundos
+-- Fonte: datasul.operacao filtrada por descricao = 'VULCANIZACAO'
+DROP VIEW IF EXISTS apont_rubber_prensa.vw_produtos_datasul;
+CREATE VIEW apont_rubber_prensa.vw_produtos_datasul AS
 SELECT
     i.it_codigo AS codigo_item,
     i.desc_item AS descricao,
     COALESCE(i.lote_multipl, 1) AS cavidades,
-    COALESCE(ce.tempo_ciclo_ideal_segundos, 300) AS tempo_ciclo_ideal_segundos
+    COALESCE(
+        ce.tempo_ciclo_ideal_segundos,
+        ((COALESCE(op.tempo_maquin, 0) * COALESCE(i.lote_multipl, 1)) + COALESCE(op.tempo_homem, 0)) * 60,
+        300
+    )::INTEGER AS tempo_ciclo_ideal_segundos
 FROM datasul.item i
+LEFT JOIN datasul.operacao op
+    ON i.it_codigo = op.it_codigo
+    AND UPPER(TRIM(op.descricao)) = 'VULCANIZACAO'
 LEFT JOIN apont_rubber_prensa.config_engenharia ce ON i.it_codigo = ce.codigo_item;
+
+-- VIEW de operadores (leitura direta do Datasul)
+CREATE OR REPLACE VIEW apont_rubber_prensa.vw_operadores_datasul AS
+SELECT
+    f.cdn_funcionario AS matricula,
+    f.nom_pessoa_fisic AS nome
+FROM datasul.funcionario f;
 
 -- =====================================================================
 -- TABELAS DE OPERAÇÃO (Lógica Dinâmica)
