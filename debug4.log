@@ -1,0 +1,83 @@
+[dotenv@17.2.3] injecting env (17) from .env.local -- tip: ­ƒöæ add access controls to secrets: https://dotenvx.com/ops
+M├üQUINAS:  [
+  {
+    id: 'b66a54ac-63e5-42ee-8d7c-5c01b363823f',
+    num_maq: '2',
+    nome: 'Prensa 2',
+    setor: 'Vulcaniza├º├úo',
+    ativo: true,
+    criado_em: '2026-02-26T01:31:55.103898+00:00',
+    qtd_platos: 3
+  }
+] ERR: undefined
+SESS├òES:  [
+  {
+    id: 'ac2e97dc-b7f9-4998-b41a-eb17aefbca58',
+    maquina_id: 'b66a54ac-63e5-42ee-8d7c-5c01b363823f',
+    operador_matricula: '1181',
+    inicio_sessao: '2026-02-26T10:17:46.333444+00:00',
+    fim_sessao: '2026-02-26T10:19:11.704+00:00',
+    status: 'finalizado',
+    total_refugo: 0,
+    produto_codigo: 'R-027/PRENSADO',
+    plato: 1
+  },
+  {
+    id: '57ca292a-8ffe-46f9-a6b7-3df51dde7054',
+    maquina_id: 'b66a54ac-63e5-42ee-8d7c-5c01b363823f',
+    operador_matricula: '1181',
+    inicio_sessao: '2026-02-26T10:20:24.34105+00:00',
+    fim_sessao: null,
+    status: 'em_andamento',
+    total_refugo: 0,
+    produto_codigo: 'R-025/PRENSADO',
+    plato: 1
+  }
+] ERR: undefined
+PULSOS:  [
+  {
+    id: 'b81ec7bd-3f57-4859-bdf1-4418899ffe1c',
+    sessao_id: '57ca292a-8ffe-46f9-a6b7-3df51dde7054',
+    timestamp_ciclo: '2026-02-24T14:50:07+00:00',
+    qtd_pecas: 18,
+    intervalo_segundos: 0,
+    mariadb_id: '142_p1',
+    criado_em: '2026-02-26T11:56:10.721756+00:00'
+  },
+  {
+    id: '1d691ac8-9144-4234-a62f-9bb7aec3dd97',
+    sessao_id: '57ca292a-8ffe-46f9-a6b7-3df51dde7054',
+    timestamp_ciclo: '2026-02-24T14:50:07+00:00',
+    qtd_pecas: 18,
+    intervalo_segundos: 21,
+    mariadb_id: '71_p1',
+    criado_em: '2026-02-26T11:54:41.095948+00:00'
+  },
+  {
+    id: '515e6bcb-ea97-4bb7-adf6-954186c32cd5',
+    sessao_id: '57ca292a-8ffe-46f9-a6b7-3df51dde7054',
+    timestamp_ciclo: '2026-02-24T14:49:46+00:00',
+    qtd_pecas: 18,
+    intervalo_segundos: 21,
+    mariadb_id: '70_p1',
+    criado_em: '2026-02-26T11:54:39.91148+00:00'
+  },
+  {
+    id: '7d103f82-dbf8-457b-9691-10d8f63b9434',
+    sessao_id: '57ca292a-8ffe-46f9-a6b7-3df51dde7054',
+    timestamp_ciclo: '2026-02-24T14:49:46+00:00',
+    qtd_pecas: 18,
+    intervalo_segundos: -21,
+    mariadb_id: '141_p1',
+    criado_em: '2026-02-26T11:56:09.116551+00:00'
+  },
+  {
+    id: '57163259-b0f7-43cc-a14d-8239c5111455',
+    sessao_id: '57ca292a-8ffe-46f9-a6b7-3df51dde7054',
+    timestamp_ciclo: '2026-02-24T14:49:25+00:00',
+    qtd_pecas: 18,
+    intervalo_segundos: 21,
+    mariadb_id: '69_p1',
+    criado_em: '2026-02-26T11:54:38.727305+00:00'
+  }
+] ERR: undefined

@@ -1,0 +1,22 @@
+[dotenv@17.2.3] injecting env (17) from .env.local -- tip: ­ƒùé´©Å backup and recover secrets: https://dotenvx.com/ops
+C:\Projetos\saas\node_modules\mysql2\promise.js:19
+  const createConnectionErr = new Error();
+                              ^
+
+Error
+    at Object.createConnectionPromise [as createConnection] (C:\Projetos\saas\node_modules\mysql2\promise.js:19:31)
+    at checkMaria (C:\Projetos\saas\scripts\debug_maria_142.ts:9:39)
+    at mysql (C:\Projetos\saas\scripts\debug_maria_142.ts:22:1)
+    at Object.<anonymous> (C:\Projetos\saas\scripts\debug_maria_142.ts:22:12)
+    at Module._compile (node:internal/modules/cjs/loader:1759:14)
+    at Object.transformer (C:\Users\rafaelaf\AppData\Local\npm-cache\_npx\fd45a72a545557e9\node_modules\tsx\dist\register-D46fvsV_.cjs:3:1104)
+    at Module.load (node:internal/modules/cjs/loader:1479:32)
+    at Module._load (node:internal/modules/cjs/loader:1298:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:244:24) {
+  code: 'ETIMEDOUT',
+  errno: undefined,
+  sqlState: undefined
+}
+
+Node.js v25.0.0

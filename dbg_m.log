@@ -1,0 +1,21 @@
+C:\Projetos\saas\node_modules\mysql2\promise.js:19
+  const createConnectionErr = new Error();
+                              ^
+
+Error
+    at Object.createConnectionPromise [as createConnection] (C:\Projetos\saas\node_modules\mysql2\promise.js:19:31)
+    at test (C:\Projetos\saas\scripts\debug_maria_last.ts:3:25)
+    at mysql (C:\Projetos\saas\scripts\debug_maria_last.ts:8:1)
+    at Object.<anonymous> (C:\Projetos\saas\scripts\debug_maria_last.ts:8:6)
+    at Module._compile (node:internal/modules/cjs/loader:1759:14)
+    at Object.transformer (C:\Users\rafaelaf\AppData\Local\npm-cache\_npx\fd45a72a545557e9\node_modules\tsx\dist\register-D46fvsV_.cjs:3:1104)
+    at Module.load (node:internal/modules/cjs/loader:1479:32)
+    at Module._load (node:internal/modules/cjs/loader:1298:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:244:24) {
+  code: 'ETIMEDOUT',
+  errno: undefined,
+  sqlState: undefined
+}
+
+Node.js v25.0.0

@@ -1,0 +1,38 @@
+[dotenv@17.2.3] injecting env (17) from .env.local -- tip: ­ƒöÉ prevent building .env in docker: https://dotenvx.com/prebuild
+SYNC_STATE:  {
+  id: 1,
+  ultimo_mariadb_id: 142,
+  ultima_sincronizacao: '2026-02-26T12:36:17.398+00:00'
+} ERR: undefined
+├ÜLTIMOS PULSOS:  [
+  {
+    id: 'b50fb15e-dae7-4f8c-950e-f2a1b7ff7ecc',
+    mariadb_id: '9_p1',
+    timestamp_ciclo: '2026-02-24T14:28:25+00:00',
+    qtd_pecas: 18
+  },
+  {
+    id: '4965b665-15a1-42d7-a298-7af0aec5ea65',
+    mariadb_id: '99_p1',
+    timestamp_ciclo: '2026-02-24T14:35:04+00:00',
+    qtd_pecas: 18
+  },
+  {
+    id: '7ca03a90-1917-4c1b-a620-0b2d3d8807a7',
+    mariadb_id: '98_p1',
+    timestamp_ciclo: '2026-02-24T14:34:43+00:00',
+    qtd_pecas: 18
+  },
+  {
+    id: 'fc077e40-5bd0-4021-ab7b-cbaf7088253b',
+    mariadb_id: '97_p1',
+    timestamp_ciclo: '2026-02-24T14:34:22+00:00',
+    qtd_pecas: 18
+  },
+  {
+    id: '86cee400-570c-4681-bc09-5e2c8bfbc168',
+    mariadb_id: '96_p1',
+    timestamp_ciclo: '2026-02-24T14:34:01+00:00',
+    qtd_pecas: 18
+  }
+] ERR: undefined
