@@ -43,12 +43,15 @@ ENV KOKORO_API_KEY=$KOKORO_API_KEY
 RUN npm run build
 
 # ==========================================
-# ETAPA 2: RUNNER (Roda o projeto leve)
+# ETAPA 2: RUNNER (Roda o projeto e o Cron)
 # ==========================================
 FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV production
+
+# Instala ferramentas necessárias para rodar ts_node/tsx e rodar sh scripts no alpine
+RUN apk add --no-cache bash curl
 
 # Cria usuário para segurança (Best Practice)
 RUN addgroup --system --gid 1001 nodejs
@@ -64,6 +67,14 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 # 3. Copia os Estáticos (CSS, JS) - SEM ISSO O SITE FICA BRANCO
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# 4. Copia os scripts de Background / Cron
+COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
+COPY --from=builder --chown=nextjs:nodejs /app/run_prod.sh ./run_prod.sh
+RUN chmod +x ./run_prod.sh
+
+# Copiar os tsx/typescript handlers local global para o entrypoint
+RUN npm install -g tsx typescript
+
 # Define permissões e usuário
 USER nextjs
 
@@ -72,5 +83,5 @@ EXPOSE 3000
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
 
-# Inicia direto pelo node (não usa npm start)
-CMD ["node", "server.js"]
+# Inicia direto pelo script bash que lança o Next + TSX Cron juntos
+CMD ["./run_prod.sh"]
