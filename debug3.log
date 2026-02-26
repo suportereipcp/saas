@@ -1,0 +1,37 @@
+[dotenv@17.2.3] injecting env (17) from .env.local -- tip: ­ƒöä add secrets lifecycle management: https://dotenvx.com/ops
+M├üQUINAS:  [
+  {
+    id: 'b66a54ac-63e5-42ee-8d7c-5c01b363823f',
+    num_maq: '2',
+    nome: 'Prensa 2',
+    setor: 'Vulcaniza├º├úo',
+    ativo: true,
+    criado_em: '2026-02-26T01:31:55.103898+00:00',
+    qtd_platos: 3
+  }
+] ERR: undefined
+SESS├òES:  [
+  {
+    id: 'ac2e97dc-b7f9-4998-b41a-eb17aefbca58',
+    maquina_id: 'b66a54ac-63e5-42ee-8d7c-5c01b363823f',
+    operador_matricula: '1181',
+    inicio_sessao: '2026-02-26T10:17:46.333444+00:00',
+    fim_sessao: '2026-02-26T10:19:11.704+00:00',
+    status: 'finalizado',
+    total_refugo: 0,
+    produto_codigo: 'R-027/PRENSADO',
+    plato: 1
+  },
+  {
+    id: '57ca292a-8ffe-46f9-a6b7-3df51dde7054',
+    maquina_id: 'b66a54ac-63e5-42ee-8d7c-5c01b363823f',
+    operador_matricula: '1181',
+    inicio_sessao: '2026-02-26T10:20:24.34105+00:00',
+    fim_sessao: null,
+    status: 'em_andamento',
+    total_refugo: 0,
+    produto_codigo: 'R-025/PRENSADO',
+    plato: 1
+  }
+] ERR: undefined
+PULSOS:  [] ERR: undefined
