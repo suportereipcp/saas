@@ -45,22 +45,51 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Já possui sessão" }, { status: 409 });
     }
 
+    // Resolve alerta de produção fantasma se houver algum engasgado na máquina
+    const { data: alertaPend } = await supabase.from("alertas_maquina")
+      .select("id, metadata")
+      .eq("maquina_id", maquina_id)
+      .eq("tipo", "producao_fantasma")
+      .eq("resolvido", false)
+      .limit(1)
+      .maybeSingle();
+
+    let inicio_sessao = new Date();
+
+    if (alertaPend) {
+      // É Produção Fantasma! Recuperamos o TS original do MariaDB
+      const mariadbTsStr = alertaPend.metadata?.timestamp_mariadb;
+      if (mariadbTsStr) {
+        inicio_sessao = new Date(mariadbTsStr);
+      }
+
+      // Agora retroagiremos pelo Tempo Padrão do Ciclo para abraçar o pulso órfão inteiro
+      const { data: prodData } = await supabase
+        .from("vw_produtos_datasul")
+        .select("tempo_ciclo_ideal_segundos")
+        .eq("codigo_item", produto_codigo)
+        .limit(1)
+        .maybeSingle();
+
+      const cicloPadrão = prodData?.tempo_ciclo_ideal_segundos || 300; // Padrão 5 min
+      inicio_sessao.setSeconds(inicio_sessao.getSeconds() - cicloPadrão);
+
+      // Marca o alerta como resolvido
+      await supabase.from("alertas_maquina")
+        .update({ resolvido: true, updated_at: new Date().toISOString() })
+        .eq("id", alertaPend.id);
+    }
+
     const { data, error } = await supabase.from("sessoes_producao").insert({
       maquina_id,
       produto_codigo,
       plato,
       operador_matricula,
       status: "em_andamento",
+      inicio_sessao: inicio_sessao.toISOString() // Data normal (Agora) ou Retroativa (Atrás)
     }).select().single();
 
     if (error) throw error;
-    
-    // Resolve alerta de produção fantasma se houver algum engasgado na máquina
-    await supabase.from("alertas_maquina")
-      .update({ resolvido: true, updated_at: new Date().toISOString() })
-      .eq("maquina_id", maquina_id)
-      .eq("tipo", "producao_fantasma")
-      .eq("resolvido", false);
 
     return NextResponse.json({ data }, { status: 201 });
   } catch (error: any) {

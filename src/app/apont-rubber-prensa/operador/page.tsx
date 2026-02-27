@@ -457,7 +457,7 @@ export default function OperadorPage() {
           <div className="p-3 sm:p-6 xl:p-10 grid grid-cols-1 gap-4 sm:gap-6 xl:gap-8 h-full min-h-[350px] xl:min-h-[500px]">
             
             {isAlertaFantasmaAtivo && (
-              <div className="col-span-1 md:col-span-3 flex flex-col items-center text-center justify-center p-4 sm:p-6 bg-orange-100 dark:bg-orange-900/50 border-2 border-orange-500 rounded-xl mb-4 xl:mb-8 shadow-md">
+              <div className="flex flex-col items-center text-center justify-center p-4 sm:p-6 bg-orange-100 dark:bg-orange-900/50 border-2 border-orange-500 rounded-xl mb-4 xl:mb-8 shadow-md">
                 <AlertTriangle className="w-10 h-10 sm:w-12 sm:h-12 xl:w-16 xl:h-16 text-orange-600 dark:text-orange-400 mb-2 sm:mb-4 animate-bounce" />
                 <h2 className="text-xl sm:text-2xl xl:text-4xl font-black text-orange-700 dark:text-orange-300 uppercase leading-tight mb-2">
                   Atenção: A máquina enviou um ciclo real, mas nenhuma sessão foi iniciada no App!
@@ -470,7 +470,7 @@ export default function OperadorPage() {
 
             {/* Se houver qualquer parada Não Justificada, trancamos a máquina pedindo Justificativa */}
             {isAnyPlatoParadoNaoJustificado ? (
-              <div className="col-span-1 md:col-span-3 flex flex-col items-center justify-center p-6 sm:p-8 xl:p-16 bg-background/80 backdrop-blur-sm rounded-xl border border-destructive/30 space-y-6 sm:space-y-8 xl:space-y-12">
+              <div className="flex flex-col items-center justify-center p-6 sm:p-8 xl:p-16 bg-background/80 backdrop-blur-sm rounded-xl border border-destructive/30 space-y-6 sm:space-y-8 xl:space-y-12">
                 <div className="flex flex-col items-center gap-3 text-destructive font-black text-2xl sm:text-3xl xl:text-6xl text-center">
                   <AlertTriangle className="w-12 h-12 sm:w-16 sm:h-16 xl:w-28 xl:h-28 animate-pulse" />
                   <span>A MÁQUINA PAROU. QUAL O MOTIVO?</span>
