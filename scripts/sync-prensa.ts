@@ -197,8 +197,10 @@ async function syncCycle(): Promise<void> {
         continue;
       }
 
+      // Ajuste de Fuso Horário: MariaDB retorna a hora local (ex: 09:34), mas o driver mysql2 
+      // entende como UTC (09:34Z). Adicionamos +3h para converter corretamente para UTC real (12:34Z).
       const timestampCiclo = new Date(row.timestamp);
-
+      timestampCiclo.setHours(timestampCiclo.getHours() + 3);
       for (const sessao of sessoes) {
         const ultimoPulsoTs = await getUltimoPulsoTimestamp(sessao.id);
         let intervaloSegundos: number | null = null;
@@ -271,59 +273,78 @@ async function watchdogCycle(): Promise<void> {
     const maqMap = new Map();
     (maquinas || []).forEach(m => maqMap.set(m.id, m.num_maq));
 
-    for (const sessao of sessoesGlobais) {
-      // 1. Se já existe uma parada em aberto para este plato/sessão, monitoramos o ABANDONO
-      const paradaAberta = await getParadaAberta(sessao.id);
-      if (paradaAberta) {
-        if (!paradaAberta.justificada) {
-          // REGRA DE ABANDONO: 5 minutos (300.000 ms) APÓS o alerta ter sido gerado
-          const timeoutAbandono = 5 * 60 * 1000;
-          const tempoDesdeAlerta = Date.now() - new Date(paradaAberta.inicio_parada).getTime();
-          
-          if (tempoDesdeAlerta > timeoutAbandono) {
-            console.log(`[WATCHDOG] 🛑 Sessão ${sessao.id} abandonada por > 5 min. Finalizando forçadamente.`);
-            
-            // 1. Fechar a parada pendente
+    // Agrupar sessoes por maquina
+    const sessoesPorMaquina = new Map<string, any[]>();
+    for (const s of sessoesGlobais) {
+      const arr = sessoesPorMaquina.get(s.maquina_id) || [];
+      arr.push(s);
+      sessoesPorMaquina.set(s.maquina_id, arr);
+    }
+
+    for (const [maquinaId, sessoes] of sessoesPorMaquina.entries()) {
+      const numMaq = maqMap.get(maquinaId) || "unknown";
+
+      // 1. Calcula a média do tempo de ciclo da MÁQUINA
+      let somaCiclo = 0;
+      for (const s of sessoes) {
+         somaCiclo += await getTempoCicloIdeal(s.produto_codigo);
+      }
+      const mediaCicloIdeal = somaCiclo / sessoes.length;
+
+      // 2. Calcula o tempo da última atividade da MÁQUINA (maior startRef entre as sessões ativas)
+      let maquinaStartRefT = 0;
+      for (const s of sessoes) {
+         const ultimoPulsoTs = await getUltimoPulsoTimestamp(s.id);
+         const sRef = ultimoPulsoTs ? ultimoPulsoTs.getTime() : new Date(s.inicio_sessao).getTime();
+         if (sRef > maquinaStartRefT) maquinaStartRefT = sRef;
+      }
+      const maquinaStartRef = new Date(maquinaStartRefT);
+
+      const segundosOcioso = Math.round((Date.now() - maquinaStartRef.getTime()) / 1000);
+      
+      // REGRA DE NEGÓCIO DA MÁQUINA: Alerta em 1.6x da Média do Ciclo, Encerra após Alerta + 5 minutos.
+      const limiteParada = mediaCicloIdeal * 1.6;
+      const limiteAbandono = limiteParada + (5 * 60); // 300 segundos = 5 minutos
+
+      // CASO 1: TEMPO EXCEDE LIMITE DE ABANDONO TOTAL (Auto-Encerramento de TODA a Máquina)
+      if (segundosOcioso > limiteAbandono) {
+        for (const sessao of sessoes) {
+          const paradaAberta = await getParadaAberta(sessao.id);
+          // Se tinha parada na tela pedindo motivo, fecha assumindo motivo Branco (null)
+          if (paradaAberta && !paradaAberta.justificada) {
             await supabase
               .from("paradas_maquina")
               .update({ 
-                fim_parada: new Date().toISOString(), 
-                motivo_id: null, 
-                justificada: true 
+                 fim_parada: new Date().toISOString(), 
+                 motivo_id: null, 
+                 justificada: true 
               })
               .eq("id", paradaAberta.id);
-              
-            // 2. Finalizar a Sessão de Produção, liberando o Plato
-            await supabase
-              .from("sessoes_producao")
-              .update({ 
-                status: "finalizada", 
-                fim_sessao: new Date().toISOString(), 
-                total_refugo: 0 
-              })
-              .eq("id", sessao.id);
           }
+          
+          // Finaliza a Sessão de Produção forçadamente
+          await supabase
+            .from("sessoes_producao")
+            .update({ 
+              status: "finalizada", 
+              fim_sessao: new Date().toISOString(), 
+              total_refugo: 0 
+            })
+            .eq("id", sessao.id);
         }
-        
-        // Se a máquina JÁ ESTÁ constando como parada, não criamos uma parada duplicada e pulamos a validação de ociosidade
+        console.log(`[WATCHDOG] 🛑 Máquina ${numMaq} abandonada (>${Math.round(limiteAbandono)}s). Sessões finalizadas.`);
         continue;
       }
 
-      // 2. Calcula quanto tempo faz desde a última atividade
-      const ultimoPulsoTs = await getUltimoPulsoTimestamp(sessao.id);
-      // Aqui usamos o timestamp do último pulso OU o momento em que o operador deu "Iniciar Produção" na tela
-      const startRef = ultimoPulsoTs || new Date(sessao.inicio_sessao);
-      
-      const segundosOcioso = Math.round((Date.now() - startRef.getTime()) / 1000);
-      const tempoCicloIdeal = await getTempoCicloIdeal(sessao.produto_codigo);
-      
-      // REGRA DE NEGÓCIO DA FÁBRICA: 60% a mais do que o tempo de ciclo do produto (Multiplier = 1.6)
-      const limiteSegundos = tempoCicloIdeal * 1.6;
-
-      if (segundosOcioso > limiteSegundos) {
-        const numMaq = maqMap.get(sessao.maquina_id) || "unknown";
-        // Registra uma nova parada. O "inicio_parada" retroativo será exatamente o momento do último pulso/início para exatidão do OEE.
-        await criarParada(numMaq, sessao.id, startRef);
+      // CASO 2: TEMPO EXCEDE LIMITE DE PARADA (Criar Alerta de Justificativa na Máquina)
+      if (segundosOcioso > limiteParada) {
+        for (const sessao of sessoes) {
+          const paradaAberta = await getParadaAberta(sessao.id);
+          // Se não houver uma parada já aberta pedindo justificativa para essa sessão, crie!
+          if (!paradaAberta) {
+            await criarParada(numMaq, sessao.id, maquinaStartRef);
+          }
+        }
       }
     }
   } catch (err: any) {
