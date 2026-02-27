@@ -73,6 +73,7 @@ export default function OperadorPage() {
   // Refugos e Modal
   const [modalAcoesOpen, setModalAcoesOpen] = useState(false);
   const [refugosForms, setRefugosForms] = useState<Record<string, number>>({});
+  const [alertasPendentes, setAlertasPendentes] = useState<any[]>([]);
 
   const maquinaAtiva = maquinas.find((m) => m.id === selectedMaquina);
 
@@ -81,13 +82,17 @@ export default function OperadorPage() {
     const { data: mData } = await supabase.schema("apont_rubber_prensa").from("maquinas").select("*").eq("ativo", true).order("num_maq");
     setMaquinas(mData || []);
 
-    // 2. Carrega os motivos de parada (Somente os ativos para o Operador)
+    // 2. Carrega os motivos de parada (Somente os ativos para o Operador) via Supabase Client
     try {
-      const res = await fetch("/api/apont-rubber-prensa/motivos-parada");
-      if (res.ok) {
-        const { data } = await res.json();
-        const ativos = (data || []).filter((m: any) => m.ativo).map((m: any) => ({ id: m.id, label: m.descricao }));
-        setMotivosParada(ativos);
+      const { data, error } = await supabase
+        .schema("apont_rubber_prensa")
+        .from("cad_motivos_parada")
+        .select("id, descricao")
+        .eq("ativo", true)
+        .order("id", { ascending: true });
+
+      if (!error && data) {
+        setMotivosParada(data.map((m: any) => ({ id: m.id, label: m.descricao })));
       }
     } catch (e) {
       console.error("Falha ao carregar motivos:", e);
@@ -138,6 +143,15 @@ export default function OperadorPage() {
 
     const sessoes = data || [];
     setSessoesAtivas(sessoes);
+
+    // Busca alertas (producao fantasma)
+    const { data: alertas } = await supabase
+      .schema("apont_rubber_prensa")
+      .from("alertas_maquina")
+      .select("*")
+      .eq("resolvido", false)
+      .eq("tipo", "producao_fantasma");
+    setAlertasPendentes(alertas || []);
 
     const counts: Record<string, number> = {};
     for (const s of sessoes) {
@@ -351,6 +365,13 @@ export default function OperadorPage() {
     statusHeaderBgClass = "bg-gray-600 text-white";
   }
 
+  const isAlertaFantasmaAtivo = alertasPendentes.some(a => a.maquina_id === selectedMaquina);
+  if (isAlertaFantasmaAtivo) {
+    statusGlobal = "PRODUÇÃO FANTASMA IDENTIFICADA";
+    statusColorClass = "border-orange-500 bg-orange-50 dark:bg-orange-950/40";
+    statusHeaderBgClass = "bg-orange-600 text-white animate-pulse";
+  }
+
   // Verifica se o Operador tem platos selecionados mas que ainda não iniciaram
   const temPlatoParaIniciar = Array.from({ length: maquinaAtiva.qtd_platos }, (_, i) => i + 1).some(plato => {
     const isLivre = !sessoesAtivas.some(s => s.plato === plato);
@@ -434,6 +455,19 @@ export default function OperadorPage() {
 
           {/* GRID DOS PLATORES MANTIDOS NUMA ÚNICA DOBRA */}
           <div className="p-3 sm:p-6 xl:p-10 grid grid-cols-1 gap-4 sm:gap-6 xl:gap-8 h-full min-h-[350px] xl:min-h-[500px]">
+            
+            {isAlertaFantasmaAtivo && (
+              <div className="col-span-1 md:col-span-3 flex flex-col items-center text-center justify-center p-4 sm:p-6 bg-orange-100 dark:bg-orange-900/50 border-2 border-orange-500 rounded-xl mb-4 xl:mb-8 shadow-md">
+                <AlertTriangle className="w-10 h-10 sm:w-12 sm:h-12 xl:w-16 xl:h-16 text-orange-600 dark:text-orange-400 mb-2 sm:mb-4 animate-bounce" />
+                <h2 className="text-xl sm:text-2xl xl:text-4xl font-black text-orange-700 dark:text-orange-300 uppercase leading-tight mb-2">
+                  Atenção: A máquina enviou um ciclo real, mas nenhuma sessão foi iniciada no App!
+                </h2>
+                <p className="text-sm sm:text-lg xl:text-2xl font-medium text-orange-800 dark:text-orange-200 mt-2 max-w-4xl">
+                  Identifique-se e inicie a produção abaixo para contabilizar as peças corretamente.
+                </p>
+              </div>
+            )}
+
             {/* Se houver qualquer parada Não Justificada, trancamos a máquina pedindo Justificativa */}
             {isAnyPlatoParadoNaoJustificado ? (
               <div className="col-span-1 md:col-span-3 flex flex-col items-center justify-center p-6 sm:p-8 xl:p-16 bg-background/80 backdrop-blur-sm rounded-xl border border-destructive/30 space-y-6 sm:space-y-8 xl:space-y-12">
