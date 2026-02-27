@@ -261,7 +261,7 @@ async function watchdogCycle(): Promise<void> {
     // Busca todas as sessões "Em Andamento" de todas as máquinas
     const { data: sessoesGlobais } = await supabase
       .from("sessoes_producao")
-      .select("id, produto_codigo, plato, maquina_id, iniciado_em")
+      .select("id, produto_codigo, plato, maquina_id, inicio_sessao")
       .eq("status", "em_andamento");
 
     if (!sessoesGlobais || sessoesGlobais.length === 0) return;
@@ -288,7 +288,7 @@ async function watchdogCycle(): Promise<void> {
               .from("paradas_maquina")
               .update({ 
                 fim_parada: new Date().toISOString(), 
-                motivo_id: "outro", 
+                motivo_id: "00", // 00 = Encerramento Automático do Sistema
                 justificada: true 
               })
               .eq("id", paradaAberta.id);
@@ -312,7 +312,7 @@ async function watchdogCycle(): Promise<void> {
       // 2. Calcula quanto tempo faz desde a última atividade
       const ultimoPulsoTs = await getUltimoPulsoTimestamp(sessao.id);
       // Aqui usamos o timestamp do último pulso OU o momento em que o operador deu "Iniciar Produção" na tela
-      const startRef = ultimoPulsoTs || new Date(sessao.iniciado_em);
+      const startRef = ultimoPulsoTs || new Date(sessao.inicio_sessao);
       
       const segundosOcioso = Math.round((Date.now() - startRef.getTime()) / 1000);
       const tempoCicloIdeal = await getTempoCicloIdeal(sessao.produto_codigo);
