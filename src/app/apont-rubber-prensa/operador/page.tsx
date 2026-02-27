@@ -242,17 +242,28 @@ export default function OperadorPage() {
     }
   };
 
-  const justificarParada = async (paradaId: string, motivoId: string) => {
-    await fetch("/api/apont-rubber-prensa/paradas", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        parada_id: paradaId,
-        motivo_id: motivoId,
-        classificacao: motivoId === "intervalo" ? "planejada" : "nao_planejada",
-      }),
-    });
-    await checkSessoesAtivas();
+  const justificarParada = async (motivoId: string) => {
+    setActionLoading(true);
+    try {
+      const pendentes = paradasPendentes.filter(p => !p.justificada);
+      // Dispara a justificativa para todos os platos ativos que caíram ao mesmo tempo
+      await Promise.all(
+        pendentes.map(p => 
+          fetch("/api/apont-rubber-prensa/paradas", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              parada_id: p.id,
+              motivo_id: motivoId,
+              classificacao: "nao_planejada",
+            }),
+          })
+        )
+      );
+      await checkSessoesAtivas();
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   if (loading) {
@@ -429,27 +440,26 @@ export default function OperadorPage() {
                 <div className="flex flex-col items-center gap-3 text-destructive font-black text-2xl sm:text-3xl xl:text-6xl text-center">
                   <AlertTriangle className="w-12 h-12 sm:w-16 sm:h-16 xl:w-28 xl:h-28 animate-pulse" />
                   <span>A MÁQUINA PAROU. QUAL O MOTIVO?</span>
-                  {paradasDaMaquina.filter(p => !p.justificada).map(parada => (
+                  {/* Exibindo a "Parada desde..." apenas uma vez (do primeiro plato que triggou o alerta) */}
+                  {paradasDaMaquina.filter(p => !p.justificada).slice(0, 1).map(parada => (
                     <span key={parada.id} className="text-lg sm:text-xl xl:text-3xl font-medium text-foreground mt-2">
                       Parada desde {new Date(parada.inicio_parada).toLocaleTimeString("pt-BR")}
                     </span>
                   ))}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 xl:gap-6 w-full max-w-4xl xl:max-w-7xl">
-                  {paradasDaMaquina.filter(p => !p.justificada).map(parada => (
-                    <div key={parada.id} className="col-span-1 md:col-span-3 grid grid-cols-2 md:grid-cols-3 gap-3 w-full">
+                <div className="grid grid-cols-1 w-full max-w-4xl xl:max-w-7xl">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 xl:gap-6 w-full">
                       {motivosParada.map((motivo: { id: string; label: string }) => (
                         <Button
                           key={motivo.id}
                           disabled={actionLoading}
-                          onClick={() => justificarParada(parada.id, motivo.id)}
-                          className="h-16 xl:h-24 text-sm sm:text-base xl:text-2xl font-bold whitespace-normal h-auto rounded-xl shadow-md bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                          onClick={() => justificarParada(motivo.id)}
+                          className="h-16 xl:h-24 text-sm sm:text-base xl:text-2xl font-bold whitespace-normal h-auto rounded-xl shadow-md bg-secondary text-secondary-foreground hover:bg-secondary/80 focus:ring-4 focus:ring-secondary/40"
                         >
                           {motivo.label}
                         </Button>
                       ))}
                     </div>
-                  ))}
                 </div>
               </div>
             ) : (

@@ -112,7 +112,7 @@ async function getUltimoPulsoTimestamp(sessaoId: string): Promise<Date | null> {
 async function getParadaAberta(sessaoId: string) {
   const { data } = await supabase
     .from("paradas_maquina")
-    .select("id, justificada, motivo_id, created_at")
+    .select("id, justificada, motivo_id, inicio_parada")
     .eq("sessao_id", sessaoId)
     .is("fim_parada", null)
     .limit(1)
@@ -278,7 +278,7 @@ async function watchdogCycle(): Promise<void> {
         if (!paradaAberta.justificada) {
           // REGRA DE ABANDONO: 5 minutos (300.000 ms) APÓS o alerta ter sido gerado
           const timeoutAbandono = 5 * 60 * 1000;
-          const tempoDesdeAlerta = Date.now() - new Date(paradaAberta.created_at).getTime();
+          const tempoDesdeAlerta = Date.now() - new Date(paradaAberta.inicio_parada).getTime();
           
           if (tempoDesdeAlerta > timeoutAbandono) {
             console.log(`[WATCHDOG] 🛑 Sessão ${sessao.id} abandonada por > 5 min. Finalizando forçadamente.`);
@@ -288,7 +288,7 @@ async function watchdogCycle(): Promise<void> {
               .from("paradas_maquina")
               .update({ 
                 fim_parada: new Date().toISOString(), 
-                motivo_id: "00", // 00 = Encerramento Automático do Sistema
+                motivo_id: null, 
                 justificada: true 
               })
               .eq("id", paradaAberta.id);
