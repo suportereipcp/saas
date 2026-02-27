@@ -205,13 +205,19 @@ async function syncCycle(): Promise<void> {
               .eq("resolvido", false)
               .limit(1);
 
+            // Ajuste de Fuso Horário: MariaDB retorna a hora local, mas o driver mysql2 
+            // entende como UTC. Adicionamos +3h para converter corretamente para UTC real.
+            const timestampCiclo = new Date(row.timestamp);
+            timestampCiclo.setHours(timestampCiclo.getHours() + 3);
+
             if (!alertas || alertas.length === 0) {
               await supabase.from("alertas_maquina").insert({
                 maquina_id: maquina.id,
                 tipo: "producao_fantasma",
-                resolvido: false
+                resolvido: false,
+                metadata: { timestamp_mariadb: timestampCiclo.toISOString() }
               });
-              console.log(`[SYNC] 👻 ALERTA: Produção fantasma detectada na máquina ${numMaq}!`);
+              console.log(`[SYNC] 👻 ALERTA: Produção fantasma detectada na máquina ${numMaq}! (PULSO ORIGINAL EM: ${timestampCiclo.toISOString()})`);
             }
           }
         } catch (e) {
@@ -222,10 +228,11 @@ async function syncCycle(): Promise<void> {
         continue;
       }
 
-      // Ajuste de Fuso Horário: MariaDB retorna a hora local (ex: 09:34), mas o driver mysql2 
-      // entende como UTC (09:34Z). Adicionamos +3h para converter corretamente para UTC real (12:34Z).
+      // Ajuste de Fuso Horário: MariaDB retorna a hora local, mas o driver mysql2 
+      // entende como UTC. Adicionamos +3h para converter corretamente para UTC real.
       const timestampCiclo = new Date(row.timestamp);
       timestampCiclo.setHours(timestampCiclo.getHours() + 3);
+      
       for (const sessao of sessoes) {
         const ultimoPulsoTs = await getUltimoPulsoTimestamp(sessao.id);
         let intervaloSegundos: number | null = null;
