@@ -47,20 +47,14 @@ interface Parada {
   sessao_id: string;
 }
 
-const MOTIVOS_PARADA = [
-  { id: "setup", label: "Setup / Troca de Molde" },
-  { id: "manutencao", label: "Manutenção Corretiva" },
-  { id: "material", label: "Falta de Material" },
-  { id: "qualidade", label: "Problema de Qualidade" },
-  { id: "intervalo", label: "Intervalo / Refeição" },
-  { id: "outro", label: "Outro" },
-];
+// Removido MOTIVOS_PARADA hardcoded, será carregado via API
 
 export default function OperadorPage() {
   const [viewMode, setViewMode] = useState<"maquinas" | "painel">("maquinas");
   const [selectedMaquina, setSelectedMaquina] = useState<string>("");
 
   const [maquinas, setMaquinas] = useState<Maquina[]>([]);
+  const [motivosParada, setMotivosParada] = useState<{ id: string; label: string }[]>([]);
   const [sessoesAtivas, setSessoesAtivas] = useState<SessaoAtiva[]>([]);
   const [paradasPendentes, setParadasPendentes] = useState<Parada[]>([]);
   const [pulsosCount, setPulsosCount] = useState<Record<string, number>>({});
@@ -83,8 +77,21 @@ export default function OperadorPage() {
   const maquinaAtiva = maquinas.find((m) => m.id === selectedMaquina);
 
   const loadCadastros = useCallback(async () => {
-    const { data } = await supabase.schema("apont_rubber_prensa").from("maquinas").select("*").eq("ativo", true).order("num_maq");
-    setMaquinas(data || []);
+    // 1. Carrega as máquinas
+    const { data: mData } = await supabase.schema("apont_rubber_prensa").from("maquinas").select("*").eq("ativo", true).order("num_maq");
+    setMaquinas(mData || []);
+
+    // 2. Carrega os motivos de parada (Somente os ativos para o Operador)
+    try {
+      const res = await fetch("/api/apont-rubber-prensa/motivos-parada");
+      if (res.ok) {
+        const { data } = await res.json();
+        const ativos = (data || []).filter((m: any) => m.ativo).map((m: any) => ({ id: m.id, label: m.descricao }));
+        setMotivosParada(ativos);
+      }
+    } catch (e) {
+      console.error("Falha ao carregar motivos:", e);
+    }
   }, []);
 
   const searchProdutoAsync = async (plato: number, query: string) => {
@@ -428,19 +435,20 @@ export default function OperadorPage() {
                     </span>
                   ))}
                 </div>
-                
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 xl:gap-6 w-full max-w-4xl xl:max-w-7xl">
                   {paradasDaMaquina.filter(p => !p.justificada).map(parada => (
-                    MOTIVOS_PARADA.map((motivo) => (
-                      <Button
-                        key={motivo.id}
-                        variant="outline"
-                        onClick={() => justificarParada(parada.id, motivo.id)}
-                        className="h-16 sm:h-20 xl:h-28 text-base sm:text-lg xl:text-3xl font-bold border-destructive/40 hover:bg-destructive hover:text-white whitespace-normal break-words"
-                      >
-                        {motivo.label}
-                      </Button>
-                    ))
+                    <div key={parada.id} className="col-span-1 md:col-span-3 grid grid-cols-2 md:grid-cols-3 gap-3 w-full">
+                      {motivosParada.map((motivo: { id: string; label: string }) => (
+                        <Button
+                          key={motivo.id}
+                          disabled={actionLoading}
+                          onClick={() => justificarParada(parada.id, motivo.id)}
+                          className="h-16 xl:h-24 text-sm sm:text-base xl:text-2xl font-bold whitespace-normal h-auto rounded-xl shadow-md bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                        >
+                          {motivo.label}
+                        </Button>
+                      ))}
+                    </div>
                   ))}
                 </div>
               </div>
