@@ -193,6 +193,31 @@ async function syncCycle(): Promise<void> {
 
       if (sessoes.length === 0) {
         // Sem sessão ativa para esta máquina, ignora contagem mas avança o LSN
+        // E dispara alerta de produção fantasma se não houver um ativo
+        try {
+          const { data: maquina } = await supabase.from("maquinas").select("id").eq("num_maq", numMaq).single();
+          if (maquina) {
+            const { data: alertas } = await supabase
+              .from("alertas_maquina")
+              .select("id")
+              .eq("maquina_id", maquina.id)
+              .eq("tipo", "producao_fantasma")
+              .eq("resolvido", false)
+              .limit(1);
+
+            if (!alertas || alertas.length === 0) {
+              await supabase.from("alertas_maquina").insert({
+                maquina_id: maquina.id,
+                tipo: "producao_fantasma",
+                resolvido: false
+              });
+              console.log(`[SYNC] 👻 ALERTA: Produção fantasma detectada na máquina ${numMaq}!`);
+            }
+          }
+        } catch (e) {
+          console.error("[SYNC] Erro ao processar produção fantasma:", e);
+        }
+
         maxId = Math.max(maxId, row.id);
         continue;
       }

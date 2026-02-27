@@ -54,6 +54,14 @@ export async function POST(req: NextRequest) {
     }).select().single();
 
     if (error) throw error;
+    
+    // Resolve alerta de produção fantasma se houver algum engasgado na máquina
+    await supabase.from("alertas_maquina")
+      .update({ resolvido: true, updated_at: new Date().toISOString() })
+      .eq("maquina_id", maquina_id)
+      .eq("tipo", "producao_fantasma")
+      .eq("resolvido", false);
+
     return NextResponse.json({ data }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
