@@ -366,11 +366,12 @@ async function watchdogCycle(): Promise<void> {
 
           if (quantidadeTotal > 0) {
             // Finaliza a Sessão de Produção forçadamente
+            const fimSessao = new Date().toISOString();
             await supabase
               .from("sessoes_producao")
               .update({ 
-                status: "finalizada", 
-                fim_sessao: new Date().toISOString(), 
+                status: "finalizado", // Ajuste semântico frontend -> finalizado
+                fim_sessao: fimSessao, 
                 total_refugo: 0 
               })
               .eq("id", sessao.id);
@@ -389,6 +390,28 @@ async function watchdogCycle(): Promise<void> {
             await supabase.from("paradas_maquina").delete().eq("sessao_id", sessao.id);
             await supabase.from("pulsos_producao").delete().eq("sessao_id", sessao.id);
             await supabase.from("sessoes_producao").delete().eq("id", sessao.id);
+          }
+
+          // Zero-Gaps: Ao auto-cancelar a sessão proativa, verifica se esvaziou a máquina
+          const { data: activeSessoes } = await supabase
+            .from("sessoes_producao")
+            .select("id")
+            .eq("maquina_id", maquinaId)
+            .eq("status", "em_andamento")
+            .limit(1);
+
+          if (!activeSessoes || activeSessoes.length === 0) {
+            const { data: existingOrphan } = await supabase.from("paradas_maquina").select("id").eq("maquina_id", maquinaId).is("sessao_id", null).is("fim_parada", null).limit(1);
+            if (!existingOrphan || existingOrphan.length === 0) {
+              await supabase.from("paradas_maquina").insert({
+                maquina_id: maquinaId,
+                sessao_id: null,
+                inicio_parada: new Date().toISOString(),
+                classificacao: "nao_planejada",
+                justificada: false,
+              });
+              console.log(`[WATCHDOG] ⚠️ Parada Órfã criada para garantir OEE em máquina paralisada (${numMaq})`);
+            }
           }
         }
         continue;

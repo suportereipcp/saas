@@ -383,6 +383,8 @@ export default function OperadorPage() {
 
   // CÁLCULO DE STATUS GLOBAL DA MÁQUINA
   const paradasDaMaquina = paradasPendentes.filter(p => sessoesAtivas.some(s => s.id === p.sessao_id));
+  const paradasDeSessoes = paradasDaMaquina;
+  const paradaOrfaAberta = paradasPendentes.find(p => (p as any).maquina_id === maquinaAtiva.id && p.sessao_id === null && p.fim_parada === null);
   
   const isAnyPlatoMaintenance = paradasDaMaquina.some(p => p.justificada && p.motivo_id === "manutencao");
   const isAnyPlatoParadoNaoJustificado = paradasDaMaquina.some(p => !p.justificada);
@@ -406,7 +408,14 @@ export default function OperadorPage() {
     statusColorClass = "border-emerald-500 dark:border-emerald-600 bg-emerald-50/50 dark:bg-emerald-950/40";
     statusHeaderBgClass = "bg-emerald-600 text-white";
   } else if (isAnyPlatoOutraParada) {
-    statusGlobal = "MÁQUINA PARADA (JUSTIFICADA)";
+    const paradaRef = paradasDeSessoes.find(p => p.justificada && p.motivo_id !== "manutencao");
+    const descMotivo = motivosParada.find((m: any) => m.id.toString() === paradaRef?.motivo_id?.toString())?.descricao;
+    statusGlobal = descMotivo ? `PARADA - ${descMotivo}` : "MÁQUINA PARADA (JUSTIFICADA)";
+    statusColorClass = "border-gray-500 bg-gray-100 dark:bg-gray-800";
+    statusHeaderBgClass = "bg-gray-600 text-white";
+  } else if (paradaOrfaAberta && paradaOrfaAberta.justificada) {
+    const descMotivo = motivosParada.find((m: any) => m.id.toString() === paradaOrfaAberta.motivo_id?.toString())?.descricao;
+    statusGlobal = descMotivo ? `MÁQUINA PARADA - ${descMotivo}` : "MÁQUINA PARADA (JUSTIFICADA)";
     statusColorClass = "border-gray-500 bg-gray-100 dark:bg-gray-800";
     statusHeaderBgClass = "bg-gray-600 text-white";
   }
@@ -481,8 +490,8 @@ export default function OperadorPage() {
         <div className={`w-full max-w-5xl xl:max-w-[90vw] 2xl:max-w-[80vw] border-[6px] sm:border-[8px] xl:border-[12px] rounded-2xl xl:rounded-3xl overflow-visible shadow-2xl ${statusColorClass} flex flex-col relative`}>
           
           {/* HEADER DO CONTAINER */}
-          <div className={`w-full py-2 sm:py-4 xl:py-8 text-center text-lg sm:text-3xl xl:text-5xl font-black tracking-[0.1em] sm:tracking-[0.2em] shadow-sm ${statusHeaderBgClass}`}>
-            {statusGlobal}
+          <div className={`w-full py-2 sm:py-4 xl:py-8 flex flex-col items-center justify-center text-center font-black tracking-[0.1em] sm:tracking-[0.2em] shadow-sm ${statusHeaderBgClass} ${statusGlobal.length > 25 ? 'text-base sm:text-2xl xl:text-4xl min-h-[4rem] px-4' : 'text-lg sm:text-3xl xl:text-5xl'}`}>
+            <span>{statusGlobal}</span>
           </div>
 
           {/* GRID DOS PLATORES MANTIDOS NUMA ÚNICA DOBRA */}
@@ -550,29 +559,20 @@ export default function OperadorPage() {
                     <CardContent className="p-3 sm:p-4 xl:p-8 flex-1 flex flex-col justify-center">
                       {sessaoAtiva ? (
                         /* PLATO OCUPADO */
-                        <div className="flex flex-col space-y-4 xl:space-y-10">
+                        <div className="flex flex-col space-y-4 xl:space-y-6 flex-1 items-center justify-center">
                           <div className="text-center">
-                            <span className="text-xs sm:text-sm xl:text-xl font-semibold text-muted-foreground block uppercase mb-1">Produto</span>
-                            <span className="text-2xl xl:text-5xl font-black text-foreground">{sessaoAtiva.produto_codigo}</span>
+                            <span className="text-2xl xl:text-4xl font-black text-foreground">{sessaoAtiva.produto_codigo}</span>
                           </div>
                           
-                          <div className="bg-muted p-4 xl:p-8 rounded-lg xl:rounded-2xl border border-border/50 text-center">
-                            <span className="text-xs xl:text-xl uppercase font-bold text-muted-foreground tracking-wider mb-2 block">Peças Produzidas</span>
-                            <span className="text-5xl xl:text-8xl font-black text-primary font-mono">{pulsosCount[sessaoAtiva.id] || 0}</span>
-                          </div>
-                          
-                          <div className="text-center pt-2 xl:pt-6">
-                            <span className="text-sm xl:text-2xl font-medium text-muted-foreground">Operador: <strong className="text-foreground">{sessaoAtiva.operador_matricula}</strong></span>
+                          <div className="bg-muted px-6 py-4 xl:px-12 xl:py-6 rounded-lg xl:rounded-2xl border border-border/50 text-center w-full">
+                            <span className="text-xs xl:text-lg uppercase font-bold text-muted-foreground tracking-wider mb-1 block">Peças Produzidas</span>
+                            <span className="text-4xl xl:text-6xl font-black text-primary font-mono">{pulsosCount[sessaoAtiva.id] || 0}</span>
                           </div>
                         </div>
                       ) : sessoesAtivas.length > 0 ? (
                         /* PLATO BLOQUEADO (HÁ OUTRAS SESSÕES ATIVAS NA MÁQUINA) */
-                        <div className="flex flex-col space-y-4 justify-center items-center h-full text-center">
-                          <AlertTriangle className="w-12 h-12 xl:w-20 xl:h-20 text-muted-foreground mx-auto opacity-30" />
-                          <span className="text-lg xl:text-2xl font-black text-muted-foreground uppercase opacity-50">Plato Bloqueado</span>
-                          <span className="text-xs sm:text-sm xl:text-lg text-muted-foreground max-w-xs xl:max-w-md mx-auto opacity-70">
-                            Aguarde a finalização de todas as ordens desta máquina para configurar novos itens.
-                          </span>
+                        <div className="flex items-center justify-center h-full w-full">
+                          <span className="text-sm sm:text-base xl:text-xl font-bold text-muted-foreground uppercase opacity-50 tracking-widest">Sem Produto</span>
                         </div>
                       ) : (
                         /* PLATO LIVRE (BUSCA DE PRODUTO) */

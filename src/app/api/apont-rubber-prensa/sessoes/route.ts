@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 async function getSupabase() {
@@ -160,14 +161,14 @@ export async function PATCH(req: NextRequest) {
           .limit(1);
 
         if (!activeSessoes || activeSessoes.length === 0) {
-          // Máquina vazia: Cria parada órfã automatica (Lacuna OEE)
-          await supabase.from("paradas_maquina").insert({
+          const { error: insErr } = await supabase.from("paradas_maquina").insert({
             maquina_id: data.maquina_id,
             sessao_id: null,
             inicio_parada: fimSessao,
             classificacao: "nao_planejada",
             justificada: false,
           });
+          if (insErr) console.error("[API] Falha ao criar parada órfã (Lacuna OEE):", insErr);
         }
       }
 
@@ -182,11 +183,17 @@ export async function PATCH(req: NextRequest) {
     } else {
       console.log(`[API] Sessão sem peças produzidas (${sessao_id}). Excluindo rastro...`);
       // Lógica de Cancelamento Limpo: Exclui filhas e a própria sessão Vazia
-      const { data: sessaoDel } = await supabase.from("sessoes_producao").select("maquina_id").eq("id", sessao_id).single();
+      const supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        { db: { schema: "apont_rubber_prensa" } }
+      );
 
-      await supabase.from("paradas_maquina").delete().eq("sessao_id", sessao_id);
-      await supabase.from("pulsos_producao").delete().eq("sessao_id", sessao_id);
-      const { error: delError } = await supabase.from("sessoes_producao").delete().eq("id", sessao_id);
+      const { data: sessaoDel } = await supabaseAdmin.from("sessoes_producao").select("maquina_id").eq("id", sessao_id).single();
+
+      await supabaseAdmin.from("paradas_maquina").delete().eq("sessao_id", sessao_id);
+      await supabaseAdmin.from("pulsos_producao").delete().eq("sessao_id", sessao_id);
+      const { error: delError } = await supabaseAdmin.from("sessoes_producao").delete().eq("id", sessao_id);
       
       if (delError) throw delError;
 
@@ -203,13 +210,14 @@ export async function PATCH(req: NextRequest) {
           // Evita duplicação caso já exista uma parada vazia
           const { data: existingOrphan } = await supabase.from("paradas_maquina").select("id").eq("maquina_id", sessaoDel.maquina_id).is("sessao_id", null).is("fim_parada", null).limit(1);
           if (!existingOrphan || existingOrphan.length === 0) {
-            await supabase.from("paradas_maquina").insert({
+            const { error: insErr } = await supabase.from("paradas_maquina").insert({
               maquina_id: sessaoDel.maquina_id,
               sessao_id: null,
               inicio_parada: new Date().toISOString(),
               classificacao: "nao_planejada",
               justificada: false,
             });
+            if (insErr) console.error("[API] Falha ao criar parada órfã em cancelamento limpo:", insErr);
           }
         }
       }
