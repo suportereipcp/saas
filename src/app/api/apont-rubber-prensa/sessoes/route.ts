@@ -136,12 +136,24 @@ export async function PATCH(req: NextRequest) {
     const quantidadeTotal = pulsos?.reduce((acc, p) => acc + (p.qtd_pecas || 0), 0) || 0;
 
     if (quantidadeTotal > 0) {
-      // ATUALIZA STATUS APENAS SE HÁ PEÇAS A SALVAR
-      const fimSessao = new Date().toISOString();
+      // Busca o timestamp do último ciclo (pulso) recebido
+      const { data: ultimoPulso } = await supabase
+        .from("pulsos_producao")
+        .select("timestamp_ciclo")
+        .eq("sessao_id", sessao_id)
+        .order("timestamp_ciclo", { ascending: false })
+        .limit(1)
+        .single();
+
+      // fim_sessao = timestamp do último ciclo, não a hora do clique do operador
+      const fimSessao = ultimoPulso?.timestamp_ciclo
+        ? new Date(ultimoPulso.timestamp_ciclo).toISOString()
+        : new Date().toISOString();
+
       const { data, error } = await supabase
         .from("sessoes_producao")
         .update({
-          status: "finalizado", // Ajuste semântico: o banco mapeou status como "finalizada" (no frontend espera "finalizado" ou "finalizada")
+          status: "finalizado",
           fim_sessao: fimSessao,
           total_refugo,
         })
@@ -161,10 +173,12 @@ export async function PATCH(req: NextRequest) {
           .limit(1);
 
         if (!activeSessoes || activeSessoes.length === 0) {
+          // Parada órfã inicia 1 segundo após o último ciclo (sem gap, sem sobreposição)
+          const inicioParada = new Date(new Date(fimSessao).getTime() + 1000).toISOString();
           const { error: insErr } = await supabase.from("paradas_maquina").insert({
             maquina_id: data.maquina_id,
             sessao_id: null,
-            inicio_parada: fimSessao,
+            inicio_parada: inicioParada,
             classificacao: "nao_planejada",
             justificada: false,
           });

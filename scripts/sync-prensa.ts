@@ -343,14 +343,18 @@ async function watchdogCycle(): Promise<void> {
 
       // CASO 1: TEMPO EXCEDE LIMITE DE ABANDONO TOTAL (Auto-Encerramento de TODA a Máquina)
       if (segundosOcioso > limiteAbandono) {
+        // maquinaStartRef = timestamp do último pulso (última atividade real)
+        const fimSessaoTs = maquinaStartRef.toISOString();
+        const inicioParadaTs = new Date(maquinaStartRef.getTime() + 1000).toISOString();
+
         for (const sessao of sessoes) {
           const paradaAberta = await getParadaAberta(sessao.id);
-          // Se tinha parada na tela pedindo motivo, fecha assumindo motivo Branco (null)
+          // Se tinha parada na tela pedindo motivo, fecha com o timestamp do último pulso
           if (paradaAberta && !paradaAberta.justificada) {
             await supabase
               .from("paradas_maquina")
               .update({ 
-                 fim_parada: new Date().toISOString(), 
+                 fim_parada: fimSessaoTs, 
                  motivo_id: null, 
                  justificada: true 
               })
@@ -366,25 +370,24 @@ async function watchdogCycle(): Promise<void> {
           const quantidadeTotal = pulsos?.reduce((acc, p) => acc + (p.qtd_pecas || 0), 0) || 0;
 
           if (quantidadeTotal > 0) {
-            // Finaliza a Sessão de Produção forçadamente
-            const fimSessao = new Date().toISOString();
+            // Finaliza a Sessão no timestamp do último pulso (não na hora atual)
             await supabase
               .from("sessoes_producao")
               .update({ 
-                status: "finalizado", // Ajuste semântico frontend -> finalizado
-                fim_sessao: fimSessao, 
+                status: "finalizado",
+                fim_sessao: fimSessaoTs, 
                 total_refugo: 0 
               })
               .eq("id", sessao.id);
 
-            // Efetua a Exportação de Peças produzidas até o momento de Abandono para o Datasul
+            // Exportação para o Datasul
             await supabase.from("export_datasul").insert({
               sessao_id: sessao.id,
               item_codigo: sessao.produto_codigo,
               quantidade_total: quantidadeTotal,
               status_importacao: "pendente",
             });
-            console.log(`[WATCHDOG] 🛑 Máquina ${numMaq} abandonada (>${Math.round(limiteAbandono)}s). Sessão ${sessao.id} finalizada e exportada.`);
+            console.log(`[WATCHDOG] 🛑 Máquina ${numMaq} abandonada (>${Math.round(limiteAbandono)}s). Sessão ${sessao.id} finalizada (fim=${fimSessaoTs}).`);
           } else {
             // Lógica de Cancelamento Limpo: Sessão nunca produziu nada
             console.log(`[WATCHDOG] 🗑️ Sessão Inútil Removida (0 Peças): ${sessao.id}`);
@@ -393,7 +396,7 @@ async function watchdogCycle(): Promise<void> {
             await supabase.from("sessoes_producao").delete().eq("id", sessao.id);
           }
 
-          // Zero-Gaps: Ao auto-cancelar a sessão proativa, verifica se esvaziou a máquina
+          // Zero-Gaps: Ao auto-cancelar a sessão, verifica se esvaziou a máquina
           const { data: activeSessoes } = await supabase
             .from("sessoes_producao")
             .select("id")
@@ -404,14 +407,15 @@ async function watchdogCycle(): Promise<void> {
           if (!activeSessoes || activeSessoes.length === 0) {
             const { data: existingOrphan } = await supabase.from("paradas_maquina").select("id").eq("maquina_id", maquinaId).is("sessao_id", null).is("fim_parada", null).limit(1);
             if (!existingOrphan || existingOrphan.length === 0) {
+              // Parada órfã inicia 1 segundo após o último ciclo
               await supabase.from("paradas_maquina").insert({
                 maquina_id: maquinaId,
                 sessao_id: null,
-                inicio_parada: new Date().toISOString(),
+                inicio_parada: inicioParadaTs,
                 classificacao: "nao_planejada",
                 justificada: false,
               });
-              console.log(`[WATCHDOG] ⚠️ Parada Órfã criada para garantir OEE em máquina paralisada (${numMaq})`);
+              console.log(`[WATCHDOG] ⚠️ Parada Órfã criada (início=${inicioParadaTs}) para máquina ${numMaq}`);
             }
           }
         }
