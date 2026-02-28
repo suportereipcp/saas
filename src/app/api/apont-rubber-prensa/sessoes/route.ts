@@ -91,6 +91,25 @@ export async function POST(req: NextRequest) {
 
     if (error) throw error;
 
+    // Zero-Gaps: Encerramento de eventual parada órfã ao iniciar nova sessão
+    const { data: paradaOrfa } = await supabase
+      .from("paradas_maquina")
+      .select("id")
+      .eq("maquina_id", maquina_id)
+      .is("sessao_id", null)
+      .is("fim_parada", null)
+      .limit(1)
+      .maybeSingle();
+
+    if (paradaOrfa) {
+      await supabase.from("paradas_maquina")
+        .update({
+          fim_parada: inicio_sessao.toISOString(),
+          justificada: true // Assume setup transitório sistêmico
+        })
+        .eq("id", paradaOrfa.id);
+    }
+
     return NextResponse.json({ data }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -117,11 +136,12 @@ export async function PATCH(req: NextRequest) {
 
     if (quantidadeTotal > 0) {
       // ATUALIZA STATUS APENAS SE HÁ PEÇAS A SALVAR
+      const fimSessao = new Date().toISOString();
       const { data, error } = await supabase
         .from("sessoes_producao")
         .update({
           status: "finalizado", // Ajuste semântico: o banco mapeou status como "finalizada" (no frontend espera "finalizado" ou "finalizada")
-          fim_sessao: new Date().toISOString(),
+          fim_sessao: fimSessao,
           total_refugo,
         })
         .eq("id", sessao_id)
@@ -129,6 +149,27 @@ export async function PATCH(req: NextRequest) {
         .single();
 
       if (error) throw error;
+
+      // Zero-Gaps: Verifica se era a última sessão em andamento na máquina
+      if (data?.maquina_id) {
+        const { data: activeSessoes } = await supabase
+          .from("sessoes_producao")
+          .select("id")
+          .eq("maquina_id", data.maquina_id)
+          .eq("status", "em_andamento")
+          .limit(1);
+
+        if (!activeSessoes || activeSessoes.length === 0) {
+          // Máquina vazia: Cria parada órfã automatica (Lacuna OEE)
+          await supabase.from("paradas_maquina").insert({
+            maquina_id: data.maquina_id,
+            sessao_id: null,
+            inicio_parada: fimSessao,
+            classificacao: "nao_planejada",
+            justificada: false,
+          });
+        }
+      }
 
       await supabase.from("export_datasul").insert({
         sessao_id,
@@ -141,11 +182,37 @@ export async function PATCH(req: NextRequest) {
     } else {
       console.log(`[API] Sessão sem peças produzidas (${sessao_id}). Excluindo rastro...`);
       // Lógica de Cancelamento Limpo: Exclui filhas e a própria sessão Vazia
+      const { data: sessaoDel } = await supabase.from("sessoes_producao").select("maquina_id").eq("id", sessao_id).single();
+
       await supabase.from("paradas_maquina").delete().eq("sessao_id", sessao_id);
       await supabase.from("pulsos_producao").delete().eq("sessao_id", sessao_id);
       const { error: delError } = await supabase.from("sessoes_producao").delete().eq("id", sessao_id);
       
       if (delError) throw delError;
+
+      // Zero-Gaps: Verifica se exclusão deixou a máquina vazia (Sem sessão rolando)
+      if (sessaoDel?.maquina_id) {
+        const { data: activeSessoes } = await supabase
+          .from("sessoes_producao")
+          .select("id")
+          .eq("maquina_id", sessaoDel.maquina_id)
+          .eq("status", "em_andamento")
+          .limit(1);
+
+        if (!activeSessoes || activeSessoes.length === 0) {
+          // Evita duplicação caso já exista uma parada vazia
+          const { data: existingOrphan } = await supabase.from("paradas_maquina").select("id").eq("maquina_id", sessaoDel.maquina_id).is("sessao_id", null).is("fim_parada", null).limit(1);
+          if (!existingOrphan || existingOrphan.length === 0) {
+            await supabase.from("paradas_maquina").insert({
+              maquina_id: sessaoDel.maquina_id,
+              sessao_id: null,
+              inicio_parada: new Date().toISOString(),
+              classificacao: "nao_planejada",
+              justificada: false,
+            });
+          }
+        }
+      }
       
       return NextResponse.json({ data: { deleted: true, reason: 'zero_production' } }, { status: 200 });
     }
