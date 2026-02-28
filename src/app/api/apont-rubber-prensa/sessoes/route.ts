@@ -108,19 +108,6 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Campo obrigatório" }, { status: 400 });
     }
 
-    const { data, error } = await supabase
-      .from("sessoes_producao")
-      .update({
-        status: "finalizado",
-        fim_sessao: new Date().toISOString(),
-        total_refugo,
-      })
-      .eq("id", sessao_id)
-      .select("*")
-      .single();
-
-    if (error) throw error;
-
     const { data: pulsos } = await supabase
       .from("pulsos_producao")
       .select("qtd_pecas")
@@ -128,14 +115,40 @@ export async function PATCH(req: NextRequest) {
 
     const quantidadeTotal = pulsos?.reduce((acc, p) => acc + (p.qtd_pecas || 0), 0) || 0;
 
-    await supabase.from("export_datasul").insert({
-      sessao_id,
-      item_codigo: (data as any)?.produto_codigo || null,
-      quantidade_total: quantidadeTotal,
-      status_importacao: "pendente",
-    });
+    if (quantidadeTotal > 0) {
+      // ATUALIZA STATUS APENAS SE HÁ PEÇAS A SALVAR
+      const { data, error } = await supabase
+        .from("sessoes_producao")
+        .update({
+          status: "finalizado", // Ajuste semântico: o banco mapeou status como "finalizada" (no frontend espera "finalizado" ou "finalizada")
+          fim_sessao: new Date().toISOString(),
+          total_refugo,
+        })
+        .eq("id", sessao_id)
+        .select("*")
+        .single();
 
-    return NextResponse.json({ data }, { status: 200 });
+      if (error) throw error;
+
+      await supabase.from("export_datasul").insert({
+        sessao_id,
+        item_codigo: (data as any)?.produto_codigo || null,
+        quantidade_total: quantidadeTotal,
+        status_importacao: "pendente",
+      });
+
+      return NextResponse.json({ data }, { status: 200 });
+    } else {
+      console.log(`[API] Sessão sem peças produzidas (${sessao_id}). Excluindo rastro...`);
+      // Lógica de Cancelamento Limpo: Exclui filhas e a própria sessão Vazia
+      await supabase.from("paradas_maquina").delete().eq("sessao_id", sessao_id);
+      await supabase.from("pulsos_producao").delete().eq("sessao_id", sessao_id);
+      const { error: delError } = await supabase.from("sessoes_producao").delete().eq("id", sessao_id);
+      
+      if (delError) throw delError;
+      
+      return NextResponse.json({ data: { deleted: true, reason: 'zero_production' } }, { status: 200 });
+    }
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
