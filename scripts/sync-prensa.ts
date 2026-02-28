@@ -356,17 +356,7 @@ async function watchdogCycle(): Promise<void> {
               .eq("id", paradaAberta.id);
           }
           
-          // Finaliza a Sessão de Produção forçadamente
-          await supabase
-            .from("sessoes_producao")
-            .update({ 
-              status: "finalizada", 
-              fim_sessao: new Date().toISOString(), 
-              total_refugo: 0 
-            })
-            .eq("id", sessao.id);
-
-          // Efetua a Exportação de Peças produzidas até o momento de Abandono para o Datasul
+          // Conta se houve realmente peças antes de fechar a sessão
           const { data: pulsos } = await supabase
             .from("pulsos_producao")
             .select("qtd_pecas")
@@ -375,15 +365,32 @@ async function watchdogCycle(): Promise<void> {
           const quantidadeTotal = pulsos?.reduce((acc, p) => acc + (p.qtd_pecas || 0), 0) || 0;
 
           if (quantidadeTotal > 0) {
+            // Finaliza a Sessão de Produção forçadamente
+            await supabase
+              .from("sessoes_producao")
+              .update({ 
+                status: "finalizada", 
+                fim_sessao: new Date().toISOString(), 
+                total_refugo: 0 
+              })
+              .eq("id", sessao.id);
+
+            // Efetua a Exportação de Peças produzidas até o momento de Abandono para o Datasul
             await supabase.from("export_datasul").insert({
               sessao_id: sessao.id,
               item_codigo: sessao.produto_codigo,
               quantidade_total: quantidadeTotal,
               status_importacao: "pendente",
             });
+            console.log(`[WATCHDOG] 🛑 Máquina ${numMaq} abandonada (>${Math.round(limiteAbandono)}s). Sessão ${sessao.id} finalizada e exportada.`);
+          } else {
+            // Lógica de Cancelamento Limpo: Sessão nunca produziu nada
+            console.log(`[WATCHDOG] 🗑️ Sessão Inútil Removida (0 Peças): ${sessao.id}`);
+            await supabase.from("paradas_maquina").delete().eq("sessao_id", sessao.id);
+            await supabase.from("pulsos_producao").delete().eq("sessao_id", sessao.id);
+            await supabase.from("sessoes_producao").delete().eq("id", sessao.id);
           }
         }
-        console.log(`[WATCHDOG] 🛑 Máquina ${numMaq} abandonada (>${Math.round(limiteAbandono)}s). Sessões finalizadas e exportadas. (${sessoes.length} itens)`);
         continue;
       }
 
