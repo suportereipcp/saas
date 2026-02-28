@@ -437,9 +437,9 @@ export default function OperadorPage() {
     statusHeaderBgClass = "bg-gray-600 text-white";
   } else if (paradaOrfaAberta && paradaOrfaAberta.justificada) {
     const descMotivo = motivosParada.find((m: any) => m.id.toString() === paradaOrfaAberta.motivo_id?.toString())?.descricao;
-    statusGlobal = descMotivo ? `MÁQUINA PARADA - ${descMotivo}` : "MÁQUINA PARADA (JUSTIFICADA)";
-    statusColorClass = "border-gray-500 bg-gray-100 dark:bg-gray-800";
-    statusHeaderBgClass = "bg-gray-600 text-white";
+    statusGlobal = descMotivo ? `MÁQUINA PARADA - ${descMotivo.toUpperCase()}` : "MÁQUINA PARADA";
+    statusColorClass = "border-[#ff0707] dark:border-[#ff0707] bg-[#ff0707]/10 dark:bg-[#ff0707]/20";
+    statusHeaderBgClass = "bg-[#ff0707] dark:bg-[#ff0707] text-white";
   }
 
   const isAlertaFantasmaAtivo = alertasPendentes.some(a => a.maquina_id === selectedMaquina);
@@ -523,38 +523,45 @@ export default function OperadorPage() {
 
             {/* Se houver qualquer parada Não Justificada ou Operador clicou em Registrar Parada Órfã */}
             {(isAnyPlatoParadoNaoJustificado || isRegistrandoParadaOrfa) ? (
-              <div className="flex flex-col items-center justify-center p-6 sm:p-8 xl:p-16 bg-background/80 backdrop-blur-sm rounded-xl border border-destructive/30 space-y-6 sm:space-y-8 xl:space-y-12">
-                <div className="flex flex-col items-center gap-3 text-destructive font-black text-2xl sm:text-3xl xl:text-6xl text-center">
-                  <AlertTriangle className="w-12 h-12 sm:w-16 sm:h-16 xl:w-28 xl:h-28 animate-pulse" />
-                  <span>A MÁQUINA PAROU. QUAL O MOTIVO?</span>
-                  
-                  {isRegistrandoParadaOrfa && (
-                    <Button variant="outline" onClick={() => setIsRegistrandoParadaOrfa(false)} className="mt-4 text-lg">
-                      CANCELAR (VOLTAR)
-                    </Button>
-                  )}
-
-                  {/* Exibindo a "Parada desde..." apenas uma vez (do primeiro plato que triggou o alerta) */}
+              <div className="flex flex-col items-center justify-center p-4 sm:p-6 xl:p-12 space-y-4 sm:space-y-6 xl:space-y-8">
+                
+                {/* Título */}
+                <div className="text-center space-y-2">
+                  <h2 className="text-xl sm:text-2xl xl:text-5xl font-black text-[#ff0707] tracking-wider uppercase">
+                    QUAL O MOTIVO DA PARADA?
+                  </h2>
                   {paradasDaMaquina.filter(p => !p.justificada).slice(0, 1).map(parada => (
-                    <span key={parada.id} className="text-lg sm:text-xl xl:text-3xl font-medium text-foreground mt-2">
+                    <p key={parada.id} className="text-sm sm:text-base xl:text-2xl font-medium text-muted-foreground">
                       Parada desde {new Date(parada.inicio_parada).toLocaleTimeString("pt-BR")}
-                    </span>
+                    </p>
                   ))}
                 </div>
-                <div className="grid grid-cols-1 w-full max-w-4xl xl:max-w-7xl">
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 xl:gap-6 w-full">
-                      {motivosParada.map((motivo: { id: string; descricao: string }) => (
-                        <Button
-                          key={motivo.id}
-                          disabled={actionLoading}
-                          onClick={() => justificarParada(motivo.id)}
-                          className="h-16 xl:h-24 text-sm sm:text-base xl:text-2xl font-bold whitespace-normal h-auto rounded-xl shadow-md bg-secondary text-secondary-foreground hover:bg-secondary/80 focus:ring-4 focus:ring-secondary/40"
-                        >
-                          {motivo.descricao}
-                        </Button>
-                      ))}
-                    </div>
+
+                {/* Grid de motivos */}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 xl:gap-6 w-full">
+                  {motivosParada.map((motivo: { id: string; descricao: string }) => (
+                    <Button
+                      key={motivo.id}
+                      disabled={actionLoading}
+                      onClick={() => justificarParada(motivo.id)}
+                      className="h-14 sm:h-16 xl:h-24 text-sm sm:text-lg xl:text-2xl font-bold whitespace-normal rounded-xl shadow-md text-white hover:opacity-90 transition-opacity"
+                      style={{ backgroundColor: '#013A7F' }}
+                    >
+                      {motivo.descricao}
+                    </Button>
+                  ))}
                 </div>
+
+                {/* Botão Cancelar (apenas para parada órfã) */}
+                {isRegistrandoParadaOrfa && (
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setIsRegistrandoParadaOrfa(false)} 
+                    className="h-12 sm:h-14 xl:h-20 px-8 sm:px-12 text-sm sm:text-lg xl:text-2xl font-bold uppercase tracking-widest rounded-full border-2 border-muted-foreground/40 text-muted-foreground hover:bg-muted transition-colors"
+                  >
+                    CANCELAR
+                  </Button>
+                )}
               </div>
             ) : (
               // SE NÃO HOUVER PARADA TRANCADA, MOSTRA OS PLATOS NORMALMENTE
@@ -578,17 +585,14 @@ export default function OperadorPage() {
                       </div>
                     </CardHeader>
 
-                    <CardContent className="p-3 sm:p-4 xl:p-8 flex-1 flex flex-col justify-center">
+                    <CardContent className="p-2 sm:p-3 xl:p-6 flex-1 flex flex-col justify-center">
                       {sessaoAtiva ? (
-                        /* PLATO OCUPADO */
-                        <div className="flex flex-col space-y-4 xl:space-y-6 flex-1 items-center justify-center">
-                          <div className="text-center">
-                            <span className="text-2xl sm:text-4xl xl:text-5xl font-black text-white">{sessaoAtiva.produto_codigo}</span>
-                          </div>
-                          
-                          <div className="bg-white/10 px-6 py-4 xl:px-12 xl:py-6 rounded-lg xl:rounded-2xl border border-white/20 text-center w-full">
-                            <span className="text-xs xl:text-lg uppercase font-bold text-white/80 tracking-wider mb-1 block">Peças Produzidas</span>
-                            <span className="text-4xl sm:text-5xl xl:text-7xl font-black text-white font-mono drop-shadow-sm">{pulsosCount[sessaoAtiva.id] || 0}</span>
+                        /* PLATO OCUPADO - Layout horizontal compacto */
+                        <div className="flex items-center justify-between w-full">
+                          <span className="text-2xl sm:text-3xl xl:text-5xl font-black text-white truncate">{sessaoAtiva.produto_codigo}</span>
+                          <div className="flex flex-col items-end flex-shrink-0 ml-4">
+                            <span className="text-[10px] sm:text-xs xl:text-base uppercase font-bold text-white/60 tracking-wider leading-tight">Peças</span>
+                            <span className="text-3xl sm:text-4xl xl:text-6xl font-black text-white font-mono leading-none">{pulsosCount[sessaoAtiva.id] || 0}</span>
                           </div>
                         </div>
                       ) : sessoesAtivas.length > 0 ? (
