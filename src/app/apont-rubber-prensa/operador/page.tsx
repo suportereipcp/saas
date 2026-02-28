@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { Loader2, Play, Square, AlertTriangle, Layers, Search, Factory, ArrowLeft, XCircle, Settings, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,6 +81,10 @@ export default function OperadorPage() {
   const [platoSelecionandoProduto, setPlatoSelecionandoProduto] = useState<number | null>(null);
   const [isSelecionandoOperador, setIsSelecionandoOperador] = useState(false);
 
+  // Flags para Reset de Operador Silencioso (Zero-Gaps)
+  const prevSessoesCount = useRef<number>(0);
+  const userRequestedFinish = useRef<boolean>(false);
+
   const maquinaAtiva = maquinas.find((m) => m.id === selectedMaquina);
 
   const loadCadastros = useCallback(async () => {
@@ -148,6 +152,18 @@ export default function OperadorPage() {
       .order("plato", { ascending: true });
 
     const sessoes = data || [];
+
+    // Lógica para deslogar operador em Auto-Cancelamento (Watchdog finalizou todas as sessões p/ nós)
+    if (prevSessoesCount.current > 0 && sessoes.length === 0) {
+      if (!userRequestedFinish.current) {
+        setGlobalOperador("");
+        setGlobalOperadorNome("");
+        setBuscaGlobalOperador("");
+      }
+      userRequestedFinish.current = false; // Arma gatilho novamente
+    }
+    prevSessoesCount.current = sessoes.length;
+
     setSessoesAtivas(sessoes);
 
     // Busca alertas (producao fantasma)
@@ -253,6 +269,7 @@ export default function OperadorPage() {
   };
 
   const finalizarPlatoUnico = async (sessaoId: string) => {
+    userRequestedFinish.current = true;
     setActionLoading(true);
     try {
       await fetch("/api/apont-rubber-prensa/sessoes", {
@@ -364,9 +381,14 @@ export default function OperadorPage() {
                   className={`cursor-pointer rounded-2xl flex flex-col items-center justify-center w-[160px] h-[160px] border-2 transition-transform duration-200 hover:scale-105 ${bgClass}`}
                   onClick={() => { setSelectedMaquina(maq.id); setViewMode("painel"); }}
                 >
-                   <span className="text-xl sm:text-2xl font-black uppercase tracking-widest text-center px-1">
-                     Prensa {maq.num_maq}
-                   </span>
+                   <div className="flex flex-col items-center justify-center text-center">
+                     <span className="text-sm sm:text-base font-bold uppercase tracking-[0.2em] opacity-80 mb-1">
+                       PRENSA
+                     </span>
+                     <span className="text-4xl sm:text-5xl font-black uppercase tracking-widest text-foreground">
+                       {maq.num_maq}
+                     </span>
+                   </div>
                 </div>
               );
             })}
@@ -392,8 +414,8 @@ export default function OperadorPage() {
   const isEmProducao = sessoesAtivas.length > 0 && paradasDaMaquina.length === 0;
 
   let statusGlobal = "MÁQUINA PARADA";
-  let statusColorClass = "border-red-900 dark:border-red-800 bg-red-50 dark:bg-red-950/20";
-  let statusHeaderBgClass = "bg-red-900 dark:bg-red-900 text-white";
+  let statusColorClass = "border-[#ff0707] dark:border-[#ff0707] bg-[#ff0707]/10 dark:bg-[#ff0707]/20";
+  let statusHeaderBgClass = "bg-[#ff0707] dark:bg-[#ff0707] text-white";
 
   if (isAnyPlatoParadoNaoJustificado) {
     statusGlobal = "PARADA NÃO JUSTIFICADA";
@@ -435,7 +457,7 @@ export default function OperadorPage() {
   });
 
   return (
-    <div className="flex flex-col min-h-[100vh] w-full bg-background relative pb-8">
+    <div className="flex flex-col w-full bg-background relative">
       
       {/* HEADER DE NAVEGAÇÃO SUPERIOR (Simples e Compacto) */}
       <div className="flex items-center justify-between px-4 sm:px-6 py-2 xl:py-4 border-b border-border bg-card">
@@ -542,14 +564,14 @@ export default function OperadorPage() {
                 const pOptions = produtoOptions[plato] || [];
 
                 return (
-                  <Card key={plato} className="flex flex-col border-border shadow-sm h-full bg-background/90 backdrop-blur">
-                    <CardHeader className="py-2 px-3 sm:py-3 sm:px-4 xl:py-6 xl:px-8 border-b border-border/50 bg-muted/30">
+                  <Card key={plato} className={`flex flex-col shadow-sm h-full backdrop-blur border-border sm:border-[2px] xl:border-[3px] ${sessaoAtiva ? 'bg-[#12A552] text-white border-[#12A552]/80' : 'bg-background/90'}`}>
+                    <CardHeader className={`py-2 px-3 sm:py-3 sm:px-4 xl:py-6 xl:px-8 border-b ${sessaoAtiva ? 'border-white/20' : 'border-border/50 bg-muted/30'}`}>
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-base sm:text-lg xl:text-3xl text-foreground flex items-center gap-2">
+                        <span className={`font-bold text-base sm:text-lg xl:text-3xl flex items-center gap-2 ${sessaoAtiva ? 'text-white' : 'text-foreground'}`}>
                           <Layers className="w-5 h-5 xl:w-8 xl:h-8" /> Produto {plato}
                         </span>
                         {sessaoAtiva ? (
-                          <Badge className="bg-emerald-600 text-white hover:bg-emerald-700 xl:text-xl xl:py-2 xl:px-4">Ativo</Badge>
+                          <Badge className="bg-white/20 text-white hover:bg-white/30 border-white/30 xl:text-xl xl:py-2 xl:px-4">Ativo</Badge>
                         ) : (
                           <Badge variant="outline" className="text-muted-foreground xl:text-xl xl:py-2 xl:px-4">Livre</Badge>
                         )}
@@ -561,12 +583,12 @@ export default function OperadorPage() {
                         /* PLATO OCUPADO */
                         <div className="flex flex-col space-y-4 xl:space-y-6 flex-1 items-center justify-center">
                           <div className="text-center">
-                            <span className="text-2xl xl:text-4xl font-black text-foreground">{sessaoAtiva.produto_codigo}</span>
+                            <span className="text-2xl sm:text-4xl xl:text-5xl font-black text-white">{sessaoAtiva.produto_codigo}</span>
                           </div>
                           
-                          <div className="bg-muted px-6 py-4 xl:px-12 xl:py-6 rounded-lg xl:rounded-2xl border border-border/50 text-center w-full">
-                            <span className="text-xs xl:text-lg uppercase font-bold text-muted-foreground tracking-wider mb-1 block">Peças Produzidas</span>
-                            <span className="text-4xl xl:text-6xl font-black text-primary font-mono">{pulsosCount[sessaoAtiva.id] || 0}</span>
+                          <div className="bg-white/10 px-6 py-4 xl:px-12 xl:py-6 rounded-lg xl:rounded-2xl border border-white/20 text-center w-full">
+                            <span className="text-xs xl:text-lg uppercase font-bold text-white/80 tracking-wider mb-1 block">Peças Produzidas</span>
+                            <span className="text-4xl sm:text-5xl xl:text-7xl font-black text-white font-mono drop-shadow-sm">{pulsosCount[sessaoAtiva.id] || 0}</span>
                           </div>
                         </div>
                       ) : sessoesAtivas.length > 0 ? (
@@ -578,10 +600,15 @@ export default function OperadorPage() {
                         /* PLATO LIVRE (BUSCA DE PRODUTO) */
                         <div className="flex flex-col space-y-2 sm:space-y-4 xl:space-y-8 justify-center h-full">
                           {formData.produto ? (
-                            <div className="flex items-center justify-between p-2 sm:p-3 xl:p-6 bg-primary/10 border border-primary/20 rounded-lg">
-                              <span className="font-bold text-base bg-transparent sm:text-lg xl:text-3xl text-primary truncate max-w-[150px] xl:max-w-xs">{formData.produto}</span>
-                              <Button variant="ghost" onClick={() => { updateForm(plato, "produto", ""); updateForm(plato, "buscaProduto", ""); }} className="h-10 w-10 sm:h-12 sm:w-12 xl:h-16 xl:w-16 p-0 hover:bg-destructive/10">
-                                <XCircle className="w-8 h-8 sm:w-10 sm:h-10 xl:w-12 xl:h-12 text-destructive" />
+                            <div className="flex items-center justify-between h-12 sm:h-14 xl:h-16 px-4 sm:px-6 rounded-lg shadow-sm w-full" style={{ backgroundColor: '#013A7F' }}>
+                              <span className="font-black text-2xl sm:text-3xl xl:text-4xl truncate" style={{ color: '#ffffff' }}>{formData.produto}</span>
+                              <Button 
+                                variant="outline" 
+                                onClick={() => { updateForm(plato, "produto", ""); updateForm(plato, "buscaProduto", ""); }} 
+                                className="h-8 sm:h-10 xl:h-12 px-4 sm:px-6 text-sm sm:text-lg xl:text-xl font-bold uppercase tracking-widest text-white border-2 border-white transition-colors rounded-full flex-shrink-0 hover:bg-white hover:text-[#013A7F]"
+                                style={{ backgroundColor: '#013A7F' }}
+                              >
+                                Remover
                               </Button>
                             </div>
                           ) : (
@@ -608,7 +635,7 @@ export default function OperadorPage() {
         {/* BOTÃO MESTRE DE AÇÕES (ABAIXO DO CARD DA MÁQUINA)         */}
         {/* ========================================================= */}
         {!isAnyPlatoParadoNaoJustificado && (
-          <div className="w-full flex justify-center mt-3 sm:mt-6 xl:mt-10 mb-4 sm:mb-8 pointer-events-none">
+          <div className="w-full flex justify-center mt-3 sm:mt-6 xl:mt-10 mb-0 pb-4 pointer-events-none">
             <style>{`
               @keyframes soft-pulse-scale {
                 0%, 100% { transform: scale(1); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); }
@@ -626,8 +653,8 @@ export default function OperadorPage() {
                 // MÁQUINA PARADA: MOSTRA INICIAR PRODUÇÃO E REGISTRAR PARADA
                 <div className="w-full flex gap-4">
                   <Button 
-                    variant="outline"
-                    className="flex-1 h-16 sm:h-20 xl:h-24 text-sm sm:text-xl xl:text-2xl font-black tracking-widest uppercase rounded-full shadow-lg border-[3px] border-dashed border-red-900/40 text-red-900 hover:bg-red-50 hover:text-red-900 transition-all"
+                    variant="default"
+                    className="flex-1 h-16 sm:h-20 xl:h-24 text-sm sm:text-xl xl:text-2xl font-black tracking-widest uppercase rounded-full shadow-lg bg-[#ff0707] text-white hover:bg-red-800 transition-all border-none"
                     onClick={() => setIsRegistrandoParadaOrfa(true)}
                   >
                     REGISTRAR PARADA
