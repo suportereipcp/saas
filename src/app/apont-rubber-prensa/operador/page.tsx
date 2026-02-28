@@ -54,7 +54,7 @@ export default function OperadorPage() {
   const [selectedMaquina, setSelectedMaquina] = useState<string>("");
 
   const [maquinas, setMaquinas] = useState<Maquina[]>([]);
-  const [motivosParada, setMotivosParada] = useState<{ id: string; label: string }[]>([]);
+  const [motivosParada, setMotivosParada] = useState<{ id: string; descricao: string }[]>([]);
   const [sessoesAtivas, setSessoesAtivas] = useState<SessaoAtiva[]>([]);
   const [paradasPendentes, setParadasPendentes] = useState<Parada[]>([]);
   const [pulsosCount, setPulsosCount] = useState<Record<string, number>>({});
@@ -82,20 +82,17 @@ export default function OperadorPage() {
     const { data: mData } = await supabase.schema("apont_rubber_prensa").from("maquinas").select("*").eq("ativo", true).order("num_maq");
     setMaquinas(mData || []);
 
-    // 2. Carrega os motivos de parada (Somente os ativos para o Operador) via Supabase Client
+    // 2. Carrega os motivos de parada via API Root Admin (Bypassa RLS Cache 403)
     try {
-      const { data, error } = await supabase
-        .schema("apont_rubber_prensa")
-        .from("cad_motivos_parada")
-        .select("id, descricao")
-        .eq("ativo", true)
-        .order("id", { ascending: true });
-
-      if (!error && data) {
-        setMotivosParada(data.map((m: any) => ({ id: m.id, label: m.descricao })));
+      const resp = await fetch("/api/apont-rubber-prensa/motivos-parada");
+      if (resp.ok) {
+        const { data } = await resp.json();
+        if (data) {
+          setMotivosParada(data.map((m: any) => ({ id: m.id, descricao: m.descricao })));
+        }
       }
     } catch (e) {
-      console.error("Falha ao carregar motivos:", e);
+      console.error("Falha ao carregar motivos via API Interna:", e);
     }
   }, []);
 
@@ -483,14 +480,14 @@ export default function OperadorPage() {
                 </div>
                 <div className="grid grid-cols-1 w-full max-w-4xl xl:max-w-7xl">
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 xl:gap-6 w-full">
-                      {motivosParada.map((motivo: { id: string; label: string }) => (
+                      {motivosParada.map((motivo: { id: string; descricao: string }) => (
                         <Button
                           key={motivo.id}
                           disabled={actionLoading}
                           onClick={() => justificarParada(motivo.id)}
                           className="h-16 xl:h-24 text-sm sm:text-base xl:text-2xl font-bold whitespace-normal h-auto rounded-xl shadow-md bg-secondary text-secondary-foreground hover:bg-secondary/80 focus:ring-4 focus:ring-secondary/40"
                         >
-                          {motivo.label}
+                          {motivo.descricao}
                         </Button>
                       ))}
                     </div>

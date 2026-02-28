@@ -1,0 +1,151 @@
+{
+  "exports": [
+    {
+      "id": "08b2a02a-fbb1-4ddb-b347-1da15b0cefb2",
+      "sessao_id": "6dcc01b8-8d51-4a69-815b-57fa8b8380d3",
+      "data_finalizacao": "2026-02-28T02:41:36.226471+00:00",
+      "item_codigo": "R-3031.2",
+      "quantidade_total": 90,
+      "status_importacao": "pendente",
+      "log_erro": null
+    }
+  ],
+  "sessao": {
+    "id": "6dcc01b8-8d51-4a69-815b-57fa8b8380d3",
+    "maquina_id": "b66a54ac-63e5-42ee-8d7c-5c01b363823f",
+    "operador_matricula": "1181",
+    "inicio_sessao": "2026-02-28T02:25:04.828+00:00",
+    "fim_sessao": "2026-02-28T02:41:36.064+00:00",
+    "status": "finalizada",
+    "total_refugo": 0,
+    "produto_codigo": "R-3031.2",
+    "plato": 1
+  },
+  "pulsos": [
+    {
+      "id": "54efc73d-3d72-4f22-907a-c3b70df1f7af",
+      "sessao_id": "6dcc01b8-8d51-4a69-815b-57fa8b8380d3",
+      "timestamp_ciclo": "2026-02-27T14:30:00+00:00",
+      "qtd_pecas": 9,
+      "intervalo_segundos": -43260,
+      "mariadb_id": "1_p1",
+      "criado_em": "2026-02-28T02:38:12.773968+00:00"
+    },
+    {
+      "id": "2dd8365c-0fb8-400b-bb9b-c9426dee0d38",
+      "sessao_id": "6dcc01b8-8d51-4a69-815b-57fa8b8380d3",
+      "timestamp_ciclo": "2026-02-27T14:33:00+00:00",
+      "qtd_pecas": 9,
+      "intervalo_segundos": -43080,
+      "mariadb_id": "2_p1",
+      "criado_em": "2026-02-28T02:38:13.197915+00:00"
+    },
+    {
+      "id": "bf6d8b87-5620-4f49-9b27-975863d86d7a",
+      "sessao_id": "6dcc01b8-8d51-4a69-815b-57fa8b8380d3",
+      "timestamp_ciclo": "2026-02-27T16:22:00+00:00",
+      "qtd_pecas": 9,
+      "intervalo_segundos": -36540,
+      "mariadb_id": "3_p1",
+      "criado_em": "2026-02-28T02:38:13.599096+00:00"
+    },
+    {
+      "id": "48d185d4-5432-44bc-bba3-25ddd8a0e5aa",
+      "sessao_id": "6dcc01b8-8d51-4a69-815b-57fa8b8380d3",
+      "timestamp_ciclo": "2026-02-27T18:44:00+00:00",
+      "qtd_pecas": 9,
+      "intervalo_segundos": -28020,
+      "mariadb_id": "4_p1",
+      "criado_em": "2026-02-28T02:38:14.012316+00:00"
+    },
+    {
+      "id": "cc0add16-b9fd-418a-ab15-ef6f921cd0b8",
+      "sessao_id": "6dcc01b8-8d51-4a69-815b-57fa8b8380d3",
+      "timestamp_ciclo": "2026-02-28T01:00:00+00:00",
+      "qtd_pecas": 9,
+      "intervalo_segundos": -5460,
+      "mariadb_id": "5_p1",
+      "criado_em": "2026-02-28T02:38:14.491749+00:00"
+    },
+    {
+      "id": "3eb7c4c0-5ad3-42ec-88a9-d33b50e1601c",
+      "sessao_id": "6dcc01b8-8d51-4a69-815b-57fa8b8380d3",
+      "timestamp_ciclo": "2026-02-28T01:26:00+00:00",
+      "qtd_pecas": 9,
+      "intervalo_segundos": -3900,
+      "mariadb_id": "6_p1",
+      "criado_em": "2026-02-28T02:38:14.905858+00:00"
+    },
+    {
+      "id": "d80600d3-71ef-44e7-abc4-5a23279ff97c",
+      "sessao_id": "6dcc01b8-8d51-4a69-815b-57fa8b8380d3",
+      "timestamp_ciclo": "2026-02-28T01:33:00+00:00",
+      "qtd_pecas": 9,
+      "intervalo_segundos": -3480,
+      "mariadb_id": "7_p1",
+      "criado_em": "2026-02-28T02:38:15.30707+00:00"
+    },
+    {
+      "id": "a7a29ef9-f45f-452c-8d8d-a2093efa05d9",
+      "sessao_id": "6dcc01b8-8d51-4a69-815b-57fa8b8380d3",
+      "timestamp_ciclo": "2026-02-28T01:36:00+00:00",
+      "qtd_pecas": 9,
+      "intervalo_segundos": -3300,
+      "mariadb_id": "8_p1",
+      "criado_em": "2026-02-28T02:38:15.865855+00:00"
+    },
+    {
+      "id": "09871047-8340-4248-8cd2-b859763b6080",
+      "sessao_id": "6dcc01b8-8d51-4a69-815b-57fa8b8380d3",
+      "timestamp_ciclo": "2026-02-28T02:27:00+00:00",
+      "qtd_pecas": 9,
+      "intervalo_segundos": null,
+      "mariadb_id": "9_p1",
+      "criado_em": "2026-02-28T02:30:24.035144+00:00"
+    },
+    {
+      "id": "ece7be27-600f-4f0d-a48e-61791e05607b",
+      "sessao_id": "6dcc01b8-8d51-4a69-815b-57fa8b8380d3",
+      "timestamp_ciclo": "2026-02-28T02:31:00+00:00",
+      "qtd_pecas": 9,
+      "intervalo_segundos": 240,
+      "mariadb_id": "10_p1",
+      "criado_em": "2026-02-28T02:31:47.853678+00:00"
+    }
+  ],
+  "paradas": [
+    {
+      "id": "88e4094f-d5c6-4dab-9186-2bfcead8a53f",
+      "maquina_id": "b66a54ac-63e5-42ee-8d7c-5c01b363823f",
+      "sessao_id": "6dcc01b8-8d51-4a69-815b-57fa8b8380d3",
+      "inicio_parada": "2026-02-28T02:31:00+00:00",
+      "fim_parada": "2026-02-27T14:30:00+00:00",
+      "motivo_id": null,
+      "classificacao": "nao_planejada",
+      "justificada": false
+    },
+    {
+      "id": "ff254668-2637-469c-b73b-3c4f9b8a569f",
+      "maquina_id": "b66a54ac-63e5-42ee-8d7c-5c01b363823f",
+      "sessao_id": "6dcc01b8-8d51-4a69-815b-57fa8b8380d3",
+      "inicio_parada": "2026-02-28T02:31:00+00:00",
+      "fim_parada": "2026-02-28T02:41:36.006+00:00",
+      "motivo_id": null,
+      "classificacao": "nao_planejada",
+      "justificada": true
+    }
+  ],
+  "alertas": [
+    {
+      "id": "f528df51-de5e-44f5-b140-faafb24e39a6",
+      "maquina_id": "b66a54ac-63e5-42ee-8d7c-5c01b363823f",
+      "tipo": "producao_fantasma",
+      "resolvido": false,
+      "created_at": "2026-02-28T02:42:44.934146+00:00",
+      "updated_at": "2026-02-28T02:42:44.934146+00:00",
+      "metadata": {
+        "timestamp_mariadb": "2026-02-27T14:30:00.000Z"
+      }
+    }
+  ]
+}
