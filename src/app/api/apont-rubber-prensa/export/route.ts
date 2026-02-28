@@ -38,7 +38,8 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase.from("export_datasul").insert({
       sessao_id,
       item_codigo: sessao.produto_codigo || null,
-      quantidade_total: (count || 0) - (sessao.total_refugo || 0),
+      operador_matricula: sessao.operador_matricula || null,
+      quantidade_total: sessao.qtd_produzida || (count || 0),
       status_importacao: "pendente",
     }).select().single();
 

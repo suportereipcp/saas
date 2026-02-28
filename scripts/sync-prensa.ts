@@ -49,7 +49,7 @@ async function setLastSyncedId(id: number): Promise<void> {
 /**
  * Busca TODAS as sessões ativas para a máquina (uma por plato)
  */
-async function getSessoesAtivas(numMaq: string): Promise<{ id: string; produto_codigo: string; plato: number }[]> {
+async function getSessoesAtivas(numMaq: string): Promise<{ id: string; produto_codigo: string; plato: number; operador_matricula: string }[]> {
   const { data: maquina } = await supabase
     .from("maquinas")
     .select("id")
@@ -60,7 +60,7 @@ async function getSessoesAtivas(numMaq: string): Promise<{ id: string; produto_c
 
   const { data: sessoes } = await supabase
     .from("sessoes_producao")
-    .select("id, produto_codigo, plato")
+    .select("id, produto_codigo, plato, operador_matricula")
     .eq("maquina_id", maquina.id)
     .eq("status", "em_andamento");
 
@@ -151,7 +151,7 @@ async function criarParada(maquinaNumMaq: string, sessaoId: string, inicioParada
     maquina_id: maquina.id,
     sessao_id: sessaoId,
     inicio_parada: inicioParada.toISOString(),
-    classificacao: "nao_planejada",
+    motivo_id: "00",
     justificada: false,
     // fim_parada é NULL por default no banco
   });
@@ -267,6 +267,14 @@ async function syncCycle(): Promise<void> {
 
         if (error && !error.message.includes("duplicate") && !error.message.includes("unique")) {
           console.error(`[SYNC] Erro ao inserir pulso ${row.id} plato ${sessao.plato}:`, error.message);
+        } else if (!error) {
+          // Atualiza qtd_produzida na sessão (total acumulado até o momento)
+          const { data: totalPulsos } = await supabase
+            .from("pulsos_producao")
+            .select("qtd_pecas")
+            .eq("sessao_id", sessao.id);
+          const qtdProduzida = (totalPulsos || []).reduce((acc, p) => acc + (p.qtd_pecas || 0), 0);
+          await supabase.from("sessoes_producao").update({ qtd_produzida: qtdProduzida }).eq("id", sessao.id);
         }
       }
 
@@ -355,7 +363,7 @@ async function watchdogCycle(): Promise<void> {
               .from("paradas_maquina")
               .update({ 
                  fim_parada: fimSessaoTs, 
-                 motivo_id: null, 
+                 motivo_id: "00", 
                  justificada: true 
               })
               .eq("id", paradaAberta.id);
@@ -376,7 +384,7 @@ async function watchdogCycle(): Promise<void> {
               .update({ 
                 status: "finalizado",
                 fim_sessao: fimSessaoTs, 
-                total_refugo: 0 
+                qtd_produzida: quantidadeTotal 
               })
               .eq("id", sessao.id);
 
@@ -384,6 +392,7 @@ async function watchdogCycle(): Promise<void> {
             await supabase.from("export_datasul").insert({
               sessao_id: sessao.id,
               item_codigo: sessao.produto_codigo,
+              operador_matricula: sessao.operador_matricula,
               quantidade_total: quantidadeTotal,
               status_importacao: "pendente",
             });
@@ -412,7 +421,7 @@ async function watchdogCycle(): Promise<void> {
                 maquina_id: maquinaId,
                 sessao_id: null,
                 inicio_parada: inicioParadaTs,
-                classificacao: "nao_planejada",
+                motivo_id: "00",
                 justificada: false,
               });
               console.log(`[WATCHDOG] ⚠️ Parada Órfã criada (início=${inicioParadaTs}) para máquina ${numMaq}`);

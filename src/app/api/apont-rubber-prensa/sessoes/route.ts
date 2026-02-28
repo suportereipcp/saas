@@ -122,7 +122,7 @@ export async function PATCH(req: NextRequest) {
   try {
     const supabase = await getSupabase();
     const body = await req.json();
-    const { sessao_id, total_refugo = 0 } = body;
+    const { sessao_id } = body;
 
     if (!sessao_id) {
       return NextResponse.json({ error: "Campo obrigatório" }, { status: 400 });
@@ -155,7 +155,7 @@ export async function PATCH(req: NextRequest) {
         .update({
           status: "finalizado",
           fim_sessao: fimSessao,
-          total_refugo,
+          qtd_produzida: quantidadeTotal,
         })
         .eq("id", sessao_id)
         .select("*")
@@ -179,7 +179,7 @@ export async function PATCH(req: NextRequest) {
             maquina_id: data.maquina_id,
             sessao_id: null,
             inicio_parada: inicioParada,
-            classificacao: "nao_planejada",
+            motivo_id: "00",
             justificada: false,
           });
           if (insErr) console.error("[API] Falha ao criar parada órfã (Lacuna OEE):", insErr);
@@ -189,6 +189,7 @@ export async function PATCH(req: NextRequest) {
       await supabase.from("export_datasul").insert({
         sessao_id,
         item_codigo: (data as any)?.produto_codigo || null,
+        operador_matricula: (data as any)?.operador_matricula || null,
         quantidade_total: quantidadeTotal,
         status_importacao: "pendente",
       });
@@ -228,7 +229,7 @@ export async function PATCH(req: NextRequest) {
               maquina_id: sessaoDel.maquina_id,
               sessao_id: null,
               inicio_parada: new Date().toISOString(),
-              classificacao: "nao_planejada",
+              motivo_id: "00",
               justificada: false,
             });
             if (insErr) console.error("[API] Falha ao criar parada órfã em cancelamento limpo:", insErr);
