@@ -63,6 +63,7 @@ export default function OperadorPage() {
 
   // Estado Global do Operador
   const [globalOperador, setGlobalOperador] = useState("");
+  const [globalOperadorNome, setGlobalOperadorNome] = useState("");
   const [buscaGlobalOperador, setBuscaGlobalOperador] = useState("");
   const [globalOperadorOptions, setGlobalOperadorOptions] = useState<Operador[]>([]);
 
@@ -74,6 +75,10 @@ export default function OperadorPage() {
   const [modalAcoesOpen, setModalAcoesOpen] = useState(false);
   const [refugosForms, setRefugosForms] = useState<Record<string, number>>({});
   const [alertasPendentes, setAlertasPendentes] = useState<any[]>([]);
+
+  // UX Modais de Busca
+  const [platoSelecionandoProduto, setPlatoSelecionandoProduto] = useState<number | null>(null);
+  const [isSelecionandoOperador, setIsSelecionandoOperador] = useState(false);
 
   const maquinaAtiva = maquinas.find((m) => m.id === selectedMaquina);
 
@@ -131,10 +136,13 @@ export default function OperadorPage() {
   };
 
   const checkSessoesAtivas = useCallback(async () => {
+    if (!selectedMaquina) return;
+
     const { data } = await supabase
       .schema("apont_rubber_prensa")
       .from("sessoes_producao")
       .select("*")
+      .eq("maquina_id", selectedMaquina)
       .eq("status", "em_andamento")
       .order("plato", { ascending: true });
 
@@ -146,6 +154,7 @@ export default function OperadorPage() {
       .schema("apont_rubber_prensa")
       .from("alertas_maquina")
       .select("*")
+      .eq("maquina_id", selectedMaquina)
       .eq("resolvido", false)
       .eq("tipo", "producao_fantasma");
     setAlertasPendentes(alertas || []);
@@ -175,7 +184,7 @@ export default function OperadorPage() {
     } else {
       setParadasPendentes([]);
     }
-  }, []);
+  }, [selectedMaquina]);
 
   useEffect(() => {
     const init = async () => {
@@ -364,7 +373,7 @@ export default function OperadorPage() {
 
   const isAlertaFantasmaAtivo = alertasPendentes.some(a => a.maquina_id === selectedMaquina);
   if (isAlertaFantasmaAtivo) {
-    statusGlobal = "PRODUÇÃO FANTASMA IDENTIFICADA";
+    statusGlobal = "PRODUÇÃO SEM APONTAMENTO";
     statusColorClass = "border-orange-500 bg-orange-50 dark:bg-orange-950/40";
     statusHeaderBgClass = "bg-orange-600 text-white animate-pulse";
   }
@@ -377,62 +386,48 @@ export default function OperadorPage() {
   });
 
   return (
-    <div className="flex flex-col min-h-[100vh] w-full bg-background relative pb-28">
+    <div className="flex flex-col min-h-[100vh] w-full bg-background relative pb-8">
       
-      {/* HEADER DE NAVEGAÇÃO SUPERIOR (Simples) */}
-      <div className="flex items-center justify-between px-4 sm:px-6 py-4 xl:py-6 border-b border-border bg-card">
-        <Button onClick={() => setViewMode("maquinas")} variant="ghost" size="lg" className="text-base sm:text-lg xl:text-2xl xl:h-14">
-          <ArrowLeft className="w-5 h-5 xl:w-8 xl:h-8 mr-2" />
-          Voltar
+      {/* HEADER DE NAVEGAÇÃO SUPERIOR (Simples e Compacto) */}
+      <div className="flex items-center justify-between px-4 sm:px-6 py-2 xl:py-4 border-b border-border bg-card">
+        <Button onClick={() => setViewMode("maquinas")} variant="ghost" size="sm" className="text-xl sm:text-2xl xl:text-4xl font-black uppercase xl:h-12 hover:bg-muted/50">
+          <ArrowLeft className="w-6 h-6 sm:w-8 sm:h-8 xl:w-10 xl:h-10 mr-2 xl:mr-3" />
+          VOLTAR
         </Button>
-        <div className="text-xl sm:text-2xl xl:text-4xl font-black px-4 py-2 xl:px-8 xl:py-4 bg-muted rounded-xl border border-border">
+        <div className="text-lg xl:text-2xl font-black px-3 py-1.5 xl:px-6 xl:py-2 bg-muted rounded-xl border border-border">
           PRENSA {maquinaAtiva.num_maq}
         </div>
       </div>
 
-      <div className="flex-1 px-2 sm:px-6 py-6 xl:py-10 pb-12 flex flex-col items-center">
+      <div className="flex-1 px-2 sm:px-4 py-3 xl:py-6 pb-2 xl:pb-4 flex flex-col items-center">
         
         {/* OPERADOR RESPONSÁVEL (Fixo no topo da View) */}
         {!isAnyPlatoParadoNaoJustificado && (
-          <div className="w-full max-w-5xl xl:max-w-[90vw] 2xl:max-w-[80vw] mb-6 xl:mb-10">
+          <div className="w-full max-w-5xl xl:max-w-[90vw] 2xl:max-w-[80vw] mb-3 sm:mb-6 xl:mb-10">
             <Card className="border-border shadow-sm">
-              <CardContent className="pt-6 pb-6 xl:pt-8 xl:pb-8 flex items-center justify-between gap-4">
-                <div className="flex-1">
-                  <h3 className="text-sm xl:text-xl font-bold text-muted-foreground uppercase mb-2">Operador Responsável</h3>
+              <CardContent className="pt-3 pb-3 sm:pt-6 sm:pb-6 xl:pt-8 xl:pb-8 flex items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-xs sm:text-sm xl:text-xl font-bold text-muted-foreground uppercase mb-1 sm:mb-2">Operador Responsável</h3>
                   {globalOperador ? (
-                    <div className="flex items-center justify-between p-3 xl:p-5 bg-muted border border-border/50 rounded-lg">
-                      <span className="font-bold text-xl xl:text-3xl">{globalOperador}</span>
-                      <Button variant="ghost" onClick={() => { setGlobalOperador(""); setBuscaGlobalOperador(""); }} className="h-10 w-10 xl:h-14 xl:w-14 p-0">
+                    <div className="flex items-center justify-between p-2 sm:p-3 xl:p-5 bg-muted border border-border/50 rounded-lg overflow-hidden">
+                      <div className="flex-1 min-w-0 pr-2">
+                        <span className="font-bold text-base sm:text-xl xl:text-3xl block truncate pb-0.5" title={`${globalOperador} - ${globalOperadorNome}`}>
+                          {globalOperador} - {globalOperadorNome}
+                        </span>
+                      </div>
+                      <Button variant="ghost" onClick={() => { setGlobalOperador(""); setGlobalOperadorNome(""); setBuscaGlobalOperador(""); }} className="h-10 w-10 xl:h-14 xl:w-14 p-0 shrink-0">
                         <XCircle className="w-6 h-6 xl:w-10 xl:h-10 text-muted-foreground hover:text-destructive" />
                       </Button>
                     </div>
                   ) : (
-                    <div className="relative">
-                      <Search className="absolute left-4 top-3.5 w-5 h-5 text-muted-foreground" />
-                      <input
-                        type="text"
-                        value={buscaGlobalOperador}
-                        onChange={(e) => searchGlobalOperadorAsync(e.target.value)}
-                        placeholder="Matrícula ou Nome do Operador..."
-                        className="flex h-12 xl:h-16 w-full rounded-md border border-input bg-background pl-12 pr-4 text-base xl:text-2xl ring-offset-background file:border-0 file:text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      />
-                      {buscaGlobalOperador && (
-                        <div className="absolute z-30 w-full mt-1 bg-popover border border-border rounded-md shadow-xl max-h-48 xl:max-h-72 overflow-y-auto">
-                          {globalOperadorOptions.length === 0 ? (
-                            <p className="text-sm text-center py-4 text-muted-foreground">Operador não localizado.</p>
-                          ) : globalOperadorOptions.map(op => (
-                            <button
-                              key={op.matricula}
-                              onClick={() => { setGlobalOperador(op.matricula); setBuscaGlobalOperador(""); }}
-                              className="w-full px-4 py-3 text-left hover:bg-muted focus:bg-muted border-b border-border/50 last:border-0"
-                            >
-                              <span className="font-bold block text-lg">{op.matricula}</span>
-                              <span className="text-sm text-muted-foreground block">{op.nome}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsSelecionandoOperador(true)}
+                      className="h-10 sm:h-12 xl:h-16 w-full max-w-sm border-dashed border-2 hover:bg-muted text-sm sm:text-base xl:text-2xl font-bold bg-muted/20"
+                    >
+                      <Search className="w-4 h-4 sm:w-5 sm:h-5 xl:w-8 xl:h-8 mr-2" />
+                      Escolher Operador
+                    </Button>
                   )}
                 </div>
               </CardContent>
@@ -446,24 +441,14 @@ export default function OperadorPage() {
         <div className={`w-full max-w-5xl xl:max-w-[90vw] 2xl:max-w-[80vw] border-[6px] sm:border-[8px] xl:border-[12px] rounded-2xl xl:rounded-3xl overflow-visible shadow-2xl ${statusColorClass} flex flex-col relative`}>
           
           {/* HEADER DO CONTAINER */}
-          <div className={`w-full py-3 sm:py-4 xl:py-8 text-center text-xl sm:text-3xl xl:text-5xl font-black tracking-[0.1em] sm:tracking-[0.2em] shadow-sm ${statusHeaderBgClass}`}>
+          <div className={`w-full py-2 sm:py-4 xl:py-8 text-center text-lg sm:text-3xl xl:text-5xl font-black tracking-[0.1em] sm:tracking-[0.2em] shadow-sm ${statusHeaderBgClass}`}>
             {statusGlobal}
           </div>
 
           {/* GRID DOS PLATORES MANTIDOS NUMA ÚNICA DOBRA */}
-          <div className="p-3 sm:p-6 xl:p-10 grid grid-cols-1 gap-4 sm:gap-6 xl:gap-8 h-full min-h-[350px] xl:min-h-[500px]">
+          <div className="p-2 sm:p-4 xl:p-10 grid grid-cols-1 gap-3 sm:gap-6 xl:gap-8 min-h-[150px]">
             
-            {isAlertaFantasmaAtivo && (
-              <div className="flex flex-col items-center text-center justify-center p-4 sm:p-6 bg-orange-100 dark:bg-orange-900/50 border-2 border-orange-500 rounded-xl mb-4 xl:mb-8 shadow-md">
-                <AlertTriangle className="w-10 h-10 sm:w-12 sm:h-12 xl:w-16 xl:h-16 text-orange-600 dark:text-orange-400 mb-2 sm:mb-4 animate-bounce" />
-                <h2 className="text-xl sm:text-2xl xl:text-4xl font-black text-orange-700 dark:text-orange-300 uppercase leading-tight mb-2">
-                  Atenção: A máquina enviou um ciclo real, mas nenhuma sessão foi iniciada no App!
-                </h2>
-                <p className="text-sm sm:text-lg xl:text-2xl font-medium text-orange-800 dark:text-orange-200 mt-2 max-w-4xl">
-                  Identifique-se e inicie a produção abaixo para contabilizar as peças corretamente.
-                </p>
-              </div>
-            )}
+
 
             {/* Se houver qualquer parada Não Justificada, trancamos a máquina pedindo Justificativa */}
             {isAnyPlatoParadoNaoJustificado ? (
@@ -502,10 +487,10 @@ export default function OperadorPage() {
 
                 return (
                   <Card key={plato} className="flex flex-col border-border shadow-sm h-full bg-background/90 backdrop-blur">
-                    <CardHeader className="py-2.5 px-3 sm:py-3 sm:px-4 xl:py-6 xl:px-8 border-b border-border/50 bg-muted/30">
+                    <CardHeader className="py-2 px-3 sm:py-3 sm:px-4 xl:py-6 xl:px-8 border-b border-border/50 bg-muted/30">
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-base sm:text-lg xl:text-3xl text-foreground flex items-center gap-2">
-                          <Layers className="w-5 h-5 xl:w-8 xl:h-8" /> Plato {plato}
+                          <Layers className="w-5 h-5 xl:w-8 xl:h-8" /> Produto {plato}
                         </span>
                         {sessaoAtiva ? (
                           <Badge className="bg-emerald-600 text-white hover:bg-emerald-700 xl:text-xl xl:py-2 xl:px-4">Ativo</Badge>
@@ -515,7 +500,7 @@ export default function OperadorPage() {
                       </div>
                     </CardHeader>
 
-                    <CardContent className="p-4 xl:p-8 flex-1 flex flex-col justify-center">
+                    <CardContent className="p-3 sm:p-4 xl:p-8 flex-1 flex flex-col justify-center">
                       {sessaoAtiva ? (
                         /* PLATO OCUPADO */
                         <div className="flex flex-col space-y-4 xl:space-y-10">
@@ -544,40 +529,22 @@ export default function OperadorPage() {
                         </div>
                       ) : (
                         /* PLATO LIVRE (BUSCA DE PRODUTO) */
-                        <div className="flex flex-col space-y-4 xl:space-y-8 justify-center h-full">
-                          <span className="text-sm xl:text-xl font-semibold text-muted-foreground text-center">Vincular Produto</span>
+                        <div className="flex flex-col space-y-2 sm:space-y-4 xl:space-y-8 justify-center h-full">
                           {formData.produto ? (
-                            <div className="flex items-center justify-between p-3 xl:p-6 bg-primary/10 border border-primary/20 rounded-lg">
-                              <span className="font-bold text-lg xl:text-3xl text-primary truncate max-w-[150px] xl:max-w-xs">{formData.produto}</span>
-                              <Button variant="ghost" onClick={() => { updateForm(plato, "produto", ""); updateForm(plato, "buscaProduto", ""); }} className="h-8 w-8 xl:h-14 xl:w-14 p-0">
-                                <XCircle className="w-5 h-5 xl:w-8 xl:h-8 text-muted-foreground" />
+                            <div className="flex items-center justify-between p-2 sm:p-3 xl:p-6 bg-primary/10 border border-primary/20 rounded-lg">
+                              <span className="font-bold text-base bg-transparent sm:text-lg xl:text-3xl text-primary truncate max-w-[150px] xl:max-w-xs">{formData.produto}</span>
+                              <Button variant="ghost" onClick={() => { updateForm(plato, "produto", ""); updateForm(plato, "buscaProduto", ""); }} className="h-10 w-10 sm:h-12 sm:w-12 xl:h-16 xl:w-16 p-0 hover:bg-destructive/10">
+                                <XCircle className="w-8 h-8 sm:w-10 sm:h-10 xl:w-12 xl:h-12 text-destructive" />
                               </Button>
                             </div>
                           ) : (
-                            <div className="relative">
-                              <Search className="absolute left-3 xl:left-5 top-3.5 xl:top-5 w-4 h-4 xl:w-6 xl:h-6 text-muted-foreground" />
-                              <input
-                                type="text"
-                                value={formData.buscaProduto}
-                                onChange={(e) => searchProdutoAsync(plato, e.target.value)}
-                                placeholder="Cód/Nome..."
-                                className="flex h-11 xl:h-16 w-full rounded-md border border-input bg-background pl-9 xl:pl-14 pr-2 text-sm xl:text-xl ring-offset-background file:border-0 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2"
-                              />
-                              {formData.buscaProduto && (
-                                <div className="absolute z-20 w-full mt-1 bg-popover border border-border rounded-md shadow-xl max-h-48 xl:max-h-72 overflow-y-auto">
-                                  {pOptions.map((prod) => (
-                                    <button
-                                      key={prod.codigo_item}
-                                      onClick={() => updateForm(plato, "produto", prod.codigo_item)}
-                                      className="w-full p-3 xl:p-5 text-left hover:bg-muted border-b border-border/50 transition-colors"
-                                    >
-                                      <span className="font-bold text-foreground block xl:text-xl">{prod.codigo_item}</span>
-                                      <span className="text-xs xl:text-base text-muted-foreground block truncate">{prod.descricao}</span>
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
+                            <Button
+                              variant="outline"
+                              onClick={() => setPlatoSelecionandoProduto(plato)}
+                              className="h-12 xl:h-16 w-full border-dashed border-2 hover:bg-muted text-base xl:text-2xl font-bold bg-muted/20"
+                            >
+                              Escolher Item
+                            </Button>
                           )}
                         </div>
                       )}
@@ -590,55 +557,55 @@ export default function OperadorPage() {
           </div>
         </div>
 
-      </div>
-
-      {/* ========================================================= */}
-      {/* BOTÃO MESTRE ÚNICO FLUTUANTE NO RODAPÉ                    */}
-      {/* ========================================================= */}
-      {!isAnyPlatoParadoNaoJustificado && (
-        <div className="sticky bottom-4 sm:bottom-8 xl:bottom-12 z-40 flex justify-center w-full px-2 sm:px-6 pt-4 pb-2 mt-auto pointer-events-none">
-          <style>{`
-            @keyframes soft-pulse-scale {
-              0%, 100% { transform: scale(1); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); }
-              50% { transform: scale(1.02); box-shadow: 0 20px 25px -5px rgba(5, 150, 105, 0.3), 0 8px 10px -6px rgba(5, 150, 105, 0.4); }
-            }
-            .animate-soft-pulse {
-              animation: soft-pulse-scale 2.5s ease-in-out infinite;
-            }
-          `}</style>
-          
-          <div className="w-full max-w-5xl xl:max-w-[70vw] flex gap-4 pointer-events-auto">
+        {/* ========================================================= */}
+        {/* BOTÃO MESTRE DE AÇÕES (ABAIXO DO CARD DA MÁQUINA)         */}
+        {/* ========================================================= */}
+        {!isAnyPlatoParadoNaoJustificado && (
+          <div className="w-full flex justify-center mt-3 sm:mt-6 xl:mt-10 mb-4 sm:mb-8 pointer-events-none">
+            <style>{`
+              @keyframes soft-pulse-scale {
+                0%, 100% { transform: scale(1); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); }
+                50% { transform: scale(1.02); box-shadow: 0 20px 25px -5px rgba(5, 150, 105, 0.3), 0 8px 10px -6px rgba(5, 150, 105, 0.4); }
+              }
+              .animate-soft-pulse {
+                animation: soft-pulse-scale 2.5s ease-in-out infinite;
+              }
+            `}</style>
             
-            {/* BOTÃO INTELIGENTE: INICIAR OU ABRIR MENU DE AÇÕES */}
-            {temPlatoParaIniciar ? (
-               <Button 
-                size="lg"
-                className="w-full h-16 sm:h-20 xl:h-24 text-base sm:text-xl xl:text-3xl font-black tracking-widest uppercase rounded-full shadow-2xl bg-emerald-600 hover:bg-emerald-700 text-white transition-all transform hover:-translate-y-1"
-                onClick={iniciarSessoesSelecionadas}
-                disabled={actionLoading || !(globalOperador || buscaGlobalOperador)}
-               >
-                 {actionLoading ? <Loader2 className="w-8 h-8 xl:w-10 xl:h-10 animate-spin" /> : <Play className="w-6 h-6 sm:w-8 sm:h-8 xl:w-10 xl:h-10 mr-3 xl:mr-6 fill-white" />}
-                 Iniciar Platos Selecionados
-               </Button>
-            ) : sessoesAtivas.length > 0 ? (
-               <Button 
-                size="lg"
-                variant="default"
-                className="w-full h-16 sm:h-20 xl:h-24 text-base sm:text-xl xl:text-3xl font-black tracking-widest uppercase rounded-full shadow-2xl transition-all hover:brightness-110 bg-emerald-600 hover:bg-emerald-600 text-white animate-soft-pulse"
-                onClick={() => setModalAcoesOpen(true)}
-               >
-                 <Settings className="w-6 h-6 sm:w-8 sm:h-8 xl:w-10 xl:h-10 mr-3 xl:mr-6" />
-                 Gerenciar Produção / Finalizar
-               </Button>
-            ) : (
-              <div className="w-full h-16 sm:h-20 xl:h-24 flex items-center justify-center text-xs sm:text-lg xl:text-2xl font-bold text-muted-foreground uppercase tracking-widest bg-muted/80 backdrop-blur-md rounded-full border-[3px] border-dashed border-border px-4 text-center shadow-lg transition-all">
-                Selecione produtos para iniciar a máquina
-              </div>
-            )}
-            
+            <div className="w-full max-w-2xl xl:max-w-4xl flex gap-4 pointer-events-auto px-4 sm:px-0">
+              
+              {/* BOTÃO INTELIGENTE: INICIAR OU ABRIR MENU DE AÇÕES */}
+              {temPlatoParaIniciar ? (
+                 <Button 
+                  size="lg"
+                  className="w-full h-16 sm:h-20 xl:h-24 text-sm sm:text-xl xl:text-3xl font-black tracking-widest uppercase rounded-full shadow-2xl bg-emerald-600 hover:bg-emerald-700 text-white transition-all transform hover:-translate-y-1"
+                  onClick={iniciarSessoesSelecionadas}
+                  disabled={actionLoading || !(globalOperador || buscaGlobalOperador)}
+                 >
+                   {actionLoading ? <Loader2 className="w-6 h-6 xl:w-10 xl:h-10 animate-spin" /> : <Play className="w-5 h-5 sm:w-8 sm:h-8 xl:w-10 xl:h-10 mr-2 xl:mr-6 fill-white shrink-0" />}
+                   <span className="truncate">INICIAR PRODUÇÃO</span>
+                 </Button>
+              ) : sessoesAtivas.length > 0 ? (
+                 <Button 
+                  size="lg"
+                  variant="default"
+                  className="w-full h-16 sm:h-20 xl:h-24 text-xs sm:text-xl xl:text-3xl font-black tracking-widest uppercase rounded-full shadow-2xl transition-all hover:brightness-110 bg-emerald-600 hover:bg-emerald-600 text-white animate-soft-pulse"
+                  onClick={() => setModalAcoesOpen(true)}
+                 >
+                   <Settings className="w-5 h-5 sm:w-8 sm:h-8 xl:w-10 xl:h-10 mr-2 xl:mr-6 shrink-0" />
+                   <span className="truncate">FINALIZAR PRODUÇÃO</span>
+                 </Button>
+              ) : (
+                <div className="w-full h-16 sm:h-20 xl:h-24 flex items-center justify-center text-xs sm:text-lg xl:text-2xl font-bold text-muted-foreground uppercase tracking-widest bg-muted/80 backdrop-blur-md rounded-full border-[3px] border-dashed border-border px-4 text-center shadow-lg transition-all">
+                  Selecione produtos para iniciar a máquina
+                </div>
+              )}
+              
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+      </div>
 
       {/* ========================================================= */}
       {/* MODAL / POPUP DE FINALIZAÇÃO E REFUGOS                    */}
@@ -700,6 +667,110 @@ export default function OperadorPage() {
             </div>
 
           </div>
+        </div>
+      )}
+
+      {/* MODAL DE SELEÇÃO DE PRODUTO (REUNIU AS BUSCAS EM APENAS UM LUGAR) */}
+      {platoSelecionandoProduto !== null && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+          <Card className="w-full max-w-3xl bg-background shadow-3xl overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[90vh] border-2 border-primary/20 rounded-2xl">
+            <CardHeader className="bg-muted p-4 sm:p-6 xl:p-8 flex flex-row items-center justify-between border-b border-border">
+              <CardTitle className="text-xl sm:text-3xl xl:text-4xl font-black uppercase tracking-wider text-foreground">
+                Selecione o Item (Produto {platoSelecionandoProduto})
+              </CardTitle>
+              <Button variant="ghost" className="h-10 w-10 sm:h-14 sm:w-14 p-0 rounded-full hover:bg-destructive/10" onClick={() => setPlatoSelecionandoProduto(null)}>
+                <XCircle className="w-8 h-8 sm:w-12 sm:h-12 text-muted-foreground hover:text-destructive transition-colors" />
+              </Button>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6 xl:p-8 flex-1 overflow-y-auto w-full">
+              <div className="relative mb-6">
+                <Search className="absolute left-5 xl:left-6 top-4 xl:top-6 w-6 h-6 xl:w-8 xl:h-8 text-muted-foreground" />
+                <input
+                  type="text"
+                  autoFocus
+                  value={formsData[platoSelecionandoProduto]?.buscaProduto || ""}
+                  onChange={(e) => searchProdutoAsync(platoSelecionandoProduto, e.target.value)}
+                  placeholder="Busque por código ou nome do item..."
+                  className="flex h-14 sm:h-16 xl:h-20 w-full rounded-xl border-2 border-input bg-background pl-14 xl:pl-20 pr-4 text-lg sm:text-2xl xl:text-3xl ring-offset-background focus-visible:outline-none focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/20 shadow-sm"
+                />
+              </div>
+              <div className="flex flex-col gap-3 sm:gap-4 xl:gap-6">
+                {(!produtoOptions[platoSelecionandoProduto] || produtoOptions[platoSelecionandoProduto].length === 0) ? (
+                  <div className="text-center py-10 xl:py-16 text-muted-foreground flex flex-col items-center justify-center gap-4">
+                    <Search className="w-12 h-12 xl:w-20 xl:h-20 opacity-20" />
+                    <span className="text-lg sm:text-xl xl:text-3xl font-medium">Nenhum produto listado. Digite acima para buscar.</span>
+                  </div>
+                ) : (
+                  produtoOptions[platoSelecionandoProduto].map((prod) => (
+                    <button
+                      key={prod.codigo_item}
+                      onClick={() => {
+                        updateForm(platoSelecionandoProduto, "produto", prod.codigo_item);
+                        setPlatoSelecionandoProduto(null);
+                      }}
+                      className="w-full p-4 sm:p-6 xl:p-8 text-left hover:bg-primary/5 focus:bg-primary/10 hover:border-primary/50 border-2 border-border rounded-xl transition-all flex flex-col gap-1 sm:gap-2 shadow-sm"
+                    >
+                      <span className="font-black text-foreground text-xl sm:text-3xl xl:text-4xl tracking-tight">{prod.codigo_item}</span>
+                      <span className="text-sm sm:text-lg xl:text-2xl text-muted-foreground font-medium truncate">{prod.descricao}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* MODAL DE SELEÇÃO DE OPERADOR */}
+      {isSelecionandoOperador && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+          <Card className="w-full max-w-3xl bg-background shadow-3xl overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[90vh] border-2 border-primary/20 rounded-2xl">
+            <CardHeader className="bg-muted p-4 sm:p-6 xl:p-8 flex flex-row items-center justify-between border-b border-border">
+              <CardTitle className="text-xl sm:text-3xl xl:text-4xl font-black uppercase tracking-wider text-foreground">
+                Selecione o Operador
+              </CardTitle>
+              <Button variant="ghost" className="h-10 w-10 sm:h-14 sm:w-14 p-0 rounded-full hover:bg-destructive/10" onClick={() => setIsSelecionandoOperador(false)}>
+                <XCircle className="w-8 h-8 sm:w-12 sm:h-12 text-muted-foreground hover:text-destructive transition-colors" />
+              </Button>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6 xl:p-8 flex-1 overflow-y-auto w-full">
+              <div className="relative mb-6">
+                <Search className="absolute left-5 xl:left-6 top-4 xl:top-6 w-6 h-6 xl:w-8 xl:h-8 text-muted-foreground" />
+                <input
+                  type="text"
+                  autoFocus
+                  value={buscaGlobalOperador}
+                  onChange={(e) => searchGlobalOperadorAsync(e.target.value)}
+                  placeholder="Matrícula ou Nome do Operador..."
+                  className="flex h-14 sm:h-16 xl:h-20 w-full rounded-xl border-2 border-input bg-background pl-14 xl:pl-20 pr-4 text-lg sm:text-2xl xl:text-3xl ring-offset-background focus-visible:outline-none focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/20 shadow-sm"
+                />
+              </div>
+              <div className="flex flex-col gap-3 sm:gap-4 xl:gap-6">
+                {(globalOperadorOptions.length === 0) ? (
+                  <div className="text-center py-10 xl:py-16 text-muted-foreground flex flex-col items-center justify-center gap-4">
+                    <Search className="w-12 h-12 xl:w-20 xl:h-20 opacity-20" />
+                    <span className="text-lg sm:text-xl xl:text-3xl font-medium">Nenhum operador listado. Digite acima para buscar.</span>
+                  </div>
+                ) : (
+                  globalOperadorOptions.map((op) => (
+                    <button
+                      key={op.matricula}
+                      onClick={() => {
+                        setGlobalOperador(op.matricula);
+                        setGlobalOperadorNome(op.nome);
+                        setBuscaGlobalOperador("");
+                        setIsSelecionandoOperador(false);
+                      }}
+                      className="w-full p-4 sm:p-6 xl:p-8 text-left hover:bg-primary/5 focus:bg-primary/10 hover:border-primary/50 border-2 border-border rounded-xl transition-all flex flex-col gap-1 sm:gap-2 shadow-sm"
+                    >
+                      <span className="font-black text-foreground text-xl sm:text-3xl xl:text-4xl tracking-tight">{op.matricula}</span>
+                      <span className="text-sm sm:text-lg xl:text-2xl text-muted-foreground font-medium truncate">{op.nome}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
