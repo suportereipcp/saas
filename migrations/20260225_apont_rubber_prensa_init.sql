@@ -36,7 +36,7 @@ CREATE TABLE apont_rubber_prensa.config_engenharia (
 DROP VIEW IF EXISTS apont_rubber_prensa.vw_produtos_datasul;
 CREATE VIEW apont_rubber_prensa.vw_produtos_datasul AS
 SELECT
-    i.it_codigo AS codigo_item,
+    TRIM(i.it_codigo) AS codigo_item,
     i.desc_item AS descricao,
     COALESCE(i.lote_multipl, 1) AS cavidades,
     COALESCE(
@@ -47,7 +47,7 @@ SELECT
 FROM datasul.item i
 LEFT JOIN datasul.operacao op
     ON i.it_codigo = op.it_codigo
-    AND UPPER(TRIM(op.descricao)) = 'VULCANIZACAO'
+    AND UPPER(TRIM(op.descricao)) IN ('VULCANIZACAO', 'VULCANIZACAO RUBBER')
 LEFT JOIN apont_rubber_prensa.config_engenharia ce ON i.it_codigo = ce.codigo_item;
 
 -- VIEW de operadores (leitura direta do Datasul)
@@ -56,6 +56,12 @@ SELECT
     f.cdn_funcionario AS matricula,
     f.nom_pessoa_fisic AS nome
 FROM datasul.funcionario f;
+
+-- =====================================================================
+-- PERMISSÕES NAS VIEWS
+-- =====================================================================
+GRANT SELECT ON apont_rubber_prensa.vw_produtos_datasul TO authenticated, anon, service_role;
+GRANT SELECT ON apont_rubber_prensa.vw_operadores_datasul TO authenticated, anon, service_role;
 
 -- =====================================================================
 -- TABELAS DE OPERAÇÃO (Lógica Dinâmica)
