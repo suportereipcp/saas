@@ -243,12 +243,13 @@ async function syncCycle(): Promise<void> {
           intervaloSegundos = Math.round((timestampCiclo.getTime() - ultimoPulsoTs.getTime()) / 1000);
         }
 
-        // --- CÓDIGO NOVO: Fecha Paradas Abertas ---
-        // Se a máquina bateu pulso, significa que ela VOLTOU a operar.
+        // --- Deleta Paradas Provisórias (Micro-Parada) ---
+        // Se a máquina bateu pulso antes do timeout de 5min, a parada foi apenas um alerta temporário.
+        // Deletamos o registro para evitar conflito de dados (sessão ativa + parada simultânea).
         const paradaAberta = await getParadaAberta(sessao.id);
         if (paradaAberta) {
-          await fecharParada(paradaAberta.id, timestampCiclo);
-          console.log(`[SYNC] ✅ Parada fechada para máquina ${numMaq}, plato ${sessao.plato} (Voltou a produzir)`);
+          await supabase.from("paradas_maquina").delete().eq("id", paradaAberta.id);
+          console.log(`[SYNC] 🗑️ Micro-parada deletada para máquina ${numMaq}, plato ${sessao.plato} (Voltou a produzir antes do timeout)`);
         }
 
         // Busca cavidades
