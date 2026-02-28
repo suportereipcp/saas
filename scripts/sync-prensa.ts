@@ -365,8 +365,25 @@ async function watchdogCycle(): Promise<void> {
               total_refugo: 0 
             })
             .eq("id", sessao.id);
+
+          // Efetua a Exportação de Peças produzidas até o momento de Abandono para o Datasul
+          const { data: pulsos } = await supabase
+            .from("pulsos_producao")
+            .select("qtd_pecas")
+            .eq("sessao_id", sessao.id);
+
+          const quantidadeTotal = pulsos?.reduce((acc, p) => acc + (p.qtd_pecas || 0), 0) || 0;
+
+          if (quantidadeTotal > 0) {
+            await supabase.from("export_datasul").insert({
+              sessao_id: sessao.id,
+              item_codigo: sessao.produto_codigo,
+              quantidade_total: quantidadeTotal,
+              status_importacao: "pendente",
+            });
+          }
         }
-        console.log(`[WATCHDOG] 🛑 Máquina ${numMaq} abandonada (>${Math.round(limiteAbandono)}s). Sessões finalizadas.`);
+        console.log(`[WATCHDOG] 🛑 Máquina ${numMaq} abandonada (>${Math.round(limiteAbandono)}s). Sessões finalizadas e exportadas. (${sessoes.length} itens)`);
         continue;
       }
 

@@ -121,15 +121,17 @@ export async function PATCH(req: NextRequest) {
 
     if (error) throw error;
 
-    const { count } = await supabase
+    const { data: pulsos } = await supabase
       .from("pulsos_producao")
-      .select("*", { count: "exact", head: true })
+      .select("qtd_pecas")
       .eq("sessao_id", sessao_id);
+
+    const quantidadeTotal = pulsos?.reduce((acc, p) => acc + (p.qtd_pecas || 0), 0) || 0;
 
     await supabase.from("export_datasul").insert({
       sessao_id,
       item_codigo: (data as any)?.produto_codigo || null,
-      quantidade_total: count || 0,
+      quantidade_total: quantidadeTotal,
       status_importacao: "pendente",
     });
 
