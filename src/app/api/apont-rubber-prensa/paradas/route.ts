@@ -30,14 +30,27 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Campos obrigatórios: parada_id, motivo_id" }, { status: 400 });
     }
 
+    // Verifica se a parada é órfã (sem sessão vinculada)
+    const { data: paradaAtual } = await supabase
+      .from("paradas_maquina")
+      .select("sessao_id")
+      .eq("id", parada_id)
+      .single();
+
+    // Parada órfã NÃO fecha ao justificar — só fecha quando iniciar produção
+    const updatePayload: Record<string, any> = {
+      motivo_id,
+      classificacao: classificacao || "nao_planejada",
+      justificada: true,
+    };
+
+    if (paradaAtual?.sessao_id !== null) {
+      updatePayload.fim_parada = new Date().toISOString();
+    }
+
     const { data, error } = await supabase
       .from("paradas_maquina")
-      .update({
-        motivo_id,
-        classificacao: classificacao || "nao_planejada",
-        justificada: true,
-        fim_parada: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq("id", parada_id)
       .select()
       .single();
