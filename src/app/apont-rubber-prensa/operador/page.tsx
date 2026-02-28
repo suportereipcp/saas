@@ -75,6 +75,7 @@ export default function OperadorPage() {
   const [modalAcoesOpen, setModalAcoesOpen] = useState(false);
   const [refugosForms, setRefugosForms] = useState<Record<string, number>>({});
   const [alertasPendentes, setAlertasPendentes] = useState<any[]>([]);
+  const [isRegistrandoParadaOrfa, setIsRegistrandoParadaOrfa] = useState(false);
 
   // UX Modais de Busca
   const [platoSelecionandoProduto, setPlatoSelecionandoProduto] = useState<number | null>(null);
@@ -172,6 +173,7 @@ export default function OperadorPage() {
     }
     setPulsosCount(counts);
 
+    let paradasGlobais: any[] = [];
     if (sessoes.length > 0) {
       const sessaoIds = sessoes.map((s) => s.id);
       const { data: paradas } = await supabase
@@ -180,10 +182,21 @@ export default function OperadorPage() {
         .select("*")
         .in("sessao_id", sessaoIds)
         .is("fim_parada", null); 
-      setParadasPendentes(paradas || []);
-    } else {
-      setParadasPendentes([]);
+      if (paradas) paradasGlobais = [...paradasGlobais, ...paradas];
     }
+    
+    // Busca parada órfã (Zero Gaps OEE)
+    const { data: paradaOrfa } = await supabase
+      .schema("apont_rubber_prensa")
+      .from("paradas_maquina")
+      .select("*")
+      .eq("maquina_id", selectedMaquina)
+      .is("sessao_id", null)
+      .is("fim_parada", null);
+    
+    if (paradaOrfa) paradasGlobais = [...paradasGlobais, ...paradaOrfa];
+    
+    setParadasPendentes(paradasGlobais);
   }, [selectedMaquina]);
 
   useEffect(() => {
@@ -265,21 +278,48 @@ export default function OperadorPage() {
   const justificarParada = async (motivoId: string) => {
     setActionLoading(true);
     try {
-      const pendentes = paradasPendentes.filter(p => !p.justificada);
-      // Dispara a justificativa para todos os platos ativos que caíram ao mesmo tempo
-      await Promise.all(
-        pendentes.map(p => 
-          fetch("/api/apont-rubber-prensa/paradas", {
+      if (isRegistrandoParadaOrfa) {
+        const paradaOrfa = paradasPendentes.find(p => p.sessao_id === null);
+        if (paradaOrfa) {
+          // Atualiza parada orfã existente
+          await fetch("/api/apont-rubber-prensa/paradas", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              parada_id: p.id,
+              parada_id: paradaOrfa.id,
               motivo_id: motivoId,
               classificacao: "nao_planejada",
             }),
-          })
-        )
-      );
+          });
+        } else {
+          // Cria parada orfã diretamente
+          await supabase.schema("apont_rubber_prensa").from("paradas_maquina").insert({
+            maquina_id: selectedMaquina!,
+            sessao_id: null,
+            inicio_parada: new Date().toISOString(),
+            motivo_id: motivoId,
+            classificacao: "nao_planejada",
+            justificada: true
+          });
+        }
+        setIsRegistrandoParadaOrfa(false);
+      } else {
+        const pendentes = paradasPendentes.filter(p => !p.justificada && p.sessao_id !== null);
+        // Dispara a justificativa para todos os platos ativos que caíram ao mesmo tempo
+        await Promise.all(
+          pendentes.map(p => 
+            fetch("/api/apont-rubber-prensa/paradas", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                parada_id: p.id,
+                motivo_id: motivoId,
+                classificacao: "nao_planejada",
+              }),
+            })
+          )
+        );
+      }
       await checkSessoesAtivas();
     } finally {
       setActionLoading(false);
@@ -450,12 +490,19 @@ export default function OperadorPage() {
             
 
 
-            {/* Se houver qualquer parada Não Justificada, trancamos a máquina pedindo Justificativa */}
-            {isAnyPlatoParadoNaoJustificado ? (
+            {/* Se houver qualquer parada Não Justificada ou Operador clicou em Registrar Parada Órfã */}
+            {(isAnyPlatoParadoNaoJustificado || isRegistrandoParadaOrfa) ? (
               <div className="flex flex-col items-center justify-center p-6 sm:p-8 xl:p-16 bg-background/80 backdrop-blur-sm rounded-xl border border-destructive/30 space-y-6 sm:space-y-8 xl:space-y-12">
                 <div className="flex flex-col items-center gap-3 text-destructive font-black text-2xl sm:text-3xl xl:text-6xl text-center">
                   <AlertTriangle className="w-12 h-12 sm:w-16 sm:h-16 xl:w-28 xl:h-28 animate-pulse" />
                   <span>A MÁQUINA PAROU. QUAL O MOTIVO?</span>
+                  
+                  {isRegistrandoParadaOrfa && (
+                    <Button variant="outline" onClick={() => setIsRegistrandoParadaOrfa(false)} className="mt-4 text-lg">
+                      CANCELAR (VOLTAR)
+                    </Button>
+                  )}
+
                   {/* Exibindo a "Parada desde..." apenas uma vez (do primeiro plato que triggou o alerta) */}
                   {paradasDaMaquina.filter(p => !p.justificada).slice(0, 1).map(parada => (
                     <span key={parada.id} className="text-lg sm:text-xl xl:text-3xl font-medium text-foreground mt-2">
@@ -575,7 +622,27 @@ export default function OperadorPage() {
             <div className="w-full max-w-2xl xl:max-w-4xl flex gap-4 pointer-events-auto px-4 sm:px-0">
               
               {/* BOTÃO INTELIGENTE: INICIAR OU ABRIR MENU DE AÇÕES */}
-              {temPlatoParaIniciar ? (
+              {sessoesAtivas.length === 0 ? (
+                // MÁQUINA PARADA: MOSTRA INICIAR PRODUÇÃO E REGISTRAR PARADA
+                <div className="w-full flex gap-4">
+                  <Button 
+                    variant="outline"
+                    className="flex-1 h-16 sm:h-20 xl:h-24 text-sm sm:text-xl xl:text-2xl font-black tracking-widest uppercase rounded-full shadow-lg border-[3px] border-dashed border-red-900/40 text-red-900 hover:bg-red-50 hover:text-red-900 transition-all"
+                    onClick={() => setIsRegistrandoParadaOrfa(true)}
+                  >
+                    REGISTRAR PARADA
+                  </Button>
+                  
+                  <Button 
+                    className="flex-1 h-16 sm:h-20 xl:h-24 text-sm sm:text-xl xl:text-2xl font-black tracking-widest uppercase rounded-full shadow-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-all disabled:opacity-50 disabled:bg-muted-foreground"
+                    onClick={iniciarSessoesSelecionadas}
+                    disabled={!temPlatoParaIniciar || actionLoading || !(globalOperador || buscaGlobalOperador)}
+                  >
+                    INICIAR PRODUÇÃO
+                  </Button>
+                </div>
+              ) : temPlatoParaIniciar ? (
+                 // MÁQUINA RODANDO ALGUNS PLATOS, MAS TEM OUTROS PRONTOS PARA INICIAR
                  <Button 
                   size="lg"
                   className="w-full h-16 sm:h-20 xl:h-24 text-sm sm:text-xl xl:text-3xl font-black tracking-widest uppercase rounded-full shadow-2xl bg-emerald-600 hover:bg-emerald-700 text-white transition-all transform hover:-translate-y-1"
@@ -585,7 +652,8 @@ export default function OperadorPage() {
                    {actionLoading ? <Loader2 className="w-6 h-6 xl:w-10 xl:h-10 animate-spin" /> : <Play className="w-5 h-5 sm:w-8 sm:h-8 xl:w-10 xl:h-10 mr-2 xl:mr-6 fill-white shrink-0" />}
                    <span className="truncate">INICIAR PRODUÇÃO</span>
                  </Button>
-              ) : sessoesAtivas.length > 0 ? (
+              ) : (
+                 // MÁQUINA RODANDO E NENHUM NOVO PLATO CONFIGURADO
                  <Button 
                   size="lg"
                   variant="default"
@@ -595,10 +663,6 @@ export default function OperadorPage() {
                    <Settings className="w-5 h-5 sm:w-8 sm:h-8 xl:w-10 xl:h-10 mr-2 xl:mr-6 shrink-0" />
                    <span className="truncate">FINALIZAR PRODUÇÃO</span>
                  </Button>
-              ) : (
-                <div className="w-full h-16 sm:h-20 xl:h-24 flex items-center justify-center text-xs sm:text-lg xl:text-2xl font-bold text-muted-foreground uppercase tracking-widest bg-muted/80 backdrop-blur-md rounded-full border-[3px] border-dashed border-border px-4 text-center shadow-lg transition-all">
-                  Selecione produtos para iniciar a máquina
-                </div>
               )}
               
             </div>
