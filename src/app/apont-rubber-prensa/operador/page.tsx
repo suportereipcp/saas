@@ -272,6 +272,14 @@ export default function OperadorPage() {
     userRequestedFinish.current = true;
     setActionLoading(true);
     try {
+      // Preserva os produtos de TODAS as sessões ativas nos formulários
+      // para que apareçam preenchidos após a finalização
+      const newForms: Record<number, { produto: string; buscaProduto: string }> = {};
+      for (const s of sessoesAtivas) {
+        newForms[s.plato] = { produto: s.produto_codigo, buscaProduto: "" };
+      }
+      setFormsData(newForms);
+
       await fetch("/api/apont-rubber-prensa/sessoes", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -590,9 +598,9 @@ export default function OperadorPage() {
                         /* PLATO OCUPADO - Layout horizontal compacto */
                         <div className="flex items-center justify-between w-full">
                           <span className="text-2xl sm:text-3xl xl:text-5xl font-black text-white truncate">{sessaoAtiva.produto_codigo}</span>
-                          <div className="flex flex-col items-end flex-shrink-0 ml-4">
-                            <span className="text-[10px] sm:text-xs xl:text-base uppercase font-bold text-white/60 tracking-wider leading-tight">Peças</span>
-                            <span className="text-3xl sm:text-4xl xl:text-6xl font-black text-white font-mono leading-none">{pulsosCount[sessaoAtiva.id] || 0}</span>
+                          <div className="flex items-baseline gap-2 flex-shrink-0 ml-4">
+                            <span className="text-4xl sm:text-5xl xl:text-7xl font-black text-white font-mono leading-none">{pulsosCount[sessaoAtiva.id] || 0}</span>
+                            <span className="text-xs sm:text-sm xl:text-xl uppercase font-bold text-white/60 tracking-wider">pçs</span>
                           </div>
                         </div>
                       ) : sessoesAtivas.length > 0 ? (
