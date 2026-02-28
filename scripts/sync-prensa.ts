@@ -36,8 +36,10 @@ async function getLastSyncedId(): Promise<number> {
 async function setLastSyncedId(id: number): Promise<void> {
   const { error } = await supabase
     .from("sync_state")
-    .update({ ultimo_mariadb_id: id, ultima_sincronizacao: new Date().toISOString() })
-    .eq("id", 1);
+    .upsert(
+      { id: 1, ultimo_mariadb_id: id, ultima_sincronizacao: new Date().toISOString() },
+      { onConflict: 'id' }
+    );
 
   if (error) {
     console.error("[SYNC] Erro ao atualizar sync_state:", error.message);
