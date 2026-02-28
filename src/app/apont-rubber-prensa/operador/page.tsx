@@ -349,9 +349,9 @@ export default function OperadorPage() {
   const isAnyPlatoOutraParada = paradasDaMaquina.some(p => p.justificada && p.motivo_id !== "manutencao");
   const isEmProducao = sessoesAtivas.length > 0 && paradasDaMaquina.length === 0;
 
-  let statusGlobal = "PARADA / OCIOSA";
-  let statusColorClass = "border-gray-400 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/40";
-  let statusHeaderBgClass = "bg-gray-500 dark:bg-gray-700 text-white";
+  let statusGlobal = "MÁQUINA PARADA";
+  let statusColorClass = "border-red-900 dark:border-red-800 bg-red-50 dark:bg-red-950/20";
+  let statusHeaderBgClass = "bg-red-900 dark:bg-red-900 text-white";
 
   if (isAnyPlatoParadoNaoJustificado) {
     statusGlobal = "PARADA NÃO JUSTIFICADA";
