@@ -35,7 +35,7 @@ interface SessaoAtiva {
   operador_matricula: string;
   inicio_sessao: string;
   status: string;
-  total_refugo: number;
+  qtd_produzida: number;
 }
 
 interface Parada {
@@ -285,7 +285,6 @@ export default function OperadorPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sessao_id: sessaoId,
-          total_refugo: refugosForms[sessaoId] || 0,
         }),
       });
       // Limpa refugo do estado
@@ -313,7 +312,6 @@ export default function OperadorPage() {
             body: JSON.stringify({
               parada_id: paradaOrfa.id,
               motivo_id: motivoId,
-              classificacao: "nao_planejada",
             }),
           });
         } else {
@@ -323,7 +321,6 @@ export default function OperadorPage() {
             sessao_id: null,
             inicio_parada: new Date().toISOString(),
             motivo_id: motivoId,
-            classificacao: "nao_planejada",
             justificada: true
           });
         }
@@ -339,7 +336,6 @@ export default function OperadorPage() {
               body: JSON.stringify({
                 parada_id: p.id,
                 motivo_id: motivoId,
-                classificacao: "nao_planejada",
               }),
             })
           )

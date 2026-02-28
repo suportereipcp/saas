@@ -13,7 +13,7 @@ interface Sessao {
   inicio_sessao: string;
   fim_sessao: string | null;
   status: string;
-  total_refugo: number;
+  qtd_produzida: number;
   maquinas: { num_maq: string; nome: string } | null;
   produto_codigo: string;
 }
@@ -152,8 +152,8 @@ export default function GestaoPage() {
                       )}
                     </p>
                   </div>
-                  {s.status === "finalizado" && s.total_refugo > 0 && (
-                    <Badge variant="destructive" className="bg-red-500/10 text-destructive border-destructive/20 hover:bg-red-500/20">Refugos: {s.total_refugo}</Badge>
+                  {s.status === "finalizado" && s.qtd_produzida > 0 && (
+                    <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20">{s.qtd_produzida} pçs</Badge>
                   )}
                 </CardContent>
               </Card>

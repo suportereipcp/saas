@@ -24,7 +24,7 @@ export async function PATCH(req: NextRequest) {
   try {
     const supabase = await getSupabase();
     const body = await req.json();
-    const { parada_id, motivo_id, classificacao } = body;
+    const { parada_id, motivo_id } = body;
 
     if (!parada_id || !motivo_id) {
       return NextResponse.json({ error: "Campos obrigatórios: parada_id, motivo_id" }, { status: 400 });
@@ -40,7 +40,6 @@ export async function PATCH(req: NextRequest) {
     // Parada órfã NÃO fecha ao justificar — só fecha quando iniciar produção
     const updatePayload: Record<string, any> = {
       motivo_id,
-      classificacao: classificacao || "nao_planejada",
       justificada: true,
     };
 
