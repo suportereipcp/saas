@@ -58,6 +58,7 @@ export default function OperadorPage() {
   const [sessoesAtivas, setSessoesAtivas] = useState<SessaoAtiva[]>([]);
   const [paradasPendentes, setParadasPendentes] = useState<Parada[]>([]);
   const [pulsosCount, setPulsosCount] = useState<Record<string, number>>({});
+  const [ciclosCount, setCiclosCount] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -177,6 +178,7 @@ export default function OperadorPage() {
     setAlertasPendentes(alertas || []);
 
     const counts: Record<string, number> = {};
+    const cycles: Record<string, number> = {};
     for (const s of sessoes) {
       const { data: pulsos } = await supabase
         .schema("apont_rubber_prensa")
@@ -186,8 +188,10 @@ export default function OperadorPage() {
       
       const sumPecas = (pulsos || []).reduce((acc, p) => acc + (p.qtd_pecas || 0), 0);
       counts[s.id] = sumPecas;
+      cycles[s.id] = (pulsos || []).length;
     }
     setPulsosCount(counts);
+    setCiclosCount(cycles);
 
     let paradasGlobais: any[] = [];
     if (sessoes.length > 0) {
@@ -575,7 +579,7 @@ export default function OperadorPage() {
                 const pOptions = produtoOptions[plato] || [];
 
                 return (
-                  <Card key={plato} className={`flex flex-col shadow-sm h-full backdrop-blur border-border sm:border-[2px] xl:border-[3px] ${sessaoAtiva ? 'bg-[#12A552] text-white border-[#12A552]/80' : 'bg-background/90'}`}>
+                  <Card key={plato} className={`flex flex-col shadow-sm h-full backdrop-blur border-border sm:border-[2px] xl:border-[3px] ${sessaoAtiva ? 'bg-[#059669] text-white border-[#059669]/80' : 'bg-background/90'}`}>
                     <CardHeader className={`py-2 px-3 sm:py-3 sm:px-4 xl:py-6 xl:px-8 border-b ${sessaoAtiva ? 'border-white/20' : 'border-border/50 bg-muted/30'}`}>
                       <div className="flex items-center justify-between">
                         <span className={`font-bold text-base sm:text-lg xl:text-3xl flex items-center gap-2 ${sessaoAtiva ? 'text-white' : 'text-foreground'}`}>
@@ -596,7 +600,9 @@ export default function OperadorPage() {
                           <span className="text-2xl sm:text-3xl xl:text-5xl font-black text-white truncate">{sessaoAtiva.produto_codigo}</span>
                           <div className="flex items-baseline gap-2 flex-shrink-0 ml-4">
                             <span className="text-4xl sm:text-5xl xl:text-7xl font-black text-white font-mono leading-none">{pulsosCount[sessaoAtiva.id] || 0}</span>
-                            <span className="text-xs sm:text-sm xl:text-xl uppercase font-bold text-white/60 tracking-wider">pçs</span>
+                            <span className="text-xs sm:text-sm xl:text-xl font-bold text-white tracking-wider">pçs /</span>
+                            <span className="text-4xl sm:text-5xl xl:text-7xl font-black text-white font-mono leading-none">{ciclosCount[sessaoAtiva.id] || 0}</span>
+                            <span className="text-xs sm:text-sm xl:text-xl font-bold text-white tracking-wider">{(ciclosCount[sessaoAtiva.id] || 0) === 1 ? 'prensada' : 'prensadas'}</span>
                           </div>
                         </div>
                       ) : sessoesAtivas.length > 0 ? (
@@ -738,7 +744,7 @@ export default function OperadorPage() {
                         <p className="text-sm xl:text-lg text-muted-foreground uppercase font-semibold">Produto</p>
                         <p className="text-2xl xl:text-4xl font-black text-foreground">{sessao.produto_codigo}</p>
                         <p className="text-sm xl:text-xl font-medium">Operador: {sessao.operador_matricula}</p>
-                        <p className="text-lg xl:text-3xl font-bold text-emerald-600 dark:text-emerald-500 mt-2">Peças: {pulsosCount[sessao.id] || 0}</p>
+                        <p className="text-lg xl:text-3xl font-bold text-emerald-600 dark:text-emerald-500 mt-2">{pulsosCount[sessao.id] || 0} pçs / {ciclosCount[sessao.id] || 0} {(ciclosCount[sessao.id] || 0) === 1 ? 'prensada' : 'prensadas'}</p>
                       </div>
 
                       <div className="w-full sm:w-auto flex flex-col justify-center min-w-[200px] xl:min-w-[300px]">
