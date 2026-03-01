@@ -227,10 +227,25 @@ export async function PATCH(req: NextRequest) {
           // Evita duplicação caso já exista uma parada vazia
           const { data: existingOrphan } = await supabase.from("paradas_maquina").select("id").eq("maquina_id", sessaoDel.maquina_id).is("sessao_id", null).is("fim_parada", null).limit(1);
           if (!existingOrphan || existingOrphan.length === 0) {
+            // Busca o fim_parada da última parada fechada para esta máquina
+            const { data: ultimaParada } = await supabase
+              .from("paradas_maquina")
+              .select("fim_parada")
+              .eq("maquina_id", sessaoDel.maquina_id)
+              .not("fim_parada", "is", null)
+              .order("fim_parada", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            // Início da nova parada = 1 segundo após o fim da última parada (sem gap)
+            const inicioParadaOrfa = ultimaParada?.fim_parada
+              ? new Date(new Date(ultimaParada.fim_parada).getTime() + 1000).toISOString()
+              : new Date().toISOString();
+
             const { error: insErr } = await supabase.from("paradas_maquina").insert({
               maquina_id: sessaoDel.maquina_id,
               sessao_id: null,
-              inicio_parada: new Date().toISOString(),
+              inicio_parada: inicioParadaOrfa,
               motivo_id: "00",
               justificada: false,
             });

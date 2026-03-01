@@ -742,57 +742,81 @@ export default function OperadorPage() {
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-background rounded-3xl shadow-2xl w-full max-w-3xl xl:max-w-5xl overflow-hidden border border-border flex flex-col max-h-[90vh]">
             
-            <div className="px-6 py-5 xl:py-8 border-b border-border bg-muted/40 flex justify-between items-center">
-              <h2 className="text-xl sm:text-2xl xl:text-4xl font-black uppercase text-foreground">Gerenciar Platos Ativos</h2>
-              <Button variant="ghost" onClick={() => setModalAcoesOpen(false)} className="rounded-full w-12 h-12 xl:w-16 xl:h-16 p-0 bg-background hover:bg-muted border border-border">
-                <XCircle className="w-7 h-7 xl:w-10 xl:h-10" />
-              </Button>
+            <div className="px-6 py-5 xl:py-8 border-b border-border bg-muted/40">
+              <h2 className="text-xl sm:text-2xl xl:text-4xl font-black uppercase text-foreground text-center">Finalizar Produção</h2>
             </div>
 
             <div className="p-4 sm:p-6 xl:p-10 overflow-y-auto flex-1 space-y-4 xl:space-y-8">
               {sessoesAtivas.length === 0 ? (
                 <p className="text-center text-muted-foreground py-8 xl:text-2xl">Nenhum plato em produção nesta máquina.</p>
               ) : (
-                sessoesAtivas.map(sessao => (
-                  <Card key={sessao.id} className="border-border shadow-sm">
-                    <CardHeader className="py-3 px-5 xl:py-5 xl:px-8 bg-muted/20 border-b border-border/50">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-lg xl:text-2xl">PLATO {sessao.plato}</span>
-                        <Badge className="bg-primary/20 text-primary hover:bg-primary/30 text-sm xl:text-xl xl:py-2">Em Andamento</Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="p-4 sm:p-5 xl:p-8 flex flex-col sm:flex-row gap-6 items-center">
-                      
-                      <div className="flex-1 space-y-2 xl:space-y-4 text-center sm:text-left">
-                        <p className="text-sm xl:text-lg text-muted-foreground uppercase font-semibold">Produto</p>
-                        <p className="text-2xl xl:text-4xl font-black text-foreground">{sessao.produto_codigo}</p>
-                        <p className="text-sm xl:text-xl font-medium">Operador: {sessao.operador_matricula}</p>
-                        <p className="text-lg xl:text-3xl font-bold text-emerald-600 dark:text-emerald-500 mt-2">{pulsosCount[sessao.id] || 0} pçs / {ciclosCount[sessao.id] || 0} {(ciclosCount[sessao.id] || 0) === 1 ? 'prensada' : 'prensadas'}</p>
-                      </div>
-
-                      <div className="w-full sm:w-auto flex flex-col justify-center min-w-[200px] xl:min-w-[300px]">
-                        <Button
-                          variant="destructive"
-                          disabled={actionLoading}
-                          onClick={() => finalizarPlatoUnico(sessao.id)}
-                          className="h-14 xl:h-20 font-black uppercase text-sm xl:text-2xl"
-                        >
-                          {actionLoading ? <Loader2 className="w-5 h-5 xl:w-8 xl:h-8 animate-spin" /> : <CheckCircle2 className="w-5 h-5 xl:w-8 xl:h-8 mr-2" />}
-                          Finalizar Plato {sessao.plato}
-                        </Button>
-                      </div>
-
-                    </CardContent>
-                  </Card>
-                ))
+                <>
+                  <p className="text-center text-muted-foreground text-sm xl:text-xl">
+                    {sessoesAtivas.length === 1 ? 'O plato abaixo será finalizado:' : `Os ${sessoesAtivas.length} platos abaixo serão finalizados:`}
+                  </p>
+                  {sessoesAtivas.map(sessao => (
+                    <Card key={sessao.id} className="border-border shadow-sm">
+                      <CardContent className="p-4 sm:p-5 xl:p-8 flex flex-col sm:flex-row gap-4 items-center">
+                        <div className="flex-1 space-y-1 xl:space-y-2 text-center sm:text-left">
+                          <p className="font-bold text-lg xl:text-2xl">PLATO {sessao.plato}</p>
+                          <p className="text-2xl xl:text-4xl font-black text-foreground">{sessao.produto_codigo}</p>
+                          <p className="text-lg xl:text-3xl font-bold text-emerald-600 dark:text-emerald-500">{pulsosCount[sessao.id] || 0} pçs / {ciclosCount[sessao.id] || 0} {(ciclosCount[sessao.id] || 0) === 1 ? 'prensada' : 'prensadas'}</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </>
               )}
             </div>
 
-            <div className="px-6 py-5 xl:py-8 border-t border-border bg-muted/40 flex justify-end">
-               <Button size="lg" variant="outline" onClick={() => setModalAcoesOpen(false)} className="text-lg xl:text-3xl xl:h-16 font-bold px-8 xl:px-12">
-                 Fechar Pop-up
-               </Button>
-            </div>
+            {sessoesAtivas.length > 0 && (
+              <div className="px-6 py-5 xl:py-8 border-t border-border bg-muted/40 flex justify-center gap-4 xl:gap-8">
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={() => setModalAcoesOpen(false)}
+                  className="text-lg xl:text-3xl xl:h-16 font-bold px-8 xl:px-12"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  size="lg"
+                  variant="destructive"
+                  disabled={actionLoading}
+                  onClick={async () => {
+                    userRequestedFinish.current = true;
+                    setActionLoading(true);
+                    try {
+                      // Preserva os produtos nos formulários
+                      const newForms: Record<number, { produto: string; buscaProduto: string }> = {};
+                      for (const s of sessoesAtivas) {
+                        newForms[s.plato] = { produto: s.produto_codigo, buscaProduto: "" };
+                      }
+                      setFormsData(newForms);
+
+                      // Finaliza todas as sessões de uma vez
+                      await Promise.all(
+                        sessoesAtivas.map(s =>
+                          fetch("/api/apont-rubber-prensa/sessoes", {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ sessao_id: s.id }),
+                          })
+                        )
+                      );
+                      setModalAcoesOpen(false);
+                      await checkSessoesAtivas();
+                    } finally {
+                      setActionLoading(false);
+                    }
+                  }}
+                  className="text-lg xl:text-3xl xl:h-16 font-bold px-8 xl:px-12"
+                >
+                  {actionLoading ? <Loader2 className="w-5 h-5 xl:w-8 xl:h-8 animate-spin mr-2" /> : <CheckCircle2 className="w-5 h-5 xl:w-8 xl:h-8 mr-2" />}
+                  Confirmar
+                </Button>
+              </div>
+            )}
 
           </div>
         </div>
