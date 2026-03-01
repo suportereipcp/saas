@@ -17,11 +17,5 @@ export default async function ApontRubberPrensaPage() {
     .eq("app_code", "apont_rubber_prensa")
     .single();
 
-  const role = permission?.role || "operador";
-
-  if (role === "gestor" || role === "admin") {
-    return redirect("/apont-rubber-prensa/gestao");
-  }
-
   return redirect("/apont-rubber-prensa/operador");
 }

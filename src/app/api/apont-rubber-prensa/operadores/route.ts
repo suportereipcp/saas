@@ -18,11 +18,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ data: [] });
     }
 
-    // Busca na tabela base do datasul.funcionario (conforme o print do usuário)
+    // Busca apenas operadores ativos (não desligados)
     const { data, error } = await supabase
       .schema("datasul")
       .from("funcionario")
       .select("cdn_funcionario, nom_pessoa_fisic")
+      .is("date_desligto_func", null)
       .or(`cdn_funcionario.eq.${query},nom_pessoa_fisic.ilike.%${query}%`)
       .limit(10);
 
