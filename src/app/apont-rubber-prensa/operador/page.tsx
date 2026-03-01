@@ -167,6 +167,29 @@ export default function OperadorPage() {
 
     setSessoesAtivas(sessoes);
 
+    // Restaura operador global ao recarregar a página com sessão ativa
+    if (sessoes.length > 0 && !globalOperador) {
+      const matricula = sessoes[0].operador_matricula;
+      if (matricula) {
+        setGlobalOperador(matricula);
+        setBuscaGlobalOperador(matricula);
+        // Busca o nome do operador
+        try {
+          const res = await fetch(`/api/apont-rubber-prensa/operadores?q=${encodeURIComponent(matricula)}`);
+          if (res.ok) {
+            const { data } = await res.json();
+            const found = data?.find((op: any) => String(op.matricula) === String(matricula));
+            if (found) {
+              setGlobalOperadorNome(found.nome);
+              setBuscaGlobalOperador(found.nome);
+            }
+          }
+        } catch (e) {
+          console.error("Erro ao restaurar nome do operador:", e);
+        }
+      }
+    }
+
     // Busca alertas (producao fantasma)
     const { data: alertas } = await supabase
       .schema("apont_rubber_prensa")
