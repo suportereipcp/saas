@@ -18,7 +18,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ data: [] });
     }
 
-    // Busca na tabela base do datasul.item para evitar proxy/view no React.
+    // Busca na tabela base do datasul.item
     const { data, error } = await supabase
       .schema("datasul")
       .from("item")
@@ -32,7 +32,7 @@ export async function GET(request: Request) {
     }
 
     // Mapeia para o formato esperado pelo frontend 'vw_produtos_datasul'
-    const formatado = (data || []).map((p) => ({
+    const formatado = (data || []).map((p: any) => ({
       codigo_item: String(p.it_codigo),
       descricao: p.desc_item,
     }));

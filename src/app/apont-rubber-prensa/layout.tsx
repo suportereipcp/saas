@@ -29,19 +29,11 @@ export default async function ApontRubberPrensaLayout({
   // Montar Links da Sidebar
   const links: SidebarLink[] = [
       {
-          label: "Chão de Fábrica",
+          label: "Máquinas",
           href: "/apont-rubber-prensa/operador",
           icon: "gauge"
       }
   ];
-
-  if (isAdmin) {
-      links.push({
-          label: "Gestão",
-          href: "/apont-rubber-prensa/gestao",
-          icon: "activity" 
-      });
-  }
 
   return (
     <PortalShell

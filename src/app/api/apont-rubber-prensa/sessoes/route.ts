@@ -103,10 +103,12 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (paradaOrfa) {
+      // Fecha a parada 1 segundo antes do início da sessão (sem sobreposição)
+      const fimParada = new Date(inicio_sessao.getTime() - 1000).toISOString();
       await supabase.from("paradas_maquina")
         .update({
-          fim_parada: inicio_sessao.toISOString(),
-          justificada: true // Assume setup transitório sistêmico
+          fim_parada: fimParada,
+          justificada: true
         })
         .eq("id", paradaOrfa.id);
     }
