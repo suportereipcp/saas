@@ -24,8 +24,8 @@ async function getLastSyncedId(): Promise<number> {
     .single();
 
   if (error) {
-    console.error("[SYNC] Erro ao ler sync_state, usando ID 0:", error.message);
-    return 0;
+    console.error("[SYNC] Erro ao ler sync_state, pulando ciclo:", error.message);
+    return -1;
   }
   return data?.ultimo_mariadb_id ?? 0;
 }
@@ -186,6 +186,12 @@ async function syncCycle(): Promise<void> {
       return; 
     }
 
+    // Guard: se lastId era -1 (erro ao ler sync_state), pula o ciclo
+    if (lastId < 0) {
+      console.warn("[SYNC] sync_state indisponível, pulando ciclo.");
+      return;
+    }
+
     console.log(`[SYNC] ${rows.length} novo(s) pulso(s) encontrado(s) (a partir do ID ${lastId})`);
     let maxId = lastId;
 
@@ -213,13 +219,21 @@ async function syncCycle(): Promise<void> {
             timestampCiclo.setHours(timestampCiclo.getHours() + 3);
 
             if (!alertas || alertas.length === 0) {
-              await supabase.from("alertas_maquina").insert({
-                maquina_id: maquina.id,
-                tipo: "producao_fantasma",
-                resolvido: false,
-                metadata: { timestamp_mariadb: timestampCiclo.toISOString() }
-              });
-              console.log(`[SYNC] 👻 ALERTA: Produção fantasma detectada na máquina ${numMaq}! (PULSO ORIGINAL EM: ${timestampCiclo.toISOString()})`);
+              // Guard: ignora pulsos com mais de 1h de atraso (evita alertas falsos por reprocessamento)
+              const agora = new Date();
+              const diffMs = agora.getTime() - timestampCiclo.getTime();
+              const diffHoras = diffMs / (1000 * 60 * 60);
+              if (diffHoras > 1) {
+                console.warn(`[SYNC] ⏭️ Pulso antigo ignorado para alerta (${timestampCiclo.toISOString()}, ${diffHoras.toFixed(1)}h atrás). Máquina ${numMaq}`);
+              } else {
+                await supabase.from("alertas_maquina").insert({
+                  maquina_id: maquina.id,
+                  tipo: "producao_fantasma",
+                  resolvido: false,
+                  metadata: { timestamp_mariadb: timestampCiclo.toISOString() }
+                });
+                console.log(`[SYNC] 👻 ALERTA: Produção fantasma detectada na máquina ${numMaq}! (PULSO ORIGINAL EM: ${timestampCiclo.toISOString()})`);
+              }
             }
           }
         } catch (e) {
