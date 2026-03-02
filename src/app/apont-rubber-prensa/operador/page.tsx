@@ -576,7 +576,7 @@ export default function OperadorPage() {
                       disabled={actionLoading}
                       onClick={() => justificarParada(motivo.id)}
                       className="h-14 sm:h-16 xl:h-24 text-sm sm:text-lg xl:text-2xl font-bold whitespace-normal rounded-xl shadow-md text-white hover:opacity-90 transition-opacity"
-                      style={{ backgroundColor: '#013A7F' }}
+                      style={{ backgroundColor: '#0147CC' }}
                     >
                       {motivo.descricao}
                     </Button>
@@ -637,13 +637,13 @@ export default function OperadorPage() {
                         /* PLATO LIVRE (BUSCA DE PRODUTO) */
                         <div className="flex flex-col space-y-2 sm:space-y-4 xl:space-y-8 justify-center h-full">
                           {formData.produto ? (
-                            <div className="flex items-center justify-between h-12 sm:h-14 xl:h-16 px-4 sm:px-6 rounded-lg shadow-sm w-full" style={{ backgroundColor: '#013A7F' }}>
+                            <div className="flex items-center justify-between h-12 sm:h-14 xl:h-16 px-4 sm:px-6 rounded-lg shadow-sm w-full" style={{ backgroundColor: '#0147CC' }}>
                               <span className="font-black text-2xl sm:text-3xl xl:text-4xl truncate" style={{ color: '#ffffff' }}>{formData.produto}</span>
                               <Button 
                                 variant="outline" 
                                 onClick={() => { updateForm(plato, "produto", ""); updateForm(plato, "buscaProduto", ""); }} 
-                                className="h-8 sm:h-10 xl:h-12 px-4 sm:px-6 text-sm sm:text-lg xl:text-xl font-bold uppercase tracking-widest text-white border-2 border-white transition-colors rounded-full flex-shrink-0 hover:bg-white hover:text-[#013A7F]"
-                                style={{ backgroundColor: '#013A7F' }}
+                                className="h-8 sm:h-10 xl:h-12 px-4 sm:px-6 text-sm sm:text-lg xl:text-xl font-bold uppercase tracking-widest text-white border-2 border-white transition-colors rounded-full flex-shrink-0 hover:bg-white hover:text-[#0147CC]"
+                                style={{ backgroundColor: '#0147CC' }}
                               >
                                 Remover
                               </Button>
