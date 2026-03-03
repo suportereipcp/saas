@@ -449,10 +449,11 @@ async function watchdogCycle(): Promise<void> {
       if (segundosOcioso > limiteParada) {
         for (const sessao of sessoes) {
           const paradaAberta = await getParadaAberta(sessao.id);
-          // Se não houver uma parada já aberta pedindo justificativa para essa sessão, crie!
-          if (!paradaAberta) {
-            await criarParada(numMaq, sessao.id, maquinaStartRef);
-          }
+          // Se já houver uma parada aberta, não cria outra
+          if (paradaAberta) continue;
+
+          const inicioParadaAjustado = new Date(maquinaStartRef.getTime() + 1000);
+          await criarParada(numMaq, sessao.id, inicioParadaAjustado);
         }
       }
     }
