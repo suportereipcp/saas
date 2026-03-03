@@ -839,6 +839,7 @@ export default function OperadorPage() {
                 <Search className="absolute left-5 xl:left-6 top-4 xl:top-6 w-6 h-6 xl:w-8 xl:h-8 text-muted-foreground" />
                 <input
                   type="text"
+                  inputMode="numeric"
                   autoFocus
                   value={formsData[platoSelecionandoProduto]?.buscaProduto || ""}
                   onChange={(e) => searchProdutoAsync(platoSelecionandoProduto, e.target.value)}
@@ -890,6 +891,7 @@ export default function OperadorPage() {
                 <Search className="absolute left-5 xl:left-6 top-4 xl:top-6 w-6 h-6 xl:w-8 xl:h-8 text-muted-foreground" />
                 <input
                   type="text"
+                  inputMode="numeric"
                   autoFocus
                   value={buscaGlobalOperador}
                   onChange={(e) => searchGlobalOperadorAsync(e.target.value)}
