@@ -353,20 +353,25 @@ export default function OperadorPage() {
         }
         setIsRegistrandoParadaOrfa(false);
       } else {
+        // Parada de sessão (timeout 1.6x): basta justificar UMA, 
+        // o PATCH fecha todas as sessões e converte para órfã
         const pendentes = paradasPendentes.filter(p => !p.justificada && p.sessao_id !== null);
-        // Dispara a justificativa para todos os platos ativos que caíram ao mesmo tempo
-        await Promise.all(
-          pendentes.map(p => 
-            fetch("/api/apont-rubber-prensa/paradas", {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                parada_id: p.id,
-                motivo_id: motivoId,
-              }),
-            })
-          )
-        );
+        if (pendentes.length > 0) {
+          await fetch("/api/apont-rubber-prensa/paradas", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              parada_id: pendentes[0].id,
+              motivo_id: motivoId,
+            }),
+          });
+          // Remove paradas extras das outras sessões (já deletadas pelo PATCH)
+          // Desloga operador (sessões foram fechadas)
+          userRequestedFinish.current = true;
+          setGlobalOperador("");
+          setGlobalOperadorNome("");
+          setBuscaGlobalOperador("");
+        }
       }
       await checkSessoesAtivas();
     } finally {
