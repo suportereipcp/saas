@@ -341,12 +341,12 @@ async function watchdogCycle(): Promise<void> {
     for (const [maquinaId, sessoes] of sessoesPorMaquina.entries()) {
       const numMaq = maqMap.get(maquinaId) || "unknown";
 
-      // 1. Calcula a média do tempo de ciclo da MÁQUINA
-      let somaCiclo = 0;
+      // 1. Calcula o MAIOR tempo de ciclo entre os itens da MÁQUINA
+      let maiorCicloIdeal = 0;
       for (const s of sessoes) {
-         somaCiclo += await getTempoCicloIdeal(s.produto_codigo);
+         const ciclo = await getTempoCicloIdeal(s.produto_codigo);
+         if (ciclo > maiorCicloIdeal) maiorCicloIdeal = ciclo;
       }
-      const mediaCicloIdeal = somaCiclo / sessoes.length;
 
       // 2. Calcula o tempo da última atividade da MÁQUINA (maior startRef entre as sessões ativas)
       let maquinaStartRefT = 0;
@@ -359,8 +359,8 @@ async function watchdogCycle(): Promise<void> {
 
       const segundosOcioso = Math.round((Date.now() - maquinaStartRef.getTime()) / 1000);
       
-      // REGRA DE NEGÓCIO DA MÁQUINA: Alerta em 1.6x da Média do Ciclo, Encerra após Alerta + 5 minutos.
-      const limiteParada = mediaCicloIdeal * 1.6;
+      // REGRA DE NEGÓCIO DA MÁQUINA: Alerta em 1.6x do MAIOR Ciclo, Encerra após Alerta + 5 minutos.
+      const limiteParada = maiorCicloIdeal * 1.6;
       const limiteAbandono = limiteParada + (5 * 60); // 300 segundos = 5 minutos
 
       // CASO 1: TEMPO EXCEDE LIMITE DE ABANDONO TOTAL (Auto-Encerramento de TODA a Máquina)
