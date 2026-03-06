@@ -112,17 +112,27 @@ export default function LayerControlPage() {
 
     // --- CALCULATIONS ---
     useEffect(() => {
-        const v1 = parseFloat(test1) || 0;
-        const v2 = parseFloat(test2) || 0;
-        const v3 = parseFloat(test3) || 0;
+        const stdRef = parseFloat(standardThickness.replace(',', '.')) || 0;
+
+        let sumDiffs = 0;
         let count = 0;
-        if (test1) count++;
-        if (test2) count++;
-        if (test3) count++;
+
+        if (test1) {
+            sumDiffs += (parseFloat(test1.replace(',', '.')) || 0) - stdRef;
+            count++;
+        }
+        if (test2) {
+            sumDiffs += (parseFloat(test2.replace(',', '.')) || 0) - stdRef;
+            count++;
+        }
+        if (test3) {
+            sumDiffs += (parseFloat(test3.replace(',', '.')) || 0) - stdRef;
+            count++;
+        }
 
         let avg = 0;
         if (count > 0) {
-            avg = parseFloat(((v1 + v2 + v3) / count).toFixed(1));
+            avg = parseFloat((sumDiffs / count).toFixed(1));
             setAverage(avg);
         } else {
             setAverage(0);
@@ -146,7 +156,7 @@ export default function LayerControlPage() {
             setCalculatedStatus('');
         }
 
-    }, [test1, test2, test3, standardRange]);
+    }, [test1, test2, test3, standardRange, standardThickness]);
 
     // --- HANDLERS ---
     const handleClear = () => {
@@ -199,9 +209,9 @@ export default function LayerControlPage() {
                 op_number: opNumber,
                 process_type: processType,
                 standard_range: standardRange,
-                test_1: parseFloat(test1) || 0,
-                test_2: parseFloat(test2) || 0,
-                test_3: parseFloat(test3) || 0,
+                test_1: parseFloat(test1.replace(',', '.')) || 0,
+                test_2: parseFloat(test2.replace(',', '.')) || 0,
+                test_3: parseFloat(test3.replace(',', '.')) || 0,
                 average,
                 result: 0,
                 validation_status: calculatedStatus,

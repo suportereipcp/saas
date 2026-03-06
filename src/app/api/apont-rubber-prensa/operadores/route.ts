@@ -18,13 +18,18 @@ export async function GET(request: Request) {
       return NextResponse.json({ data: [] });
     }
 
-    // Busca apenas operadores ativos (não desligados)
+    const isNumeric = !isNaN(Number(query));
+    const orCondition = isNumeric
+      ? `cdn_operador.eq.${query},nome_operador.ilike.%${query}%`
+      : `nome_operador.ilike.%${query}%`;
+
+    // Busca apenas operadores do centro de custo 3211800
     const { data, error } = await supabase
       .schema("datasul")
-      .from("funcionario")
-      .select("cdn_funcionario, nom_pessoa_fisic")
-      .is("date_desligto_func", null)
-      .or(`cdn_funcionario.eq.${query},nom_pessoa_fisic.ilike.%${query}%`)
+      .from("operador_prod")
+      .select("cdn_operador, nome_operador")
+      .eq("cc_codigo", "3211800")
+      .or(orCondition)
       .limit(10);
 
     if (error) {
@@ -34,8 +39,8 @@ export async function GET(request: Request) {
 
     // Mapeia para o formato esperado pelo frontend
     const formatado = (data || []).map((op) => ({
-      matricula: String(op.cdn_funcionario),
-      nome: op.nom_pessoa_fisic,
+      matricula: String(op.cdn_operador),
+      nome: op.nome_operador,
     }));
 
     return NextResponse.json({ data: formatado });
