@@ -4,9 +4,7 @@ import { createBrowserClient } from '@supabase/ssr';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-const supabase = createBrowserClient(supabaseUrl, supabaseKey, {
-    db: { schema: 'shiftapp' }
-});
+const supabase = createBrowserClient(supabaseUrl, supabaseKey);
 
 // --- AUTH SERVICE ---
 
@@ -91,10 +89,10 @@ const mapTicketFromDB = (data: any): ProductTicket => {
 };
 
 export const getDashboardStats = async () => {
-    const { count: total, error: e1 } = await supabase.from('tickets').select('*', { count: 'exact', head: true });
-    const { count: evaluation } = await supabase.from('tickets').select('*', { count: 'exact', head: true }).eq('status', TicketStatus.EVALUATION);
-    const { count: inProgress } = await supabase.from('tickets').select('*', { count: 'exact', head: true }).eq('status', TicketStatus.IN_CHANGE);
-    const { count: pending } = await supabase.from('tickets').select('*', { count: 'exact', head: true }).eq('status', TicketStatus.PENDING_APPROVAL);
+    const { count: total, error: e1 } = await supabase.schema('shiftapp').from('tickets').select('*', { count: 'exact', head: true });
+    const { count: evaluation } = await supabase.schema('shiftapp').from('tickets').select('*', { count: 'exact', head: true }).eq('status', TicketStatus.EVALUATION);
+    const { count: inProgress } = await supabase.schema('shiftapp').from('tickets').select('*', { count: 'exact', head: true }).eq('status', TicketStatus.IN_CHANGE);
+    const { count: pending } = await supabase.schema('shiftapp').from('tickets').select('*', { count: 'exact', head: true }).eq('status', TicketStatus.PENDING_APPROVAL);
 
     if (e1) console.error("Stats Error:", JSON.stringify(e1, null, 2));
 
@@ -107,7 +105,7 @@ export const getDashboardStats = async () => {
 };
 
 export const getTickets = async (page: number, limit: number, search?: string) => {
-    let query = supabase
+    let query = supabase.schema('shiftapp')
         .from('tickets')
         .select(`
             *,
@@ -136,7 +134,7 @@ export const getTickets = async (page: number, limit: number, search?: string) =
 };
 
 export const getTicketById = async (id: string): Promise<ProductTicket | null> => {
-    const { data, error } = await supabase
+    const { data, error } = await supabase.schema('shiftapp')
         .from('tickets')
         .select(`
             *,
@@ -184,7 +182,7 @@ export const saveTicket = async (ticket: ProductTicket): Promise<void> => {
     };
 
     // Upsert Ticket
-    const { error: ticketError } = await supabase
+    const { error: ticketError } = await supabase.schema('shiftapp')
         .from('tickets')
         .upsert(ticketPayload);
 
@@ -198,7 +196,7 @@ export const saveTicket = async (ticket: ProductTicket): Promise<void> => {
     const validTaskIds = ticket.subTasks.filter(t => isUUID(t.id)).map(t => t.id);
 
     if (validTaskIds.length > 0) {
-        await supabase.from('subtasks')
+        await supabase.schema('shiftapp').from('subtasks')
             .delete()
             .eq('ticket_id', ticket.id)
             .not('id', 'in', `(${validTaskIds.join(',')})`);
@@ -213,7 +211,7 @@ export const saveTicket = async (ticket: ProductTicket): Promise<void> => {
         // Let's protect against accidental wipe if fetch failed? No, this is save logic.
         // We delete anything in DB that isn't in validTaskIds.
         // If validTaskIds is empty, we delete ALL for this ticket.
-        const { error } = await supabase.from('subtasks').delete().eq('ticket_id', ticket.id);
+        const { error } = await supabase.schema('shiftapp').from('subtasks').delete().eq('ticket_id', ticket.id);
         if (error) console.error("Error clearing subtasks:", error);
     }
 
@@ -234,8 +232,8 @@ export const saveTicket = async (ticket: ProductTicket): Promise<void> => {
         }
 
         const { error } = isNew
-            ? await supabase.from('subtasks').insert(payload)
-            : await supabase.from('subtasks').upsert(payload);
+            ? await supabase.schema('shiftapp').from('subtasks').insert(payload)
+            : await supabase.schema('shiftapp').from('subtasks').upsert(payload);
 
         if (error) console.error("Error saving subtask:", JSON.stringify(error, null, 2));
     }
@@ -243,10 +241,10 @@ export const saveTicket = async (ticket: ProductTicket): Promise<void> => {
     // 3. Attachments
     const validAttIds = ticket.attachments.filter(a => isUUID(a.id)).map(a => a.id);
     if (validAttIds.length > 0) {
-        const { error } = await supabase.from('attachments').delete().eq('ticket_id', ticket.id).not('id', 'in', `(${validAttIds.join(',')})`);
+        const { error } = await supabase.schema('shiftapp').from('attachments').delete().eq('ticket_id', ticket.id).not('id', 'in', `(${validAttIds.join(',')})`);
         if (error) console.error("Error deleting attachments:", error);
     } else {
-        const { error } = await supabase.from('attachments').delete().eq('ticket_id', ticket.id);
+        const { error } = await supabase.schema('shiftapp').from('attachments').delete().eq('ticket_id', ticket.id);
         if (error) console.error("Error clearing attachments:", error);
     }
 
@@ -264,8 +262,8 @@ export const saveTicket = async (ticket: ProductTicket): Promise<void> => {
         if (!isNew) payload.id = att.id;
 
         const { error } = isNew
-            ? await supabase.from('attachments').insert(payload)
-            : await supabase.from('attachments').upsert(payload);
+            ? await supabase.schema('shiftapp').from('attachments').insert(payload)
+            : await supabase.schema('shiftapp').from('attachments').upsert(payload);
 
         if (error) console.error("Error saving attachment:", JSON.stringify(error, null, 2));
     }
@@ -273,7 +271,7 @@ export const saveTicket = async (ticket: ProductTicket): Promise<void> => {
     // 4. History
     for (const log of ticket.history) {
         if (!isUUID(log.id)) { // New log
-            const { error } = await supabase.from('history').insert({
+            const { error } = await supabase.schema('shiftapp').from('history').insert({
                 ticket_id: ticket.id,
                 action: log.action,
                 user: log.user,
@@ -287,7 +285,7 @@ export const saveTicket = async (ticket: ProductTicket): Promise<void> => {
 
 export const getProductDescription = async (code: string): Promise<string | null> => {
     // This calls the postgres function 'get_datasul_item_desc' in the 'shiftapp' schema
-    const { data, error } = await supabase.rpc('get_datasul_item_desc', { p_code: code });
+    const { data, error } = await supabase.schema('shiftapp').rpc('get_datasul_item_desc', { p_code: code });
 
     if (error) {
         console.error("Error fetching Datasul desc:", JSON.stringify(error, null, 2));

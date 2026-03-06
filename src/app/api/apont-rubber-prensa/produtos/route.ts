@@ -18,11 +18,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ data: [] });
     }
 
-    // Busca na tabela base do datasul.item
+    // Busca na tabela base do datasul.item, filtrando por nr_linha 105 em item_uni_estab
     const { data, error } = await supabase
       .schema("datasul")
       .from("item")
-      .select("it_codigo, desc_item")
+      .select("it_codigo, desc_item, item_uni_estab!inner(nr_linha)")
+      .eq("item_uni_estab.nr_linha", 105)
       .or(`it_codigo.ilike.%${query}%,desc_item.ilike.%${query}%`)
       .limit(10);
 
