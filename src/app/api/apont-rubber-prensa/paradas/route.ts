@@ -93,15 +93,6 @@ export async function PATCH(req: NextRequest) {
             qtd_produzida: qtdProduzida,
           })
           .eq("id", sessao.id);
-
-        // Exportação para Datasul
-        await supabase.from("export_datasul").insert({
-          sessao_id: sessao.id,
-          item_codigo: sessao.produto_codigo,
-          operador_matricula: sessao.operador_matricula,
-          quantidade_total: qtdProduzida,
-          status_importacao: "pendente",
-        });
       } else {
         // Sessão sem produção: remove (cancelamento limpo)
         await supabase.from("paradas_maquina").delete().eq("sessao_id", sessao.id);

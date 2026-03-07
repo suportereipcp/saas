@@ -154,6 +154,15 @@ export async function POST(req: NextRequest) {
 
         if (!pulsoErr) {
           totalPecasInseridas += cavidades;
+
+          // Export Datasul por pulso retroativo (ghost)
+          await supabaseAdmin.from("export_datasul").insert({
+            sessao_id: data.id,
+            item_codigo: produto_codigo,
+            operador_matricula: operador_matricula,
+            quantidade_total: cavidades,
+            status_importacao: "pendente",
+          });
         } else {
           console.error(`[API] ❌ Erro ao inserir Ghost Pulse #${i}:`, pulsoErr);
         }
@@ -240,14 +249,6 @@ export async function PATCH(req: NextRequest) {
           if (insErr) console.error("[API] Falha ao criar parada órfã (Lacuna OEE):", insErr);
         }
       }
-
-      await supabase.from("export_datasul").insert({
-        sessao_id,
-        item_codigo: (data as any)?.produto_codigo || null,
-        operador_matricula: (data as any)?.operador_matricula || null,
-        quantidade_total: quantidadeTotal,
-        status_importacao: "pendente",
-      });
 
       return NextResponse.json({ data }, { status: 200 });
     } else {
