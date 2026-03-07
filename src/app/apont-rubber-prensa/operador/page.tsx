@@ -90,8 +90,9 @@ export default function OperadorPage() {
 
   const loadCadastros = useCallback(async () => {
     // 1. Carrega as máquinas
-    const { data: mData } = await supabase.schema("apont_rubber_prensa").from("maquinas").select("*").eq("ativo", true).order("num_maq");
-    setMaquinas(mData || []);
+    const { data: mData } = await supabase.schema("apont_rubber_prensa").from("maquinas").select("*").eq("ativo", true);
+    const sortedMaquinas = (mData || []).sort((a, b) => a.num_maq.localeCompare(b.num_maq, undefined, { numeric: true, sensitivity: 'base' }));
+    setMaquinas(sortedMaquinas);
 
     // 2. Carrega os motivos de parada via API Root Admin (Bypassa RLS Cache 403)
     try {
@@ -167,10 +168,10 @@ export default function OperadorPage() {
 
     setSessoesAtivas(sessoes);
 
-    // Restaura operador global ao recarregar a página com sessão ativa
-    if (sessoes.length > 0 && !globalOperador) {
+    // Atualiza o operador global ao ler a página com sessão ativa, garantindo que pegue quem está operando
+    if (sessoes.length > 0) {
       const matricula = sessoes[0].operador_matricula;
-      if (matricula) {
+      if (matricula && globalOperador !== matricula) {
         setGlobalOperador(matricula);
         setBuscaGlobalOperador(matricula);
         // Busca o nome do operador
@@ -415,7 +416,15 @@ export default function OperadorPage() {
                 <div 
                   key={maq.id} 
                   className={`cursor-pointer rounded-2xl flex flex-col items-center justify-center w-[160px] h-[160px] border-2 transition-transform duration-200 hover:scale-105 ${bgClass}`}
-                  onClick={() => { setSelectedMaquina(maq.id); setViewMode("painel"); }}
+                  onClick={() => { 
+                    setSelectedMaquina(maq.id); 
+                    setViewMode("painel"); 
+                    // Reset global operador when entering a new machine view manually
+                    setGlobalOperador("");
+                    setGlobalOperadorNome("");
+                    setBuscaGlobalOperador("");
+                    prevSessoesCount.current = 0;
+                  }}
                 >
                    <div className="flex flex-col items-center justify-center text-center">
                      <span className="text-sm sm:text-base font-bold uppercase tracking-[0.2em] opacity-80 mb-1">
@@ -497,7 +506,12 @@ export default function OperadorPage() {
       
       {/* HEADER DE NAVEGAÇÃO SUPERIOR (Simples e Compacto) */}
       <div className="flex items-center justify-between px-4 sm:px-6 py-2 xl:py-4 border-b border-border bg-card">
-        <Button onClick={() => setViewMode("maquinas")} variant="ghost" size="sm" className="text-xl sm:text-2xl xl:text-4xl font-black uppercase xl:h-12 hover:bg-muted/50">
+        <Button onClick={() => {
+            setViewMode("maquinas");
+            setGlobalOperador("");
+            setGlobalOperadorNome("");
+            setBuscaGlobalOperador("");
+          }} variant="ghost" size="sm" className="text-xl sm:text-2xl xl:text-4xl font-black uppercase xl:h-12 hover:bg-muted/50">
           <ArrowLeft className="w-6 h-6 sm:w-8 sm:h-8 xl:w-10 xl:h-10 mr-2 xl:mr-3" />
           VOLTAR
         </Button>
