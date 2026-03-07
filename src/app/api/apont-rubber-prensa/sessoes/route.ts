@@ -113,6 +113,59 @@ export async function POST(req: NextRequest) {
         .eq("id", paradaOrfa.id);
     }
 
+    // Resolvendo Ghost Pulse: Agora que temos o ID da sessão recém-criada, insere TODOS os pulsos esquecidos
+    // IMPORTANTE: Usa service_role (admin) pois pulsos_producao tem RLS que bloqueia escrita via anon
+    if (alertaPend && alertaPend.metadata) {
+      const supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        { db: { schema: "apont_rubber_prensa" } }
+      );
+
+      const { data: vwData } = await supabaseAdmin
+        .from("vw_produtos_datasul")
+        .select("cavidades")
+        .eq("codigo_item", produto_codigo)
+        .limit(1)
+        .maybeSingle();
+
+      const cavidades = vwData?.cavidades || 1;
+      
+      // Usa o array acumulado de pulsos perdidos, ou fallback para o timestamp único (compatibilidade)
+      const pulsosPerdidos: { mariadb_id?: number; timestamp: string }[] = 
+        alertaPend.metadata.pulsos_perdidos || 
+        (alertaPend.metadata.timestamp_mariadb 
+          ? [{ timestamp: alertaPend.metadata.timestamp_mariadb }] 
+          : []);
+
+      let totalPecasInseridas = 0;
+
+      for (let i = 0; i < pulsosPerdidos.length; i++) {
+        const pulso = pulsosPerdidos[i];
+        const pulsoId = `ghost_${Math.floor(Date.now() / 1000)}_${i}_p${plato}`;
+        
+        const { error: pulsoErr } = await supabaseAdmin.from("pulsos_producao").insert({
+          sessao_id: data.id,
+          timestamp_ciclo: new Date(pulso.timestamp).toISOString(),
+          qtd_pecas: cavidades,
+          intervalo_segundos: null,
+          mariadb_id: pulsoId,
+        });
+
+        if (!pulsoErr) {
+          totalPecasInseridas += cavidades;
+        } else {
+          console.error(`[API] ❌ Erro ao inserir Ghost Pulse #${i}:`, pulsoErr);
+        }
+      }
+
+      if (totalPecasInseridas > 0) {
+        await supabaseAdmin.from("sessoes_producao").update({ qtd_produzida: totalPecasInseridas }).eq("id", data.id);
+        data.qtd_produzida = totalPecasInseridas;
+        console.log(`[API] ✅ ${pulsosPerdidos.length} Ghost Pulse(s) inserido(s) para sessão ${data.id} (${totalPecasInseridas} pçs)`);
+      }
+    }
+
     return NextResponse.json({ data }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -218,22 +218,41 @@ async function syncCycle(): Promise<void> {
             const timestampCiclo = new Date(row.timestamp);
             timestampCiclo.setHours(timestampCiclo.getHours() + 3);
 
-            if (!alertas || alertas.length === 0) {
-              // Guard: ignora pulsos com mais de 1h de atraso (evita alertas falsos por reprocessamento)
-              const agora = new Date();
-              const diffMs = agora.getTime() - timestampCiclo.getTime();
-              const diffHoras = diffMs / (1000 * 60 * 60);
-              if (diffHoras > 1) {
-                console.warn(`[SYNC] ⏭️ Pulso antigo ignorado para alerta (${timestampCiclo.toISOString()}, ${diffHoras.toFixed(1)}h atrás). Máquina ${numMaq}`);
-              } else {
-                await supabase.from("alertas_maquina").insert({
-                  maquina_id: maquina.id,
-                  tipo: "producao_fantasma",
-                  resolvido: false,
-                  metadata: { timestamp_mariadb: timestampCiclo.toISOString() }
-                });
-                console.log(`[SYNC] 👻 ALERTA: Produção fantasma detectada na máquina ${numMaq}! (PULSO ORIGINAL EM: ${timestampCiclo.toISOString()})`);
-              }
+            // Guard: ignora pulsos com mais de 1h de atraso (evita alertas falsos por reprocessamento)
+            const agora = new Date();
+            const diffMs = agora.getTime() - timestampCiclo.getTime();
+            const diffHoras = diffMs / (1000 * 60 * 60);
+            if (diffHoras > 1) {
+              console.warn(`[SYNC] ⏭️ Pulso antigo ignorado para alerta (${timestampCiclo.toISOString()}, ${diffHoras.toFixed(1)}h atrás). Máquina ${numMaq}`);
+            } else if (!alertas || alertas.length === 0) {
+              // Primeiro pulso fantasma: cria o alerta com array de pulsos
+              await supabase.from("alertas_maquina").insert({
+                maquina_id: maquina.id,
+                tipo: "producao_fantasma",
+                resolvido: false,
+                metadata: { 
+                  timestamp_mariadb: timestampCiclo.toISOString(),
+                  pulsos_perdidos: [{ mariadb_id: row.id, timestamp: timestampCiclo.toISOString() }]
+                }
+              });
+              console.log(`[SYNC] 👻 ALERTA: Produção fantasma detectada na máquina ${numMaq}! (PULSO ID ${row.id} EM: ${timestampCiclo.toISOString()})`);
+            } else {
+              // Alerta já existe: acumula o pulso perdido no metadata
+              const alertaId = alertas[0].id;
+              const { data: alertaFull } = await supabase.from("alertas_maquina").select("metadata").eq("id", alertaId).single();
+              const currentMeta = alertaFull?.metadata || {};
+              const pulsosPerdidos = currentMeta.pulsos_perdidos || [];
+              pulsosPerdidos.push({ mariadb_id: row.id, timestamp: timestampCiclo.toISOString() });
+              
+              await supabase.from("alertas_maquina").update({
+                metadata: { 
+                  ...currentMeta, 
+                  timestamp_mariadb: timestampCiclo.toISOString(),
+                  pulsos_perdidos: pulsosPerdidos
+                },
+                updated_at: new Date().toISOString()
+              }).eq("id", alertaId);
+              console.log(`[SYNC] 👻 Pulso fantasma ACUMULADO na máquina ${numMaq} (total: ${pulsosPerdidos.length} pulsos perdidos). ID ${row.id}`);
             }
           }
         } catch (e) {
