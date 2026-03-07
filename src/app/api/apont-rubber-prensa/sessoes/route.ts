@@ -81,16 +81,22 @@ export async function POST(req: NextRequest) {
         .eq("id", alertaPend.id);
     }
 
+    console.log(`[API] POST /sessoes → maq=${maquina_id}, prod=${produto_codigo}, plato=${plato}, op=${operador_matricula}, inicio=${inicio_sessao.toISOString()}, alertaFantasma=${!!alertaPend}`);
+
     const { data, error } = await supabase.from("sessoes_producao").insert({
       maquina_id,
       produto_codigo,
       plato,
       operador_matricula,
       status: "em_andamento",
-      inicio_sessao: inicio_sessao.toISOString() // Data normal (Agora) ou Retroativa (Atrás)
+      inicio_sessao: inicio_sessao.toISOString()
     }).select().single();
 
-    if (error) throw error;
+    if (error) {
+      console.error("[API] ❌ Erro ao criar sessão:", error);
+      throw error;
+    }
+    console.log(`[API] ✅ Sessão criada: ${data.id}`);
 
     // Zero-Gaps: Encerramento de eventual parada órfã ao iniciar nova sessão
     const { data: paradaOrfa } = await supabase
