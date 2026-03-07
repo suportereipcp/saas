@@ -308,6 +308,15 @@ async function syncCycle(): Promise<void> {
             .eq("sessao_id", sessao.id);
           const qtdProduzida = (totalPulsos || []).reduce((acc, p) => acc + (p.qtd_pecas || 0), 0);
           await supabase.from("sessoes_producao").update({ qtd_produzida: qtdProduzida }).eq("id", sessao.id);
+
+          // Export Datasul por pulso (item e operador já definidos na sessão)
+          await supabase.from("export_datasul").insert({
+            sessao_id: sessao.id,
+            item_codigo: sessao.produto_codigo,
+            operador_matricula: sessao.operador_matricula,
+            quantidade_total: cavidades,
+            status_importacao: "pendente",
+          });
         }
       }
 
@@ -421,14 +430,6 @@ async function watchdogCycle(): Promise<void> {
               })
               .eq("id", sessao.id);
 
-            // Exportação para o Datasul
-            await supabase.from("export_datasul").insert({
-              sessao_id: sessao.id,
-              item_codigo: sessao.produto_codigo,
-              operador_matricula: sessao.operador_matricula,
-              quantidade_total: quantidadeTotal,
-              status_importacao: "pendente",
-            });
             console.log(`[WATCHDOG] 🛑 Máquina ${numMaq} abandonada (>${Math.round(limiteAbandono)}s). Sessão ${sessao.id} finalizada (fim=${fimSessaoTs}).`);
           } else {
             // Lógica de Cancelamento Limpo: Sessão nunca produziu nada
