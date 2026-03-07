@@ -35,6 +35,14 @@ export default async function ApontRubberPrensaLayout({
       }
   ];
 
+  if (isAdmin) {
+    links.push({
+      label: "Sync Diagnostics",
+      href: "/apont-rubber-prensa/sync-diagnostics",
+      icon: "activity"
+    });
+  }
+
   return (
     <PortalShell
         userEmail={user.email}
