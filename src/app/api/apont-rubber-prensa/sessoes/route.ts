@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
 
       for (let i = 0; i < pulsosPerdidos.length; i++) {
         const pulso = pulsosPerdidos[i];
-        const pulsoId = `ghost_${Math.floor(Date.now() / 1000)}_${i}_p${plato}`;
+        const pulsoId = pulso.mariadb_id ? `${pulso.mariadb_id}_p${plato}` : `ghost_${Math.floor(Date.now() / 1000)}_${i}_p${plato}`;
         
         const { error: pulsoErr } = await supabaseAdmin.from("pulsos_producao").insert({
           sessao_id: data.id,
