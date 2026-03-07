@@ -47,13 +47,23 @@ export async function POST(req: NextRequest) {
     }
 
     // Resolve alerta de produção fantasma se houver algum engasgado na máquina
-    const { data: alertaPend } = await supabase.from("alertas_maquina")
-      .select("id, metadata")
+    // Busca alertas não resolvidos OU resolvidos muito recentemente (< 60s, por outro plato da mesma máquina)
+    const { data: alertaCandidatos } = await supabase.from("alertas_maquina")
+      .select("id, metadata, resolvido, updated_at")
       .eq("maquina_id", maquina_id)
       .eq("tipo", "producao_fantasma")
-      .eq("resolvido", false)
-      .limit(1)
-      .maybeSingle();
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    const alertaPend = alertaCandidatos?.find(a => {
+      if (!a.resolvido) return true; // Ainda não resolvido
+      // Resolvido recentemente (outro plato da mesma máquina acabou de resolver)
+      if (a.updated_at) {
+        const diffMs = Date.now() - new Date(a.updated_at).getTime();
+        return diffMs < 60_000; // 60 segundos de janela
+      }
+      return false;
+    }) || null;
 
     let inicio_sessao = new Date();
 
@@ -75,10 +85,12 @@ export async function POST(req: NextRequest) {
       const cicloPadrão = prodData?.tempo_ciclo_ideal_segundos || 300; // Padrão 5 min
       inicio_sessao.setSeconds(inicio_sessao.getSeconds() - cicloPadrão);
 
-      // Marca o alerta como resolvido
-      await supabase.from("alertas_maquina")
-        .update({ resolvido: true, updated_at: new Date().toISOString() })
-        .eq("id", alertaPend.id);
+      // Marca o alerta como resolvido (se ainda não foi)
+      if (!alertaPend.resolvido) {
+        await supabase.from("alertas_maquina")
+          .update({ resolvido: true, updated_at: new Date().toISOString() })
+          .eq("id", alertaPend.id);
+      }
     }
 
     console.log(`[API] POST /sessoes → maq=${maquina_id}, prod=${produto_codigo}, plato=${plato}, op=${operador_matricula}, inicio=${inicio_sessao.toISOString()}, alertaFantasma=${!!alertaPend}`);
