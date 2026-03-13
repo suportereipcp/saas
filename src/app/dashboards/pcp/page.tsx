@@ -174,12 +174,13 @@ export default function Home() {
             // 9. Sync Time
             if (cards && cards.created_at) {
                 const dateObj = new Date(cards.created_at);
+                const adjustedDateObj = new Date(dateObj.getTime() - (3 * 60 * 60 * 1000));
                 const saoPauloOptions: Intl.DateTimeFormatOptions = {
                     timeZone: 'America/Sao_Paulo',
                 };
 
-                setSyncDate(dateObj.toLocaleDateString('pt-BR', saoPauloOptions));
-                setSyncTime(dateObj.toLocaleTimeString('pt-BR', saoPauloOptions));
+                setSyncDate(adjustedDateObj.toLocaleDateString('pt-BR', saoPauloOptions));
+                setSyncTime(adjustedDateObj.toLocaleTimeString('pt-BR', saoPauloOptions));
             }
         };
 
