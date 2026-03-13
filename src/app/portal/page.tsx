@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase-server";
-import { Bot, Package, Shield, Activity, NotebookPen, LayoutDashboard, Ticket, ClipboardList, Gauge } from "lucide-react";
+import { Bot, Package, Shield, Activity, NotebookPen, LayoutDashboard, Ticket, ClipboardList, Gauge, BarChart3 } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -23,6 +23,8 @@ const getAppIcon = (code: string) => {
             return ClipboardList;
         case "apont_rubber_prensa":
             return Gauge;
+        case "oee_x_teep":
+            return BarChart3;
         default:
             return Package; // Default icon
     }
@@ -47,6 +49,8 @@ const getAppHref = (code: string) => {
             return "/inventario-rotativo";
         case "apont_rubber_prensa":
             return "/apont-rubber-prensa";
+        case "oee_x_teep":
+            return "/oee-teep";
         default:
             return `/${code}`;
     }
