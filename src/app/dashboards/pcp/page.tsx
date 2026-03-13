@@ -174,8 +174,12 @@ export default function Home() {
             // 9. Sync Time
             if (cards && cards.created_at) {
                 const dateObj = new Date(cards.created_at);
-                setSyncDate(dateObj.toLocaleDateString('pt-BR'));
-                setSyncTime(dateObj.toLocaleTimeString('pt-BR'));
+                const saoPauloOptions: Intl.DateTimeFormatOptions = {
+                    timeZone: 'America/Sao_Paulo',
+                };
+
+                setSyncDate(dateObj.toLocaleDateString('pt-BR', saoPauloOptions));
+                setSyncTime(dateObj.toLocaleTimeString('pt-BR', saoPauloOptions));
             }
         };
 
