@@ -10,6 +10,27 @@ type MetricParams = {
   dateRangeStr?: string; // serialized JSON of { from, to }
 };
 
+type MachineOeeCard = {
+  maquina: string;
+  oee: number;
+  disponibilidade: number;
+  performance: number;
+  qualidade: number;
+  tempoOperacional: number;
+  qtdSessoes: number;
+};
+
+type MachineTeepCard = {
+  maquina: string;
+  teep: number;
+  utilizacao: number;
+  disponibilidade: number;
+  performance: number;
+  qualidade: number;
+  tempoOperacional: number;
+  qtdSessoes: number;
+};
+
 // Supabase client specifically for the 'apont_rubber_prensa' schema using Service Role
 // This allows fast aggregations backend-side without RLS blocking cross-schema relations
 const getSupabasePrensa = () => createClient(
@@ -122,7 +143,13 @@ export async function getOeeDashboardMetrics(params: MetricParams) {
   const sessIds = sessoes.map(s => s.id);
   
   // Paradas podem ser muitas, dividimos em chunks se sessIds > 100
-  let todasParadas: any[] = [];
+  let todasParadas: Array<{
+    id: string;
+    sessao_id: string;
+    inicio_parada: string;
+    fim_parada: string | null;
+    motivo_id: string | number | null;
+  }> = [];
   for (let i = 0; i < sessIds.length; i += 100) {
     const chunk = sessIds.slice(i, i + 100);
     const { data: parad } = await supabase
@@ -134,7 +161,7 @@ export async function getOeeDashboardMetrics(params: MetricParams) {
 
   // 5. Buscar Tempos de Ciclo
   const codigos = Array.from(new Set(sessoes.map(s => s.produto_codigo)));
-  let produtosMap = new Map<string, number>();
+  const produtosMap = new Map<string, number>();
   
   for (let i = 0; i < codigos.length; i += 50) {
     const chunk = codigos.slice(i, i + 50);
@@ -167,7 +194,7 @@ export async function getOeeDashboardMetrics(params: MetricParams) {
   let tempoOperacionalPlanejadoSegundos = 0;
   let tempoParadoTotalSegundos = 0;
   let tempoIdealNecessarioSegundos = 0;
-  let paradasAgrupadas = new Map<string, number>();
+  const paradasAgrupadas = new Map<string, number>();
 
   const dataReferenciaAtual = new Date();
 
@@ -322,7 +349,11 @@ export async function getAllMachinesOeeTeep(periodo: string) {
 
   // Buscar Paradas
   const sessIds = sessoes.map(s => s.id);
-  let todasParadas: any[] = [];
+  let todasParadas: Array<{
+    sessao_id: string;
+    inicio_parada: string;
+    fim_parada: string | null;
+  }> = [];
   for (let i = 0; i < sessIds.length; i += 100) {
     const chunk = sessIds.slice(i, i + 100);
     const { data: parad } = await supabase
@@ -334,7 +365,7 @@ export async function getAllMachinesOeeTeep(periodo: string) {
 
   // Buscar Tempo de Ciclo
   const codigos = Array.from(new Set(sessoes.map(s => s.produto_codigo)));
-  let produtosMap = new Map<string, number>();
+  const produtosMap = new Map<string, number>();
   for (let i = 0; i < codigos.length; i += 50) {
     const chunk = codigos.slice(i, i + 50);
     const { data: prods } = await supabase
@@ -410,4 +441,361 @@ export async function getAllMachinesOeeTeep(periodo: string) {
   });
 
   return result;
+}
+
+export async function getFilteredMachinesOee(params: MetricParams): Promise<MachineOeeCard[]> {
+  let startDate = new Date();
+  let endDate = new Date();
+
+  switch (params.periodo) {
+    case "Hoje":
+      startDate = startOfDay(new Date());
+      endDate = new Date();
+      break;
+    case "Últimas 24h":
+      startDate = subDays(new Date(), 1);
+      endDate = new Date();
+      break;
+    case "Últimos 7 dias":
+      startDate = startOfDay(subDays(new Date(), 7));
+      endDate = endOfDay(new Date());
+      break;
+    case "Últimos 30 dias":
+      startDate = startOfDay(subDays(new Date(), 30));
+      endDate = endOfDay(new Date());
+      break;
+    case "Personalizado":
+      if (params.dateRangeStr) {
+        const dr = JSON.parse(params.dateRangeStr);
+        if (dr.from) startDate = startOfDay(new Date(dr.from));
+        if (dr.to) endDate = endOfDay(new Date(dr.to));
+      }
+      break;
+  }
+
+  const supabase = getSupabasePrensa();
+
+  let maquinasQuery = supabase.from("maquinas").select("id, num_maq").order("num_maq");
+  if (params.maquina !== "Todas") {
+    maquinasQuery = maquinasQuery.eq("num_maq", params.maquina);
+  }
+
+  const { data: maquinasDb } = await maquinasQuery;
+  if (!maquinasDb || maquinasDb.length === 0) return [];
+
+  const maquinaIds = maquinasDb.map((m) => m.id);
+
+  let sessoesQuery = supabase
+    .from("sessoes_producao")
+    .select("id, maquina_id, operador_matricula, produto_codigo, inicio_sessao, fim_sessao, qtd_produzida")
+    .in("maquina_id", maquinaIds)
+    .gte("inicio_sessao", startDate.toISOString())
+    .lte("inicio_sessao", endDate.toISOString());
+
+  if (params.operador !== "Todos") {
+    sessoesQuery = sessoesQuery.eq("operador_matricula", params.operador);
+  }
+
+  const { data: sessoes, error: errSessoes } = await sessoesQuery;
+  if (errSessoes || !sessoes) {
+    return maquinasDb.map((m) => ({
+      maquina: m.num_maq,
+      oee: 0,
+      disponibilidade: 0,
+      performance: 0,
+      qualidade: 100,
+      tempoOperacional: 0,
+      qtdSessoes: 0,
+    }));
+  }
+
+  const sessIds = sessoes.map((s) => s.id);
+  let todasParadas: Array<{
+    sessao_id: string;
+    inicio_parada: string;
+    fim_parada: string | null;
+  }> = [];
+
+  for (let i = 0; i < sessIds.length; i += 100) {
+    const chunk = sessIds.slice(i, i + 100);
+    if (!chunk.length) continue;
+
+    const { data: parad } = await supabase
+      .from("paradas_maquina")
+      .select("sessao_id, inicio_parada, fim_parada")
+      .in("sessao_id", chunk);
+
+    if (parad) {
+      todasParadas = todasParadas.concat(parad);
+    }
+  }
+
+  const codigos = Array.from(new Set(sessoes.map((s) => s.produto_codigo).filter(Boolean)));
+  const produtosMap = new Map<string, number>();
+
+  for (let i = 0; i < codigos.length; i += 50) {
+    const chunk = codigos.slice(i, i + 50);
+    if (!chunk.length) continue;
+
+    const { data: prods } = await supabase
+      .from("vw_produtos_datasul")
+      .select("codigo_item, tempo_ciclo_ideal_segundos")
+      .in("codigo_item", chunk);
+
+    if (prods) {
+      prods.forEach((p) => produtosMap.set(p.codigo_item, p.tempo_ciclo_ideal_segundos || 300));
+    }
+  }
+
+  const dataReferenciaAtual = new Date();
+
+  const result = maquinasDb.map((maq) => {
+    const sessoesMaq = sessoes.filter((s) => s.maquina_id === maq.id);
+    const sessaoIdsDaMaquina = new Set(sessoesMaq.map((s) => s.id));
+    const paradasMaq = todasParadas.filter((p) => sessaoIdsDaMaquina.has(p.sessao_id));
+
+    let tempoOperacionalPlanejadoSegundos = 0;
+    let tempoIdealNecessarioSegundos = 0;
+    let tempoParadoTotalSegundos = 0;
+
+    sessoesMaq.forEach((sessao) => {
+      const inicioTs = new Date(sessao.inicio_sessao).getTime();
+      const fimTs = sessao.fim_sessao
+        ? new Date(sessao.fim_sessao).getTime()
+        : Math.min(dataReferenciaAtual.getTime(), endDate.getTime());
+
+      const planejado = Math.max(0, (fimTs - inicioTs) / 1000);
+      tempoOperacionalPlanejadoSegundos += planejado;
+
+      const qtd = sessao.qtd_produzida || 0;
+      const cicloIdeal = produtosMap.get(sessao.produto_codigo) || 300;
+      tempoIdealNecessarioSegundos += qtd * cicloIdeal;
+    });
+
+    paradasMaq.forEach((parada) => {
+      const inicioP = new Date(parada.inicio_parada).getTime();
+      const fimP = parada.fim_parada
+        ? new Date(parada.fim_parada).getTime()
+        : Math.min(dataReferenciaAtual.getTime(), endDate.getTime());
+
+      const parado = Math.max(0, (fimP - inicioP) / 1000);
+      tempoParadoTotalSegundos += parado;
+    });
+
+    const tempoTrabalhadoRealSegundos = Math.max(0, tempoOperacionalPlanejadoSegundos - tempoParadoTotalSegundos);
+
+    let disponibilidade = 0;
+    if (tempoOperacionalPlanejadoSegundos > 0) {
+      disponibilidade = tempoTrabalhadoRealSegundos / tempoOperacionalPlanejadoSegundos;
+    }
+
+    let performance = 0;
+    if (tempoTrabalhadoRealSegundos > 0) {
+      performance = tempoIdealNecessarioSegundos / tempoTrabalhadoRealSegundos;
+    }
+
+    disponibilidade = Math.min(1, Math.max(0, disponibilidade));
+    performance = Math.min(1, Math.max(0, performance));
+    const qualidade = 1.0;
+    const oee = Math.round(disponibilidade * performance * qualidade * 100);
+
+    return {
+      maquina: maq.num_maq,
+      oee: Number.isNaN(oee) ? 0 : oee,
+      disponibilidade: Math.round(disponibilidade * 100),
+      performance: Math.round(performance * 100),
+      qualidade: Math.round(qualidade * 100),
+      tempoOperacional: Math.round(tempoTrabalhadoRealSegundos / 60),
+      qtdSessoes: sessoesMaq.length,
+    };
+  });
+
+  return result.sort((a, b) => {
+    if (b.oee !== a.oee) return b.oee - a.oee;
+    return a.maquina.localeCompare(b.maquina, "pt-BR", { numeric: true });
+  });
+}
+
+export async function getFilteredMachinesTeep(params: MetricParams): Promise<MachineTeepCard[]> {
+  let startDate = new Date();
+  let endDate = new Date();
+  let tempoCalendarioMinutos = 1440;
+
+  switch (params.periodo) {
+    case "Hoje":
+      startDate = startOfDay(new Date());
+      endDate = new Date();
+      tempoCalendarioMinutos = Math.max(1, Math.round(differenceInSeconds(endDate, startDate) / 60));
+      break;
+    case "Últimas 24h":
+      startDate = subDays(new Date(), 1);
+      endDate = new Date();
+      tempoCalendarioMinutos = 1440;
+      break;
+    case "Últimos 7 dias":
+      startDate = startOfDay(subDays(new Date(), 7));
+      endDate = endOfDay(new Date());
+      tempoCalendarioMinutos = 7 * 1440;
+      break;
+    case "Últimos 30 dias":
+      startDate = startOfDay(subDays(new Date(), 30));
+      endDate = endOfDay(new Date());
+      tempoCalendarioMinutos = 30 * 1440;
+      break;
+    case "Personalizado":
+      if (params.dateRangeStr) {
+        const dr = JSON.parse(params.dateRangeStr);
+        if (dr.from) startDate = startOfDay(new Date(dr.from));
+        if (dr.to) endDate = endOfDay(new Date(dr.to));
+
+        const diffDays = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+        tempoCalendarioMinutos = diffDays * 1440;
+      }
+      break;
+  }
+
+  const supabase = getSupabasePrensa();
+
+  let maquinasQuery = supabase.from("maquinas").select("id, num_maq").order("num_maq");
+  if (params.maquina !== "Todas") {
+    maquinasQuery = maquinasQuery.eq("num_maq", params.maquina);
+  }
+
+  const { data: maquinasDb } = await maquinasQuery;
+  if (!maquinasDb || maquinasDb.length === 0) return [];
+
+  const maquinaIds = maquinasDb.map((m) => m.id);
+
+  let sessoesQuery = supabase
+    .from("sessoes_producao")
+    .select("id, maquina_id, operador_matricula, produto_codigo, inicio_sessao, fim_sessao, qtd_produzida")
+    .in("maquina_id", maquinaIds)
+    .gte("inicio_sessao", startDate.toISOString())
+    .lte("inicio_sessao", endDate.toISOString());
+
+  if (params.operador !== "Todos") {
+    sessoesQuery = sessoesQuery.eq("operador_matricula", params.operador);
+  }
+
+  const { data: sessoes, error: errSessoes } = await sessoesQuery;
+  if (errSessoes || !sessoes) {
+    return maquinasDb.map((m) => ({
+      maquina: m.num_maq,
+      teep: 0,
+      utilizacao: 0,
+      disponibilidade: 0,
+      performance: 0,
+      qualidade: 100,
+      tempoOperacional: 0,
+      qtdSessoes: 0,
+    }));
+  }
+
+  const sessIds = sessoes.map((s) => s.id);
+  let todasParadas: Array<{
+    sessao_id: string;
+    inicio_parada: string;
+    fim_parada: string | null;
+  }> = [];
+
+  for (let i = 0; i < sessIds.length; i += 100) {
+    const chunk = sessIds.slice(i, i + 100);
+    if (!chunk.length) continue;
+
+    const { data: parad } = await supabase
+      .from("paradas_maquina")
+      .select("sessao_id, inicio_parada, fim_parada")
+      .in("sessao_id", chunk);
+
+    if (parad) {
+      todasParadas = todasParadas.concat(parad);
+    }
+  }
+
+  const codigos = Array.from(new Set(sessoes.map((s) => s.produto_codigo).filter(Boolean)));
+  const produtosMap = new Map<string, number>();
+
+  for (let i = 0; i < codigos.length; i += 50) {
+    const chunk = codigos.slice(i, i + 50);
+    if (!chunk.length) continue;
+
+    const { data: prods } = await supabase
+      .from("vw_produtos_datasul")
+      .select("codigo_item, tempo_ciclo_ideal_segundos")
+      .in("codigo_item", chunk);
+
+    if (prods) {
+      prods.forEach((p) => produtosMap.set(p.codigo_item, p.tempo_ciclo_ideal_segundos || 300));
+    }
+  }
+
+  const dataReferenciaAtual = new Date();
+
+  const result = maquinasDb.map((maq) => {
+    const sessoesMaq = sessoes.filter((s) => s.maquina_id === maq.id);
+    const sessaoIdsDaMaquina = new Set(sessoesMaq.map((s) => s.id));
+    const paradasMaq = todasParadas.filter((p) => sessaoIdsDaMaquina.has(p.sessao_id));
+
+    let tempoOperacionalPlanejadoSegundos = 0;
+    let tempoIdealNecessarioSegundos = 0;
+    let tempoParadoTotalSegundos = 0;
+
+    sessoesMaq.forEach((sessao) => {
+      const inicioTs = new Date(sessao.inicio_sessao).getTime();
+      const fimTs = sessao.fim_sessao
+        ? new Date(sessao.fim_sessao).getTime()
+        : Math.min(dataReferenciaAtual.getTime(), endDate.getTime());
+
+      const planejado = Math.max(0, (fimTs - inicioTs) / 1000);
+      tempoOperacionalPlanejadoSegundos += planejado;
+
+      const qtd = sessao.qtd_produzida || 0;
+      const cicloIdeal = produtosMap.get(sessao.produto_codigo) || 300;
+      tempoIdealNecessarioSegundos += qtd * cicloIdeal;
+    });
+
+    paradasMaq.forEach((parada) => {
+      const inicioP = new Date(parada.inicio_parada).getTime();
+      const fimP = parada.fim_parada
+        ? new Date(parada.fim_parada).getTime()
+        : Math.min(dataReferenciaAtual.getTime(), endDate.getTime());
+
+      const parado = Math.max(0, (fimP - inicioP) / 1000);
+      tempoParadoTotalSegundos += parado;
+    });
+
+    const tempoTrabalhadoRealSegundos = Math.max(0, tempoOperacionalPlanejadoSegundos - tempoParadoTotalSegundos);
+
+    let disponibilidade = 0;
+    if (tempoOperacionalPlanejadoSegundos > 0) {
+      disponibilidade = tempoTrabalhadoRealSegundos / tempoOperacionalPlanejadoSegundos;
+    }
+
+    let performance = 0;
+    if (tempoTrabalhadoRealSegundos > 0) {
+      performance = tempoIdealNecessarioSegundos / tempoTrabalhadoRealSegundos;
+    }
+
+    disponibilidade = Math.min(1, Math.max(0, disponibilidade));
+    performance = Math.min(1, Math.max(0, performance));
+    const qualidade = 1.0;
+    const utilizacao = Math.min(1, tempoOperacionalPlanejadoSegundos / (tempoCalendarioMinutos * 60));
+    const teep = Math.round(utilizacao * disponibilidade * performance * qualidade * 100);
+
+    return {
+      maquina: maq.num_maq,
+      teep: Number.isNaN(teep) ? 0 : teep,
+      utilizacao: Math.round(utilizacao * 100),
+      disponibilidade: Math.round(disponibilidade * 100),
+      performance: Math.round(performance * 100),
+      qualidade: Math.round(qualidade * 100),
+      tempoOperacional: Math.round(tempoTrabalhadoRealSegundos / 60),
+      qtdSessoes: sessoesMaq.length,
+    };
+  });
+
+  return result.sort((a, b) => {
+    if (b.teep !== a.teep) return b.teep - a.teep;
+    return a.maquina.localeCompare(b.maquina, "pt-BR", { numeric: true });
+  });
 }
