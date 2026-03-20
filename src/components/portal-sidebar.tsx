@@ -13,7 +13,6 @@ import {
     Server,
     FileText,
     Activity,
-    Building2,
     Users,
     Info,
     MonitorPlay,
@@ -23,6 +22,8 @@ import {
     Hammer,
     Truck,
     LayoutDashboard,
+    BarChart3,
+    TrendingUp,
     Layers,
     Calendar,
     CalendarCheck,
@@ -31,7 +32,6 @@ import {
     Ticket,
     ClipboardList,
 } from "lucide-react";
-import { SignOutButton } from "./sign-out-button";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import iconParams from "../app/icon.png";
@@ -44,12 +44,7 @@ import {
     SidebarMenu,
     SidebarMenuItem,
     SidebarMenuButton,
-    SidebarRail,
     useSidebar,
-    SidebarGroup,
-    SidebarGroupLabel,
-    SidebarSeparator,
-    SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { UserNav } from "@/components/user-nav";
 import { Button } from "@/components/ui/button";
@@ -107,6 +102,8 @@ export const getIcon = (name?: string) => {
         case 'hammer': return Hammer;
         case 'truck': return Truck;
         case 'layout-dashboard': return LayoutDashboard;
+        case 'bar-chart-3': return BarChart3;
+        case 'trending-up': return TrendingUp;
         case 'layers': return Layers;
         case 'calendar': return Calendar;
         case 'calendar-check': return CalendarCheck;
@@ -137,14 +134,48 @@ export function PortalSidebar({ userEmail, userName, links, ...props }: PortalSi
         ];
     }
 
+    const linkMatchesCurrentRoute = (href: string) => {
+        if (!pathname) return false;
+
+        if (href.includes('?')) {
+            const [linkPath, linkQuery] = href.split('?');
+            const linkParams = new URLSearchParams(linkQuery);
+
+            if (pathname !== linkPath) return false;
+
+            let matches = true;
+            linkParams.forEach((value, key) => {
+                if (searchParams.get(key) !== value) {
+                    matches = false;
+                }
+            });
+            return matches;
+        }
+
+        if (href === "/portal" || href === "/inventario-rotativo") {
+            return pathname === href;
+        }
+
+        if (
+            href === "/controle-prazo-qualidade" &&
+            pathname.includes("controle-prazo-qualidade") &&
+            searchParams.toString().length > 0
+        ) {
+            return false;
+        }
+
+        return pathname === href || pathname.startsWith(`${href}/`);
+    };
+
+    const activeHref = [...navLinks]
+        .filter((link) => linkMatchesCurrentRoute(link.href))
+        .sort((a, b) => b.href.length - a.href.length)[0]?.href;
+
     // Helper for initials
     const getInitials = (name?: string | null) => {
         if (!name) return "U";
         return name.substring(0, 2).toUpperCase();
     }
-
-    // Dynamic Home Link: If in a dashboard subpage, go to Hub. Else go to Portal.
-    const homeLink = (pathname?.startsWith('/dashboards') && pathname !== '/dashboards') ? '/dashboards' : '/portal';
 
     return (
         <Sidebar collapsible="icon" mode="relative" className="border-0 bg-[#68D9A6] rounded-xl md:rounded-2xl shadow-none md:shadow-md h-full ml-0 text-slate-900" {...props}>
@@ -172,30 +203,7 @@ export function PortalSidebar({ userEmail, userName, links, ...props }: PortalSi
                 <SidebarMenu className="gap-1">
                     {navLinks.map((link) => {
                         const Icon = getIcon(link.icon);
-
-                        // Enhanced active state detection
-                        let isActive = false;
-                        if (link.href.includes('?')) {
-                            const [linkPath, linkQuery] = link.href.split('?');
-                            const linkParams = new URLSearchParams(linkQuery);
-
-                            if (pathname === linkPath) {
-                                isActive = true;
-                                linkParams.forEach((value, key) => {
-                                    if (searchParams.get(key) !== value) {
-                                        isActive = false;
-                                    }
-                                });
-                            }
-                        } else {
-                            isActive = (link.href === "/portal" || link.href === "/inventario-rotativo")
-                                ? pathname === link.href
-                                : pathname?.startsWith(link.href);
-
-                            if (isActive && pathname?.includes('controle-prazo-qualidade') && searchParams.toString().length > 0 && link.href === '/controle-prazo-qualidade') {
-                                isActive = false;
-                            }
-                        }
+                        const isActive = link.href === activeHref;
 
                         return (
                             <SidebarMenuItem key={link.href}>
@@ -204,10 +212,10 @@ export function PortalSidebar({ userEmail, userName, links, ...props }: PortalSi
                                     isActive={isActive}
                                     tooltip={link.label}
                                     className={cn(
-                                        "w-full justify-start gap-3 px-3 py-3 min-h-10 rounded-xl transition-all duration-200 overflow-hidden",
+                                        "w-full justify-start gap-3 px-3 py-3 min-h-10 rounded-xl transition-all duration-200 overflow-hidden active:bg-[#18181B] active:text-white focus-visible:ring-0",
                                         "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2 group-data-[collapsible=icon]:!w-full group-data-[collapsible=icon]:!h-10",
                                         isActive
-                                            ? "bg-[#18181B] text-white hover:bg-[#27272A] hover:text-white shadow-md font-semibold"
+                                            ? "data-[active=true]:bg-[#18181B] data-[active=true]:text-white data-[active=true]:hover:bg-[#27272A] data-[active=true]:hover:text-white shadow-md data-[active=true]:font-semibold"
                                             : "text-black hover:bg-black/5 hover:text-black"
                                     )}
                                 >

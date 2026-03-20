@@ -39,11 +39,6 @@ export default async function OeeTeepLayout({
       href: "/oee-teep/prensa-rubber/teep",
       icon: "trending-up",
     },
-    {
-      label: "OEE Máquinas",
-      href: "/oee-teep/prensa-rubber/oee-maquinas",
-      icon: "activity",
-    },
   ];
 
   return (
