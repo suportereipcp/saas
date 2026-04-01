@@ -9,7 +9,7 @@ async function checkMaria() {
   const mariaConnection = await mysql.createConnection(dbUrl);
 
   const [rows] = await mariaConnection.execute<mysql.RowDataPacket[]>(
-    "SELECT * FROM log_prensas WHERE id > ? ORDER BY id ASC LIMIT 10",
+    "SELECT * FROM prensavulc_6 WHERE id > ? ORDER BY id ASC LIMIT 10",
     [142]
   );
   

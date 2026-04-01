@@ -19,7 +19,7 @@ export async function GET() {
 
     // Consulta à tabela prensavulc ordenando do mais recente para o mais antigo
     const [rows] = await connection.execute(
-      "SELECT * FROM log_prensas ORDER BY timestamp DESC LIMIT 50"
+      "SELECT * FROM prensavulc_6 ORDER BY timestamp DESC LIMIT 50"
     );
 
     await connection.end();
