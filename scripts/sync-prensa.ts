@@ -94,18 +94,21 @@ async function getCavidades(produtoCodigo: string): Promise<number> {
 }
 
 /**
- * Busca o último timestamp de pulso de uma sessão
+ * Busca o último timestamp e ciclo real de pulso de uma sessão
  */
-async function getUltimoPulsoTimestamp(sessaoId: string): Promise<Date | null> {
+async function getUltimoPulsoInfo(sessaoId: string): Promise<{ timestamp_ciclo: Date | null, ciclo_real: number | null }> {
   const { data } = await supabase
     .from("pulsos_producao")
-    .select("timestamp_ciclo")
+    .select("timestamp_ciclo, ciclo_real")
     .eq("sessao_id", sessaoId)
     .order("timestamp_ciclo", { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
-  return data ? new Date(data.timestamp_ciclo) : null;
+  return {
+    timestamp_ciclo: data ? new Date(data.timestamp_ciclo) : null,
+    ciclo_real: data?.ciclo_real ?? null
+  };
 }
 
 /**
@@ -269,7 +272,7 @@ async function syncCycle(): Promise<void> {
       timestampCiclo.setHours(timestampCiclo.getHours() + 3);
       
       for (const sessao of sessoes) {
-        const ultimoPulsoTs = await getUltimoPulsoTimestamp(sessao.id);
+        const { timestamp_ciclo: ultimoPulsoTs } = await getUltimoPulsoInfo(sessao.id);
         let intervaloSegundos: number | null = null;
 
         if (ultimoPulsoTs) {
@@ -295,6 +298,7 @@ async function syncCycle(): Promise<void> {
           timestamp_ciclo: timestampCiclo.toISOString(),
           qtd_pecas: cavidades,
           intervalo_segundos: intervaloSegundos,
+          ciclo_real: row.temp_vulcaniz ? Number(row.temp_vulcaniz) : null,
           mariadb_id: pulsoId,
         });
 
@@ -369,27 +373,40 @@ async function watchdogCycle(): Promise<void> {
     for (const [maquinaId, sessoes] of sessoesPorMaquina.entries()) {
       const numMaq = maqMap.get(maquinaId) || "unknown";
 
-      // 1. Calcula o MAIOR tempo de ciclo entre os itens da MÁQUINA
-      let maiorCicloIdeal = 0;
-      for (const s of sessoes) {
-         const ciclo = await getTempoCicloIdeal(s.produto_codigo);
-         if (ciclo > maiorCicloIdeal) maiorCicloIdeal = ciclo;
-      }
-
-      // 2. Calcula o tempo da última atividade da MÁQUINA (maior startRef entre as sessões ativas)
+      // 1. Calcula o MAIOR tempo de ciclo BASE (Real ou Ideal) entre os itens da MÁQUINA
+      let maiorCicloBase = 0;
       let maquinaStartRefT = 0;
+
       for (const s of sessoes) {
-         const ultimoPulsoTs = await getUltimoPulsoTimestamp(s.id);
-         const sRef = ultimoPulsoTs ? ultimoPulsoTs.getTime() : new Date(s.inicio_sessao).getTime();
+         const { timestamp_ciclo, ciclo_real } = await getUltimoPulsoInfo(s.id);
+         
+         // Prioridade: Ciclo Real do último pulso > Ciclo Ideal do cadastro
+         let cicloSession = ciclo_real;
+         if (!cicloSession) {
+            cicloSession = await getTempoCicloIdeal(s.produto_codigo);
+         }
+         
+         if (cicloSession > maiorCicloBase) maiorCicloBase = cicloSession;
+
+         // Referência de tempo para o Watchdog: Último Pulso ou Início da Sessão
+         const sRef = timestamp_ciclo ? timestamp_ciclo.getTime() : new Date(s.inicio_sessao).getTime();
          if (sRef > maquinaStartRefT) maquinaStartRefT = sRef;
       }
+      
       const maquinaStartRef = new Date(maquinaStartRefT);
-
       const segundosOcioso = Math.round((Date.now() - maquinaStartRef.getTime()) / 1000);
       
-      // REGRA DE NEGÓCIO DA MÁQUINA: Alerta em 1.6x do MAIOR Ciclo, Encerra após Alerta + 5 minutos.
-      const limiteParada = maiorCicloIdeal * 1.6;
-      const limiteAbandono = limiteParada + (5 * 60); // 300 segundos = 5 minutos
+      // REGRA DE NEGÓCIO DA MÁQUINA: Alerta em 1.6x do MAIOR Ciclo Base, Encerra após Alerta + 5 minutos.
+      const limiteParada = maiorCicloBase * 1.6;
+      const limiteAbandono = limiteParada + (5 * 60);
+
+      // Log informativo em minutos (conforme solicitado pelo usuário)
+      if (segundosOcioso > (maiorCicloBase * 1.1)) {
+        const minBase = (maiorCicloBase / 60).toFixed(1);
+        const minOcioso = (segundosOcioso / 60).toFixed(1);
+        const minLimite = (limiteParada / 60).toFixed(1);
+        console.log(`[WATCHDOG] Máquina ${numMaq} ociosa há ${minOcioso} min (Base: ${minBase} min, Limite: ${minLimite} min)`);
+      }
 
       // CASO 1: TEMPO EXCEDE LIMITE DE ABANDONO TOTAL (Auto-Encerramento de TODA a Máquina)
       if (segundosOcioso > limiteAbandono) {
