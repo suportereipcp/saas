@@ -178,7 +178,7 @@ async function syncCycle(): Promise<void> {
 
     // Busca novos pulsos
     const [rows] = await mariaConnection.execute<mysql.RowDataPacket[]>(
-      "SELECT * FROM log_prensas WHERE id > ? ORDER BY id ASC",
+      "SELECT * FROM prensavulc_6 WHERE id > ? ORDER BY id ASC",
       [lastId]
     );
 

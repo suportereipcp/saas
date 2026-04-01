@@ -6,7 +6,7 @@ async function check() {
   const dbUrl = process.env.MARIADB_APONTAMENTOS_URL!.replace("mariadb://", "mysql://");
   const conn = await mysql.createConnection(dbUrl);
   
-  const [rows] = await conn.execute("SELECT * FROM log_prensas ORDER BY id DESC LIMIT 5");
+  const [rows] = await conn.execute("SELECT * FROM prensavulc_6 ORDER BY id DESC LIMIT 5");
   console.log("ÚLTIMOS 5 NO MARIADB:", rows);
   
   conn.end();
