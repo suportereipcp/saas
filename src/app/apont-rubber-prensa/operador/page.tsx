@@ -155,12 +155,15 @@ export default function OperadorPage() {
 
     const sessoes = data || [];
 
-    // Lógica para deslogar operador em Auto-Cancelamento (Watchdog finalizou todas as sessões p/ nós)
+    // Lógica para preservar dados em Auto-Cancelamento (Watchdog finalizou todas as sessões p/ nós)
     if (prevSessoesCount.current > 0 && sessoes.length === 0) {
       if (!userRequestedFinish.current) {
-        setGlobalOperador("");
-        setGlobalOperadorNome("");
-        setBuscaGlobalOperador("");
+        // Se foi o Watchdog, mantemos o operador e preenchemos os formulários com os produtos que acabaram de sair
+        const newForms: Record<number, { produto: string; buscaProduto: string }> = {};
+        for (const s of sessoesAtivas) {
+          newForms[s.plato] = { produto: s.produto_codigo, buscaProduto: "" };
+        }
+        setFormsData(newForms);
       }
       userRequestedFinish.current = false; // Arma gatilho novamente
     }
