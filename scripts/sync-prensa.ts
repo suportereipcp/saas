@@ -396,8 +396,8 @@ async function watchdogCycle(): Promise<void> {
       const maquinaStartRef = new Date(maquinaStartRefT);
       const segundosOcioso = Math.round((Date.now() - maquinaStartRef.getTime()) / 1000);
       
-      // REGRA DE NEGÓCIO DA MÁQUINA: Alerta em 1.6x do MAIOR Ciclo Base, Encerra após Alerta + 5 minutos.
-      const limiteParada = maiorCicloBase * 1.6;
+      // REGRA DE NEGÓCIO DA MÁQUINA: Alerta em 2.5x do MAIOR Ciclo Base, Encerra após Alerta + 5 minutos.
+      const limiteParada = maiorCicloBase * 2.5;
       const limiteAbandono = limiteParada + (5 * 60);
 
       // Log informativo em minutos (conforme solicitado pelo usuário)

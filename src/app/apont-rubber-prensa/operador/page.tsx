@@ -84,6 +84,7 @@ export default function OperadorPage() {
 
   // Flags para Reset de Operador Silencioso (Zero-Gaps)
   const prevSessoesCount = useRef<number>(0);
+  const prevSessoesData = useRef<SessaoAtiva[]>([]);
   const userRequestedFinish = useRef<boolean>(false);
 
   const maquinaAtiva = maquinas.find((m) => m.id === selectedMaquina);
@@ -158,14 +159,19 @@ export default function OperadorPage() {
     // Lógica para preservar dados em Auto-Cancelamento (Watchdog finalizou todas as sessões p/ nós)
     if (prevSessoesCount.current > 0 && sessoes.length === 0) {
       if (!userRequestedFinish.current) {
-        // Se foi o Watchdog, mantemos o operador e preenchemos os formulários com os produtos que acabaram de sair
+        // Usa os dados salvos no ref (não depende do estado React que pode já estar vazio)
         const newForms: Record<number, { produto: string; buscaProduto: string }> = {};
-        for (const s of sessoesAtivas) {
+        for (const s of prevSessoesData.current) {
           newForms[s.plato] = { produto: s.produto_codigo, buscaProduto: "" };
         }
         setFormsData(newForms);
       }
       userRequestedFinish.current = false; // Arma gatilho novamente
+    }
+
+    // Salva os dados das sessões ativas no ref para uso futuro (antes de zerar)
+    if (sessoes.length > 0) {
+      prevSessoesData.current = sessoes;
     }
     prevSessoesCount.current = sessoes.length;
 
