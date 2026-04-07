@@ -499,6 +499,107 @@ async function watchdogCycle(): Promise<void> {
   }
 }
 
+/**
+ * Pilar C: Recuperação de Pulsos Fantasmas
+ * Para máquinas que agora têm sessão ativa, reimporta pulsos que chegaram
+ * antes da sessão ser aberta (registrados como produção fantasma).
+ */
+async function recuperarPulsosFantasmas(): Promise<void> {
+  let mariaConnection: mysql.Connection | null = null;
+
+  try {
+    // Busca alertas de producao_fantasma ainda não resolvidos
+    const { data: alertas } = await supabase
+      .from("alertas_maquina")
+      .select("id, maquina_id, metadata")
+      .eq("tipo", "producao_fantasma")
+      .eq("resolvido", false);
+
+    if (!alertas || alertas.length === 0) return;
+
+    for (const alerta of alertas) {
+      // Verifica se a máquina agora tem sessão ativa
+      const { data: sessoes } = await supabase
+        .from("sessoes_producao")
+        .select("id, produto_codigo, plato")
+        .eq("maquina_id", alerta.maquina_id)
+        .eq("status", "em_andamento");
+
+      if (!sessoes || sessoes.length === 0) continue;
+
+      // Extrai os view_ids dos pulsos perdidos do metadata do alerta
+      const pulsosPerdidos: { mariadb_id: number; timestamp: string }[] =
+        alerta.metadata?.pulsos_perdidos || [];
+
+      if (pulsosPerdidos.length === 0) {
+        await supabase.from("alertas_maquina").update({ resolvido: true }).eq("id", alerta.id);
+        continue;
+      }
+
+      const viewIds = pulsosPerdidos.map((p) => p.mariadb_id);
+      console.log(`[RECOVER] Máquina ${alerta.maquina_id}: recuperando ${viewIds.length} pulso(s) fantasma(s) [IDs: ${viewIds.join(", ")}]`);
+
+      // Conecta ao MariaDB apenas uma vez por ciclo
+      if (!mariaConnection) {
+        const dbUrl = MARIADB_URL.replace("mariadb://", "mysql://");
+        mariaConnection = await mysql.createConnection(dbUrl);
+      }
+
+      // Busca os registros originais no MariaDB pelo view_id
+      const placeholders = viewIds.map(() => "?").join(", ");
+      const [rows] = await mariaConnection.execute<mysql.RowDataPacket[]>(
+        `SELECT * FROM log_prensas WHERE view_id IN (${placeholders}) ORDER BY view_id ASC`,
+        viewIds
+      );
+
+      let recuperados = 0;
+
+      for (const row of rows) {
+        // Ajuste de Fuso Horário (mesmo padrão do syncCycle)
+        const timestampCiclo = new Date(row.timestamp);
+        timestampCiclo.setHours(timestampCiclo.getHours() + 3);
+
+        for (const sessao of sessoes) {
+          const cavidades = await getCavidades(sessao.produto_codigo);
+          const pulsoId = `${row.view_id}_p${sessao.plato}`;
+
+          const { error } = await supabase.from("pulsos_producao").insert({
+            sessao_id: sessao.id,
+            timestamp_ciclo: timestampCiclo.toISOString(),
+            qtd_pecas: cavidades,
+            intervalo_segundos: null,
+            ciclo_real: row.temp_vulcaniz ? Number(row.temp_vulcaniz) : null,
+            mariadb_id: pulsoId,
+          });
+
+          if (!error) {
+            recuperados++;
+            // Atualiza qtd_produzida na sessão
+            const { data: totalPulsos } = await supabase
+              .from("pulsos_producao")
+              .select("qtd_pecas")
+              .eq("sessao_id", sessao.id);
+            const qtdProduzida = (totalPulsos || []).reduce((acc, p) => acc + (p.qtd_pecas || 0), 0);
+            await supabase.from("sessoes_producao").update({ qtd_produzida: qtdProduzida }).eq("id", sessao.id);
+          } else if (!error.message.includes("duplicate") && !error.message.includes("unique")) {
+            console.error(`[RECOVER] Erro ao reimportar pulso ${row.view_id} plato ${sessao.plato}:`, error.message);
+          }
+        }
+      }
+
+      // Marca o alerta como resolvido
+      await supabase.from("alertas_maquina").update({ resolvido: true }).eq("id", alerta.id);
+      console.log(`[RECOVER] ✅ ${recuperados} pulso(s) retroativo(s) importados. Alerta resolvido.`);
+    }
+  } catch (err: any) {
+    console.error("[RECOVER] ❌ Erro na recuperação de fantasmas:", err.message);
+  } finally {
+    if (mariaConnection) {
+      try { await mariaConnection.end(); } catch { /* ignora */ }
+    }
+  }
+}
+
 // --- Inicialização ---
 async function main() {
   console.log("===========================================");
@@ -517,7 +618,8 @@ async function main() {
 
   while (true) {
     await syncCycle();
-    await watchdogCycle(); // Novo: Detecta atrasos cruciais instantaneamente
+    await watchdogCycle();
+    await recuperarPulsosFantasmas(); // Recupera pulsos que chegaram antes da sessão ser aberta
     await new Promise((resolve) => setTimeout(resolve, SYNC_INTERVAL_MS));
   }
 }
