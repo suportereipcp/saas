@@ -222,24 +222,17 @@ async function syncCycle(): Promise<void> {
             timestampCiclo.setHours(timestampCiclo.getHours() + 3);
 
             if (!alertas || alertas.length === 0) {
-              // Guard: só cria novo alerta se o pulso for recente (máx 1h atrás)
-              // Evita alertas falsos ao reprocessar dados históricos
-              const diffHoras = (Date.now() - timestampCiclo.getTime()) / (1000 * 60 * 60);
-              if (diffHoras > 1) {
-                console.warn(`[SYNC] ⏭️ Pulso antigo ignorado para NOVO alerta (${timestampCiclo.toISOString()}, ${diffHoras.toFixed(1)}h atrás). Máquina ${numMaq}`);
-              } else {
-                // Primeiro pulso fantasma recente: cria o alerta
-                await supabase.from("alertas_maquina").insert({
-                  maquina_id: maquina.id,
-                  tipo: "producao_fantasma",
-                  resolvido: false,
-                  metadata: { 
-                    timestamp_mariadb: timestampCiclo.toISOString(),
-                    pulsos_perdidos: [{ mariadb_id: row.view_id, timestamp: timestampCiclo.toISOString() }]
-                  }
-                });
-                console.log(`[SYNC] 👻 ALERTA: Produção fantasma detectada na máquina ${numMaq}! (PULSO ID ${row.view_id} EM: ${timestampCiclo.toISOString()})`);
-              }
+              // Primeiro pulso fantasma: cria o alerta
+              await supabase.from("alertas_maquina").insert({
+                maquina_id: maquina.id,
+                tipo: "producao_fantasma",
+                resolvido: false,
+                metadata: { 
+                  timestamp_mariadb: timestampCiclo.toISOString(),
+                  pulsos_perdidos: [{ mariadb_id: row.view_id, timestamp: timestampCiclo.toISOString() }]
+                }
+              });
+              console.log(`[SYNC] 👻 ALERTA: Produção fantasma detectada na máquina ${numMaq}! (PULSO ID ${row.view_id} EM: ${timestampCiclo.toISOString()})`);
             } else {
               // Alerta já existe: acumula SEMPRE (independente do tempo do pulso)
               const alertaId = alertas[0].id;
