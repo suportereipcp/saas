@@ -181,7 +181,7 @@ async function syncCycle(): Promise<void> {
 
     // Busca novos pulsos
     const [rows] = await mariaConnection.execute<mysql.RowDataPacket[]>(
-      "SELECT * FROM prensavulc_6 WHERE id > ? ORDER BY id ASC",
+      "SELECT * FROM log_prensas WHERE view_id > ? ORDER BY view_id ASC",
       [lastId]
     );
 
@@ -235,17 +235,17 @@ async function syncCycle(): Promise<void> {
                 resolvido: false,
                 metadata: { 
                   timestamp_mariadb: timestampCiclo.toISOString(),
-                  pulsos_perdidos: [{ mariadb_id: row.id, timestamp: timestampCiclo.toISOString() }]
+                  pulsos_perdidos: [{ mariadb_id: row.view_id, timestamp: timestampCiclo.toISOString() }]
                 }
               });
-              console.log(`[SYNC] 👻 ALERTA: Produção fantasma detectada na máquina ${numMaq}! (PULSO ID ${row.id} EM: ${timestampCiclo.toISOString()})`);
+              console.log(`[SYNC] 👻 ALERTA: Produção fantasma detectada na máquina ${numMaq}! (PULSO ID ${row.view_id} EM: ${timestampCiclo.toISOString()})`);
             } else {
               // Alerta já existe: acumula o pulso perdido no metadata
               const alertaId = alertas[0].id;
               const { data: alertaFull } = await supabase.from("alertas_maquina").select("metadata").eq("id", alertaId).single();
               const currentMeta = alertaFull?.metadata || {};
               const pulsosPerdidos = currentMeta.pulsos_perdidos || [];
-              pulsosPerdidos.push({ mariadb_id: row.id, timestamp: timestampCiclo.toISOString() });
+              pulsosPerdidos.push({ mariadb_id: row.view_id, timestamp: timestampCiclo.toISOString() });
               
               await supabase.from("alertas_maquina").update({
                 metadata: { 
@@ -255,14 +255,14 @@ async function syncCycle(): Promise<void> {
                 },
                 updated_at: new Date().toISOString()
               }).eq("id", alertaId);
-              console.log(`[SYNC] 👻 Pulso fantasma ACUMULADO na máquina ${numMaq} (total: ${pulsosPerdidos.length} pulsos perdidos). ID ${row.id}`);
+              console.log(`[SYNC] 👻 Pulso fantasma ACUMULADO na máquina ${numMaq} (total: ${pulsosPerdidos.length} pulsos perdidos). ID ${row.view_id}`);
             }
           }
         } catch (e) {
           console.error("[SYNC] Erro ao processar produção fantasma:", e);
         }
 
-        maxId = Math.max(maxId, row.id);
+        maxId = Math.max(maxId, row.view_id);
         continue;
       }
 
@@ -292,7 +292,7 @@ async function syncCycle(): Promise<void> {
         const cavidades = await getCavidades(sessao.produto_codigo);
 
         // Insere o pulso
-        const pulsoId = `${row.id}_p${sessao.plato}`;
+        const pulsoId = `${row.view_id}_p${sessao.plato}`;
         const { error } = await supabase.from("pulsos_producao").insert({
           sessao_id: sessao.id,
           timestamp_ciclo: timestampCiclo.toISOString(),
@@ -303,7 +303,7 @@ async function syncCycle(): Promise<void> {
         });
 
         if (error && !error.message.includes("duplicate") && !error.message.includes("unique")) {
-          console.error(`[SYNC] Erro ao inserir pulso ${row.id} plato ${sessao.plato}:`, error.message);
+          console.error(`[SYNC] Erro ao inserir pulso ${row.view_id} plato ${sessao.plato}:`, error.message);
         } else if (!error) {
           // Atualiza qtd_produzida na sessão (total acumulado até o momento)
           const { data: totalPulsos } = await supabase
@@ -324,7 +324,7 @@ async function syncCycle(): Promise<void> {
         }
       }
 
-      maxId = Math.max(maxId, row.id);
+      maxId = Math.max(maxId, row.view_id);
     }
 
     if (maxId > lastId) {
