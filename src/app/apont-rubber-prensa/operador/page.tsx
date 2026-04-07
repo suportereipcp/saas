@@ -87,6 +87,12 @@ export default function OperadorPage() {
   const prevSessoesData = useRef<SessaoAtiva[]>([]);
   const userRequestedFinish = useRef<boolean>(false);
 
+  // Refs para debounce + cancelamento de buscas (evita race condition)
+  const produtoDebounceRef = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
+  const produtoAbortRef = useRef<Record<number, AbortController>>({});
+  const operadorDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const operadorAbortRef = useRef<AbortController | null>(null);
+
   const maquinaAtiva = maquinas.find((m) => m.id === selectedMaquina);
 
   const loadCadastros = useCallback(async () => {
@@ -109,38 +115,66 @@ export default function OperadorPage() {
     }
   }, []);
 
-  const searchProdutoAsync = async (plato: number, query: string) => {
+  const searchProdutoAsync = (plato: number, query: string) => {
     updateForm(plato, "buscaProduto", query);
+
+    // Cancela debounce anterior deste plato
+    if (produtoDebounceRef.current[plato]) clearTimeout(produtoDebounceRef.current[plato]);
+
     if (!query || query.length < 2) {
       setProdutoOptions((prev) => ({ ...prev, [plato]: [] }));
       return;
     }
-    try {
-      const res = await fetch(`/api/apont-rubber-prensa/produtos?q=${encodeURIComponent(query)}`);
-      if (res.ok) {
-        const { data } = await res.json();
-        setProdutoOptions((prev) => ({ ...prev, [plato]: data || [] }));
+
+    produtoDebounceRef.current[plato] = setTimeout(async () => {
+      // Cancela request anterior deste plato (se ainda estiver pendente)
+      if (produtoAbortRef.current[plato]) produtoAbortRef.current[plato].abort();
+      const controller = new AbortController();
+      produtoAbortRef.current[plato] = controller;
+
+      try {
+        const res = await fetch(`/api/apont-rubber-prensa/produtos?q=${encodeURIComponent(query)}`, {
+          signal: controller.signal,
+        });
+        if (res.ok) {
+          const { data } = await res.json();
+          setProdutoOptions((prev) => ({ ...prev, [plato]: data || [] }));
+        }
+      } catch (e: any) {
+        if (e?.name !== "AbortError") console.error("fetch produto:", e);
       }
-    } catch (e) {
-      console.error("fetch produto:", e);
-    }
+    }, 300);
   };
 
-  const searchGlobalOperadorAsync = async (query: string) => {
+  const searchGlobalOperadorAsync = (query: string) => {
     setBuscaGlobalOperador(query);
+
+    // Cancela debounce anterior
+    if (operadorDebounceRef.current) clearTimeout(operadorDebounceRef.current);
+
     if (!query || query.length < 2) {
       setGlobalOperadorOptions([]);
       return;
     }
-    try {
-      const res = await fetch(`/api/apont-rubber-prensa/operadores?q=${encodeURIComponent(query)}`);
-      if (res.ok) {
-        const { data } = await res.json();
-        setGlobalOperadorOptions(data || []);
+
+    operadorDebounceRef.current = setTimeout(async () => {
+      // Cancela request anterior (se ainda estiver pendente)
+      if (operadorAbortRef.current) operadorAbortRef.current.abort();
+      const controller = new AbortController();
+      operadorAbortRef.current = controller;
+
+      try {
+        const res = await fetch(`/api/apont-rubber-prensa/operadores?q=${encodeURIComponent(query)}`, {
+          signal: controller.signal,
+        });
+        if (res.ok) {
+          const { data } = await res.json();
+          setGlobalOperadorOptions(data || []);
+        }
+      } catch (e: any) {
+        if (e?.name !== "AbortError") console.error("fetch operador:", e);
       }
-    } catch (e) {
-      console.error("fetch operador:", e);
-    }
+    }, 300);
   };
 
   const checkSessoesAtivas = useCallback(async () => {
