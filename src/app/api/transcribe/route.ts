@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
                         {
                             role: "user",
                             content: [
-                                { type: "text", text: "Transcreva o texto manuscrito. Use o contexto para corrigir a capitalização (Nomes Próprios, Início de frases) e ortografia, ignorando inconsistências óbvias da caligrafia (ex: corrigir 'mAncELO' para 'Marcelo'). Mantenha a estrutura visual (quebras de linha). Descreva desenhos brevemente entre [colchetes]." },
+                                { type: "text", text: "Transcreva o texto manuscrito. Retorne APENAS o texto transcrito, sem introduções, explicações ou comentários. Use o contexto para corrigir a capitalização (Nomes Próprios, Início de frases) e ortografia, ignorando inconsistências óbvias da caligrafia (ex: corrigir 'mAncELO' para 'Marcelo'). Mantenha a estrutura visual (quebras de linha). Descreva desenhos brevemente entre [colchetes]. Nunca adicione frases como 'Aqui está a transcrição' ou similares." },
                                 { type: "image_url", image_url: { url: imageUrl } }
                             ]
                         }
@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
             const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
 
             const result = await model.generateContent([
-                "Transcreva o texto manuscrito. Use o contexto para corrigir a capitalização (Nomes Próprios, Início de frases) e ortografia, ignorando inconsistências óbvias da caligrafia (ex: corrigir 'mAncELO' para 'Marcelo'). Mantenha a estrutura visual (quebras de linha). Descreva desenhos brevemente entre [colchetes].",
+                "Transcreva o texto manuscrito. Retorne APENAS o texto transcrito, sem introduções, explicações ou comentários. Use o contexto para corrigir a capitalização (Nomes Próprios, Início de frases) e ortografia, ignorando inconsistências óbvias da caligrafia (ex: corrigir 'mAncELO' para 'Marcelo'). Mantenha a estrutura visual (quebras de linha). Descreva desenhos brevemente entre [colchetes]. Nunca adicione frases como 'Aqui está a transcrição' ou similares.",
                 {
                     inlineData: {
                         data: base64Data,
