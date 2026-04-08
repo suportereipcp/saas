@@ -295,6 +295,13 @@ export default function OperadorPage() {
   }, [selectedMaquina]);
 
   useEffect(() => {
+    // 1. Restaura a sessão da máquina fixada caso de F5
+    const maquinaFixada = localStorage.getItem("operador_maquina_fixada");
+    if (maquinaFixada) {
+      setSelectedMaquina(maquinaFixada);
+      setViewMode("painel");
+    }
+
     const init = async () => {
       setLoading(true);
       await loadCadastros();
@@ -517,6 +524,7 @@ export default function OperadorPage() {
                   className={`cursor-pointer rounded-2xl flex flex-col items-center justify-center w-[160px] h-[160px] border-2 transition-transform duration-200 hover:scale-105 ${bgClass}`}
                   onClick={() => { 
                     setSelectedMaquina(maq.id); 
+                    localStorage.setItem("operador_maquina_fixada", maq.id);
                     setViewMode("painel"); 
                     // Reset global operador when entering a new machine view manually
                     setGlobalOperador("");
@@ -607,6 +615,8 @@ export default function OperadorPage() {
       <div className="flex items-center justify-between px-4 sm:px-6 py-2 xl:py-4 border-b border-border bg-card">
         <Button onClick={() => {
             setViewMode("maquinas");
+            setSelectedMaquina("");
+            localStorage.removeItem("operador_maquina_fixada");
             setGlobalOperador("");
             setGlobalOperadorNome("");
             setBuscaGlobalOperador("");
@@ -755,11 +765,13 @@ export default function OperadorPage() {
                     <CardContent className="p-2 sm:p-3 xl:p-6 flex-1 flex flex-col justify-center">
                       {sessaoAtiva ? (
                         /* PLATO OCUPADO - Layout horizontal compacto */
-                        <div className="flex items-center justify-between w-full">
-                          <div className="flex flex-col justify-center">
-                            <span className="text-3xl sm:text-4xl xl:text-7xl font-black text-white truncate">{sessaoAtiva.produto_codigo}</span>
+                        <div className="flex items-center justify-between w-full gap-2 sm:gap-4">
+                          <div className="flex flex-col justify-center min-w-0 flex-1">
+                            <span className="text-2xl sm:text-3xl xl:text-5xl font-black text-white truncate" title={sessaoAtiva.produto_codigo}>
+                              {sessaoAtiva.produto_codigo}
+                            </span>
                           </div>
-                          <div className="flex items-baseline gap-2 flex-shrink-0 ml-4">
+                          <div className="flex items-baseline gap-1 sm:gap-2 flex-shrink-0 ml-auto">
                             <span className="text-4xl sm:text-5xl xl:text-7xl font-black text-white font-mono leading-none">{pulsosCount[sessaoAtiva.id] || 0}</span>
                             <span className="text-xs sm:text-sm xl:text-xl font-bold text-white tracking-wider">pçs /</span>
                             <span className="text-4xl sm:text-5xl xl:text-7xl font-black text-white font-mono leading-none">{ciclosCount[sessaoAtiva.id] || 0}</span>
