@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
-import { Loader2, Play, Square, AlertTriangle, Layers, Search, Factory, ArrowLeft, XCircle, Settings, CheckCircle2 } from "lucide-react";
+import { Loader2, Play, AlertTriangle, Layers, Search, Factory, ArrowLeft, XCircle, Settings, CheckCircle2, ChevronUp, ChevronDown, Check } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +36,7 @@ interface SessaoAtiva {
   inicio_sessao: string;
   status: string;
   qtd_produzida: number;
+  cavidades?: number;
 }
 
 interface Parada {
@@ -77,6 +78,13 @@ export default function OperadorPage() {
   const [refugosForms, setRefugosForms] = useState<Record<string, number>>({});
   const [alertasPendentes, setAlertasPendentes] = useState<any[]>([]);
   const [isRegistrandoParadaOrfa, setIsRegistrandoParadaOrfa] = useState(false);
+
+  // Modal Cavidades
+  const [modalCavidadesOpen, setModalCavidadesOpen] = useState(false);
+  const [selectedSessaoCavidade, setSelectedSessaoCavidade] = useState<SessaoAtiva | null>(null);
+  const [cavidadesValue, setCavidadesValue] = useState<number>(1);
+  const [isCavidadesRetroativo, setIsCavidadesRetroativo] = useState(true);
+  const [maxCavidadesPermitido, setMaxCavidadesPermitido] = useState<number>(9999);
 
   // UX Modais de Busca
   const [platoSelecionandoProduto, setPlatoSelecionandoProduto] = useState<number | null>(null);
@@ -423,6 +431,54 @@ export default function OperadorPage() {
     }
   };
 
+  const openCavidadesModal = async (sessao: SessaoAtiva) => {
+    setSelectedSessaoCavidade(sessao);
+    setCavidadesValue(sessao.cavidades || 1);
+    setIsCavidadesRetroativo(true);
+    setMaxCavidadesPermitido(sessao.cavidades || 1); // fallback temporario
+    setModalCavidadesOpen(true);
+
+    // Buscar o limite teto original no cadastro Datasul
+    const { data } = await supabase
+      .schema("apont_rubber_prensa")
+      .from("vw_produtos_datasul")
+      .select("cavidades")
+      .eq("codigo_item", sessao.produto_codigo)
+      .single();
+    
+    if (data?.cavidades) {
+      setMaxCavidadesPermitido(data.cavidades);
+    }
+  };
+
+  const handleSaveCavidades = async () => {
+    if (!selectedSessaoCavidade) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch("/api/apont-rubber-prensa/sessoes/cavidades", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessao_id: selectedSessaoCavidade.id,
+          novas_cavidades: cavidadesValue,
+          retroativo: isCavidadesRetroativo
+        })
+      });
+      if(res.ok) {
+        setModalCavidadesOpen(false);
+        await checkSessoesAtivas();
+      } else {
+        const errDesc = await res.json();
+        alert(`Erro ao atualizar cavidades: ${errDesc.error}`);
+      }
+    } catch(e) {
+      console.error(e);
+      alert("Erro de conexão ao salvar cavidades.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
@@ -671,7 +727,25 @@ export default function OperadorPage() {
                           <Layers className="w-5 h-5 xl:w-8 xl:h-8" /> Produto {plato}
                         </span>
                         {sessaoAtiva ? (
-                          <Badge className="bg-white/20 text-white hover:bg-white/30 border-white/30 xl:text-xl xl:py-2 xl:px-4">Ativo</Badge>
+                          <div className="flex items-center gap-2 sm:gap-4 xl:gap-8">
+                            <div 
+                              className="flex items-center justify-center gap-1 sm:gap-2 bg-yellow-400 hover:bg-yellow-300 transition-colors px-3 py-1 xl:px-4 xl:py-1 rounded-full cursor-pointer border-[3px] border-yellow-500 shadow-md"
+                              title="Clique para ajustar cavidades"
+                              onClick={() => openCavidadesModal(sessaoAtiva)}
+                            >
+                              <Layers className="w-4 h-4 sm:w-5 sm:h-5 xl:w-6 xl:h-6 text-black opacity-90" />
+                              <div className="flex items-baseline gap-1">
+                                <span className="text-xl sm:text-3xl xl:text-4xl font-black text-black font-mono leading-none">
+                                  {sessaoAtiva.cavidades || 1}
+                                </span>
+                                <span className="text-[10px] sm:text-xs xl:text-sm font-bold text-black/90 tracking-wider uppercase">
+                                  Cavidades
+                                </span>
+                              </div>
+                            </div>
+
+                            <Badge className="bg-white/20 text-white hover:bg-white/30 border-white/30 xl:text-xl xl:py-2 xl:px-4">Ativo</Badge>
+                          </div>
                         ) : (
                           <Badge variant="outline" className="text-muted-foreground xl:text-xl xl:py-2 xl:px-4">Livre</Badge>
                         )}
@@ -682,7 +756,9 @@ export default function OperadorPage() {
                       {sessaoAtiva ? (
                         /* PLATO OCUPADO - Layout horizontal compacto */
                         <div className="flex items-center justify-between w-full">
-                          <span className="text-2xl sm:text-3xl xl:text-5xl font-black text-white truncate">{sessaoAtiva.produto_codigo}</span>
+                          <div className="flex flex-col justify-center">
+                            <span className="text-3xl sm:text-4xl xl:text-7xl font-black text-white truncate">{sessaoAtiva.produto_codigo}</span>
+                          </div>
                           <div className="flex items-baseline gap-2 flex-shrink-0 ml-4">
                             <span className="text-4xl sm:text-5xl xl:text-7xl font-black text-white font-mono leading-none">{pulsosCount[sessaoAtiva.id] || 0}</span>
                             <span className="text-xs sm:text-sm xl:text-xl font-bold text-white tracking-wider">pçs /</span>
@@ -985,6 +1061,91 @@ export default function OperadorPage() {
                   ))
                 )}
               </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* MODAL DE CAVIDADES */}
+      {modalCavidadesOpen && selectedSessaoCavidade && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 sm:p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+          <Card className="w-full max-w-xl bg-background shadow-3xl overflow-hidden flex flex-col border-2 border-primary/20 rounded-2xl">
+            <CardHeader className="bg-muted p-4 sm:p-6 xl:p-8 flex flex-row items-center justify-between border-b border-border">
+              <CardTitle className="text-xl sm:text-2xl xl:text-3xl font-black uppercase tracking-wider text-foreground">
+                AJUSTAR CAVIDADES
+              </CardTitle>
+              <Button variant="ghost" className="h-10 w-10 sm:h-14 sm:w-14 p-0 rounded-full hover:bg-destructive/10" onClick={() => setModalCavidadesOpen(false)}>
+                <XCircle className="w-8 h-8 sm:w-12 sm:h-12 text-muted-foreground hover:text-destructive transition-colors" />
+              </Button>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6 xl:p-8 flex-1 flex flex-col items-center justify-center gap-6 xl:gap-8 w-full">
+              <span className="text-lg xl:text-2xl font-bold text-muted-foreground text-center">
+                Produto: {selectedSessaoCavidade.produto_codigo}
+              </span>
+              
+              <div className="flex items-center justify-center gap-6 xl:gap-10">
+                <Button 
+                  disabled={cavidadesValue <= 1}
+                  onClick={() => setCavidadesValue(Math.max(1, cavidadesValue - 1))}
+                  className="w-16 h-16 xl:w-20 xl:h-20 rounded-full bg-muted/50 hover:bg-red-100 hover:text-red-600 text-muted-foreground text-3xl font-black transition-all"
+                >
+                  <ChevronDown className="w-10 h-10 xl:w-12 xl:h-12" />
+                </Button>
+
+                <div className="w-32 h-32 xl:w-48 xl:h-48 flex items-center justify-center bg-yellow-50 border-[6px] border-yellow-400 rounded-3xl shadow-[0_0_15px_rgba(250,204,21,0.3)]">
+                  <span className="text-6xl xl:text-8xl font-black text-black">{cavidadesValue}</span>
+                </div>
+
+                <Button 
+                  disabled={cavidadesValue >= maxCavidadesPermitido}
+                  onClick={() => setCavidadesValue(cavidadesValue + 1)}
+                  className="w-16 h-16 xl:w-20 xl:h-20 rounded-full bg-muted/50 hover:bg-green-100 hover:text-green-600 disabled:opacity-30 disabled:hover:bg-muted/50 disabled:hover:text-muted-foreground text-muted-foreground text-3xl font-black transition-all"
+                >
+                  <ChevronUp className="w-10 h-10 xl:w-12 xl:h-12" />
+                </Button>
+              </div>
+
+              <div className="w-full flex flex-col gap-3 mt-4 xl:mt-8 p-4 bg-muted/20 border-2 border-border rounded-xl">
+                <span className="text-sm xl:text-lg font-bold text-foreground">Como aplicar essa alteração?</span>
+                
+                <button 
+                  onClick={() => setIsCavidadesRetroativo(true)}
+                  className={`flex items-start gap-3 p-3 rounded-lg border-2 transition-all text-left ${isCavidadesRetroativo ? 'bg-primary/10 border-primary' : 'bg-transparent border-transparent hover:bg-muted'}`}
+                >
+                  <div className={`mt-0.5 min-w-5 h-5 xl:min-w-6 xl:min-w-6 xl:h-6 rounded-full border-2 flex items-center justify-center ${isCavidadesRetroativo ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
+                    {isCavidadesRetroativo && <Check className="w-3 h-3 xl:w-4 xl:h-4 text-white" />}
+                  </div>
+                  <div>
+                    <span className="block font-bold text-foreground xl:text-xl">Retroativo (Toda a sessão)</span>
+                    <span className="block text-xs xl:text-sm text-muted-foreground mt-1">
+                      Recalcula TODAS as peças prensadas até agora para usar {cavidadesValue} cavidades. Ideal caso a quantidade estava errada desde o início.
+                    </span>
+                  </div>
+                </button>
+
+                <button 
+                  onClick={() => setIsCavidadesRetroativo(false)}
+                  className={`flex items-start gap-3 p-3 rounded-lg border-2 transition-all text-left ${!isCavidadesRetroativo ? 'bg-primary/10 border-primary' : 'bg-transparent border-transparent hover:bg-muted'}`}
+                >
+                  <div className={`mt-0.5 min-w-5 h-5 xl:min-w-6 xl:min-w-6 xl:h-6 rounded-full border-2 flex items-center justify-center ${!isCavidadesRetroativo ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
+                    {!isCavidadesRetroativo && <Check className="w-3 h-3 xl:w-4 xl:h-4 text-white" />}
+                  </div>
+                  <div>
+                    <span className="block font-bold text-foreground xl:text-xl">Apenas novos (Daqui pra frente)</span>
+                    <span className="block text-xs xl:text-sm text-muted-foreground mt-1">
+                      Mantém o saldo atual como está e passa a registrar {cavidadesValue} peças nas próximas prenssadas. Útil quando uma cavidade estraga no meio.
+                    </span>
+                  </div>
+                </button>
+              </div>
+
+              <Button 
+                onClick={handleSaveCavidades}
+                disabled={actionLoading}
+                className="w-full h-16 xl:h-20 mt-4 text-lg xl:text-2xl font-black tracking-widest uppercase rounded-xl"
+              >
+                {actionLoading ? <Loader2 className="w-8 h-8 animate-spin" /> : "Confirmar Alteração"}
+              </Button>
             </CardContent>
           </Card>
         </div>

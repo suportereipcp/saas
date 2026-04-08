@@ -60,7 +60,7 @@ async function getSessoesAtivas(numMaq: string): Promise<{ id: string; produto_c
 
   const { data: sessoes } = await supabase
     .from("sessoes_producao")
-    .select("id, produto_codigo, plato, operador_matricula")
+    .select("id, produto_codigo, plato, operador_matricula, cavidades")
     .eq("maquina_id", maquina.id)
     .eq("status", "em_andamento");
 
@@ -78,19 +78,6 @@ async function getTempoCicloIdeal(produtoCodigo: string): Promise<number> {
     .single();
 
   return data?.tempo_ciclo_ideal_segundos ?? 300; // fallback: 5 min
-}
-
-/**
- * Busca cavidades (lote_multipl do Datasul) para o produto
- */
-async function getCavidades(produtoCodigo: string): Promise<number> {
-  const { data } = await supabase
-    .from("vw_produtos_datasul")
-    .select("cavidades")
-    .eq("codigo_item", produtoCodigo)
-    .single();
-
-  return data?.cavidades ?? 1;
 }
 
 /**
@@ -282,17 +269,14 @@ async function syncCycle(): Promise<void> {
           console.log(`[SYNC] 🗑️ Micro-parada deletada para máquina ${numMaq}, plato ${sessao.plato} (Voltou a produzir antes do timeout)`);
         }
 
-        // Busca cavidades
-        const cavidades = await getCavidades(sessao.produto_codigo);
-
         // Insere o pulso
         const pulsoId = `${row.view_id}_p${sessao.plato}`;
         const { error } = await supabase.from("pulsos_producao").insert({
           sessao_id: sessao.id,
           timestamp_ciclo: timestampCiclo.toISOString(),
-          qtd_pecas: cavidades,
+          qtd_pecas: (sessao as any).cavidades || 1,
           intervalo_segundos: intervaloSegundos,
-          ciclo_real: row.temp_vulcaniz ? Number(row.temp_vulcaniz) : null,
+          ciclo_real: (row.temp_vulcaniz !== null && row.temp_vulcaniz !== undefined) ? Number(row.temp_vulcaniz) : null,
           mariadb_id: pulsoId,
         });
 
@@ -312,7 +296,7 @@ async function syncCycle(): Promise<void> {
             sessao_id: sessao.id,
             item_codigo: sessao.produto_codigo,
             operador_matricula: sessao.operador_matricula,
-            quantidade_total: cavidades,
+            quantidade_total: (sessao as any).cavidades || 1,
             status_importacao: "pendente",
           });
         }
@@ -515,7 +499,7 @@ async function recuperarPulsosFantasmas(): Promise<void> {
       // Verifica se a máquina agora tem sessão ativa
       const { data: sessoes } = await supabase
         .from("sessoes_producao")
-        .select("id, produto_codigo, plato")
+        .select("id, produto_codigo, plato, cavidades")
         .eq("maquina_id", alerta.maquina_id)
         .eq("status", "em_andamento");
 
@@ -541,7 +525,7 @@ async function recuperarPulsosFantasmas(): Promise<void> {
 
       // Busca os registros originais no MariaDB pelo view_id
       const placeholders = viewIds.map(() => "?").join(", ");
-      const [rows] = await mariaConnection.execute<mysql.RowDataPacket[]>(
+      const [rows] = await mariaConnection.query<mysql.RowDataPacket[]>(
         `SELECT * FROM log_prensas WHERE view_id IN (${placeholders}) ORDER BY view_id ASC`,
         viewIds
       );
@@ -554,15 +538,21 @@ async function recuperarPulsosFantasmas(): Promise<void> {
         timestampCiclo.setHours(timestampCiclo.getHours() + 3);
 
         for (const sessao of sessoes) {
-          const cavidades = await getCavidades(sessao.produto_codigo);
+          const { timestamp_ciclo: ultimoPulsoTs } = await getUltimoPulsoInfo(sessao.id);
+          let intervaloSegundos: number | null = null;
+
+          if (ultimoPulsoTs) {
+            intervaloSegundos = Math.round((timestampCiclo.getTime() - ultimoPulsoTs.getTime()) / 1000);
+          }
+
           const pulsoId = `${row.view_id}_p${sessao.plato}`;
 
           const { error } = await supabase.from("pulsos_producao").insert({
             sessao_id: sessao.id,
             timestamp_ciclo: timestampCiclo.toISOString(),
-            qtd_pecas: cavidades,
-            intervalo_segundos: null,
-            ciclo_real: row.temp_vulcaniz ? Number(row.temp_vulcaniz) : null,
+            qtd_pecas: (sessao as any).cavidades || 1,
+            intervalo_segundos: intervaloSegundos,
+            ciclo_real: (row.temp_vulcaniz !== null && row.temp_vulcaniz !== undefined) ? Number(row.temp_vulcaniz) : null,
             mariadb_id: pulsoId,
           });
 

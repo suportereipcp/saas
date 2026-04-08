@@ -67,6 +67,15 @@ export async function POST(req: NextRequest) {
 
     let inicio_sessao = new Date();
 
+    const { data: prodData } = await supabase
+      .from("vw_produtos_datasul")
+      .select("tempo_ciclo_ideal_segundos, cavidades")
+      .eq("codigo_item", produto_codigo)
+      .limit(1)
+      .maybeSingle();
+      
+    const cavidadesPadrao = prodData?.cavidades || 1;
+
     if (alertaPend) {
       // É Produção Fantasma! Recuperamos o TS original do MariaDB
       const mariadbTsStr = alertaPend.metadata?.timestamp_mariadb;
@@ -75,13 +84,6 @@ export async function POST(req: NextRequest) {
       }
 
       // Agora retroagiremos pelo Tempo Padrão do Ciclo para abraçar o pulso órfão inteiro
-      const { data: prodData } = await supabase
-        .from("vw_produtos_datasul")
-        .select("tempo_ciclo_ideal_segundos")
-        .eq("codigo_item", produto_codigo)
-        .limit(1)
-        .maybeSingle();
-
       const cicloPadrão = prodData?.tempo_ciclo_ideal_segundos || 300; // Padrão 5 min
       inicio_sessao.setSeconds(inicio_sessao.getSeconds() - cicloPadrão);
 
@@ -101,7 +103,8 @@ export async function POST(req: NextRequest) {
       plato,
       operador_matricula,
       status: "em_andamento",
-      inicio_sessao: inicio_sessao.toISOString()
+      inicio_sessao: inicio_sessao.toISOString(),
+      cavidades: cavidadesPadrao
     }).select().single();
 
     if (error) {
@@ -140,14 +143,7 @@ export async function POST(req: NextRequest) {
         { db: { schema: "apont_rubber_prensa" } }
       );
 
-      const { data: vwData } = await supabaseAdmin
-        .from("vw_produtos_datasul")
-        .select("cavidades")
-        .eq("codigo_item", produto_codigo)
-        .limit(1)
-        .maybeSingle();
-
-      const cavidades = vwData?.cavidades || 1;
+      const cavidades = cavidadesPadrao;
       
       // Usa o array acumulado de pulsos perdidos, ou fallback para o timestamp único (compatibilidade)
       const pulsosPerdidos: { mariadb_id?: number; timestamp: string }[] = 
