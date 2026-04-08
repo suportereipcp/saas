@@ -1,0 +1,26 @@
+[2026-04-08T00:10:51.687Z] ENTERED POST HANDLER
+[2026-04-08T00:10:51.694Z] Incoming Request. Payload: 0.15 KB
+[2026-04-08T00:10:51.867Z] Using provider: openrouter, model: google/gemini-2.0-flash-001
+[2026-04-08T00:10:52.160Z] CRITICAL ERROR: OpenRouter error: 401 
+Stack: Error: OpenRouter error: 401
+    at POST (C:\Projetos\saas\.next\dev\server\chunks\[root-of-the-server]__e55eeeab._.js:216:23)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async AppRouteRouteModule.do (C:\Projetos\saas\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:5:37789)
+    at async AppRouteRouteModule.handle (C:\Projetos\saas\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:5:45045)
+    at async responseGenerator (C:\Projetos\saas\.next\dev\server\chunks\node_modules_next_6e892344._.js:14333:38)
+    at async AppRouteRouteModule.handleResponse (C:\Projetos\saas\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.dev.js:1:187851)
+    at async handleResponse (C:\Projetos\saas\.next\dev\server\chunks\node_modules_next_6e892344._.js:14395:32)
+    at async handler (C:\Projetos\saas\.next\dev\server\chunks\node_modules_next_6e892344._.js:14448:13)
+    at async DevServer.renderToResponseWithComponentsImpl (C:\Projetos\saas\node_modules\next\dist\server\base-server.js:1413:9)
+    at async DevServer.renderPageComponent (C:\Projetos\saas\node_modules\next\dist\server\base-server.js:1465:24)
+    at async DevServer.renderToResponseImpl (C:\Projetos\saas\node_modules\next\dist\server\base-server.js:1515:32)
+    at async DevServer.pipeImpl (C:\Projetos\saas\node_modules\next\dist\server\base-server.js:1021:25)
+    at async NextNodeServer.handleCatchallRenderRequest (C:\Projetos\saas\node_modules\next\dist\server\next-server.js:394:17)
+    at async DevServer.handleRequestImpl (C:\Projetos\saas\node_modules\next\dist\server\base-server.js:912:17)
+    at async C:\Projetos\saas\node_modules\next\dist\server\dev\next-dev-server.js:382:20
+    at async Span.traceAsyncFn (C:\Projetos\saas\node_modules\next\dist\trace\trace.js:157:20)
+    at async DevServer.handleRequest (C:\Projetos\saas\node_modules\next\dist\server\dev\next-dev-server.js:378:24)
+    at async invokeRender (C:\Projetos\saas\node_modules\next\dist\server\lib\router-server.js:240:21)
+    at async handleRequest (C:\Projetos\saas\node_modules\next\dist\server\lib\router-server.js:436:24)
+    at async requestHandlerImpl (C:\Projetos\saas\node_modules\next\dist\server\lib\router-server.js:484:13)
+    at async Server.requestListener (C:\Projetos\saas\node_modules\next\dist\server\lib\start-server.js:226:13)

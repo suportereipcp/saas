@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
             .single();
         if (modelSetting?.value) llmModel = modelSetting.value;
 
-        const prompt = "Transcreva o texto manuscrito. Use o contexto para corrigir a capitalização (Nomes Próprios, Início de frases) e ortografia, ignorando inconsistências óbvias da caligrafia (ex: corrigir 'mAncELO' para 'Marcelo'). Mantenha a estrutura visual (quebras de linha). Descreva desenhos brevemente entre [colchetes].";
+        const prompt = "Transcreva o texto manuscrito. Retorne APENAS o texto transcrito, sem introduções, explicações ou comentários. Use o contexto para corrigir a capitalização (Nomes Próprios, Início de frases) e ortografia, ignorando inconsistências óbvias da caligrafia (ex: corrigir 'mAncELO' para 'Marcelo'). Mantenha a estrutura visual (quebras de linha). Descreva desenhos brevemente entre [colchetes]. Nunca adicione frases como 'Aqui está a transcrição' ou similares.";
 
         let text = '';
 

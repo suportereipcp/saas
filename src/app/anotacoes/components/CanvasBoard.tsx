@@ -5,7 +5,7 @@ import 'tldraw/tldraw.css';
 import { Button } from '@/components/ui/button';
 import { Save, File, NotebookText, Palette, Pencil, Loader2, X, FilePlus } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
-import { TaggingModal } from './TaggingModal';
+// TaggingModal removed - save is now direct without modal
 import { cn } from '@/lib/utils';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -17,7 +17,6 @@ import {
     DialogTitle,
     DialogDescription,
     DialogFooter,
-    DialogClose
 } from '@/components/ui/dialog';
 
 // Mock removed, using real DB
@@ -173,7 +172,6 @@ export default function CanvasBoard() {
 
 
     // State
-    const [taggingOpen, setTaggingOpen] = useState(false);
     const [bgPattern, setBgPattern] = useState<'blank' | 'lines'>('lines');
     const [showPalette, setShowPalette] = useState(false);
     const [editor, setEditor] = useState<Editor | null>(null);
@@ -446,7 +444,7 @@ export default function CanvasBoard() {
 
 
     // State for Saving Loading Dialog
-    const [isSavingDialogOpen, setIsSavingDialogOpen] = useState(false);
+    // isSavingDialogOpen removed - using toast instead
     
     // CACHE: Store last transcribed hash to avoid redundant API calls
     const [lastTranscribedHash, setLastTranscribedHash] = useState<string>("");
@@ -701,8 +699,8 @@ export default function CanvasBoard() {
         }
 
         try {
-            // Open Loading Dialog
-            setIsSavingDialogOpen(true);
+            // Show saving toast instead of dialog
+            toast.loading("Salvando anotação...", { id: 'saving-note' });
 
             let finalTranscription = transcriptionInputValue;
             let finalTags = [...selectedTags];
@@ -723,8 +721,7 @@ export default function CanvasBoard() {
                 localStorage.removeItem(draftKey);
                 localStorage.removeItem('notes_last_active');
 
-                toast.success("Salvo localmente! Será sincronizado quando a internet voltar.", { duration: 4000 });
-                setIsSavingDialogOpen(false);
+                toast.success("Salvo localmente! Será sincronizado quando a internet voltar.", { id: 'saving-note', duration: 4000 });
                 router.push('/anotacoes/memory');
                 return;
             }
@@ -823,8 +820,7 @@ export default function CanvasBoard() {
             localStorage.removeItem(draftKey);
             localStorage.removeItem('notes_last_active');
 
-            toast.success("Anotação salva!");
-            setIsSavingDialogOpen(false);
+            toast.success("Anotação salva! Transcrição em andamento...", { id: 'saving-note', duration: 3000 });
             router.push('/anotacoes/memory');
 
             // 3. BACKGROUND TASKS: DB WRITE AND TRANSCRIPTION FIRE (Totally non-blocking)
@@ -896,8 +892,7 @@ export default function CanvasBoard() {
 
         } catch (error: any) {
             console.error("Save error:", error);
-            toast.error(`Erro ao salvar: ${error.message}. O rascunho continua salvo neste dispositivo.`);
-            setIsSavingDialogOpen(false);
+            toast.error(`Erro ao salvar: ${error.message}. O rascunho continua salvo neste dispositivo.`, { id: 'saving-note' });
         }
     };
 
@@ -977,6 +972,11 @@ export default function CanvasBoard() {
         }
     };
     
+    // Quick Save: salva direto sem abrir o TaggingModal
+    const handleQuickSave = async () => {
+        await handleSave(currentTags, currentTranscription);
+    };
+
     const exitEditor = () => {
         // 0. Set Discarding Flag to prevent auto-save from writing back
         isDiscardingRef.current = true;
@@ -1166,7 +1166,7 @@ export default function CanvasBoard() {
                     <Button
                         size="icon"
                         className="h-12 w-12 rounded-full bg-emerald-600 text-white hover:bg-emerald-700 shadow-md shadow-emerald-900/20 hover:shadow-lg transition-all duration-300 hover:scale-105 group border-2 border-emerald-500"
-                        onClick={() => setTaggingOpen(true)}
+                        onClick={() => handleQuickSave()}
                         title={isEditing ? "Salvar Alterações" : "Salvar Nova Nota"}
                     >
                         <Save className="w-5 h-5 transition-transform duration-300 group-hover:scale-110" />
@@ -1180,26 +1180,9 @@ export default function CanvasBoard() {
             {/* Visual Zoom Percentage - ISOLATED COMPONENT */}
             <ZoomIndicator editor={editor} />
 
-            <TaggingModal
-                open={taggingOpen}
-                onOpenChange={setTaggingOpen}
-                initialSelectedTags={currentTags}
-                initialTranscription={currentTranscription}
-                onConfirm={handleSave}
-                onAutoTranscribe={handleAutoTranscribe}
-            />
 
 
 
-            <Dialog open={isSavingDialogOpen} onOpenChange={(open) => !open && setIsSavingDialogOpen(open)}>
-                <DialogContent className="sm:max-w-md flex flex-col items-center justify-center p-8 [&>button]:hidden">
-                   <div className="flex flex-col items-center gap-4 text-center">
-                        <Loader2 className="h-12 w-12 text-primary animate-spin" />
-                        <DialogTitle className="text-lg font-semibold text-primary">Salvando Anotação</DialogTitle>
-                        <p className="text-gray-600">Donizete por favor aguarde um pouco pois estou salvando as informações...</p>
-                   </div>
-                </DialogContent>
-            </Dialog>
 
             <Dialog open={isCloseDialogOpen} onOpenChange={setIsCloseDialogOpen}>
                 <DialogContent className="sm:max-w-md">
@@ -1232,7 +1215,7 @@ export default function CanvasBoard() {
                             className="bg-emerald-600 hover:bg-emerald-700 text-white"
                             onClick={() => {
                                 setIsCloseDialogOpen(false);
-                                setTaggingOpen(true); // Open tagging modal to save
+                                handleQuickSave();
                             }}
                         >
                             Salvar Agora
