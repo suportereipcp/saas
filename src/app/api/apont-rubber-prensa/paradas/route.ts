@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { SUPABASE_COOKIE_OPTIONS } from "@/lib/supabase-auth";
 
 async function getSupabase() {
   const cookieStore = await cookies();
@@ -8,6 +9,7 @@ async function getSupabase() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      cookieOptions: SUPABASE_COOKIE_OPTIONS,
       cookies: {
         getAll() {
           return cookieStore.getAll();
@@ -81,9 +83,10 @@ export async function PATCH(req: NextRequest) {
         .select("qtd_pecas")
         .eq("sessao_id", sessao.id);
 
-      const qtdProduzida = (pulsos || []).reduce((acc: number, p: any) => acc + (p.qtd_pecas || 0), 0);
+      const totalPrensadas = pulsos?.length || 0;
+      const qtdProduzida = (pulsos || []).reduce((acc, pulso) => acc + (pulso.qtd_pecas || 0), 0);
 
-      if (qtdProduzida > 0) {
+      if (totalPrensadas > 0) {
         // Finaliza a sessão
         await supabase
           .from("sessoes_producao")
@@ -94,7 +97,7 @@ export async function PATCH(req: NextRequest) {
           })
           .eq("id", sessao.id);
       } else {
-        // Sessão sem produção: remove (cancelamento limpo)
+        // Sessão sem prensadas: remove (cancelamento limpo)
         await supabase.from("paradas_maquina").delete().eq("sessao_id", sessao.id);
         await supabase.from("pulsos_producao").delete().eq("sessao_id", sessao.id);
         await supabase.from("sessoes_producao").delete().eq("id", sessao.id);
@@ -127,7 +130,8 @@ export async function PATCH(req: NextRequest) {
     }
 
     return NextResponse.json({ data }, { status: 200 });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Erro interno";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

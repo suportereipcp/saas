@@ -28,25 +28,35 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Sessão não encontrada" }, { status: 404 });
     }
 
-    // Conta total de peças
-    const { count } = await supabase
+    // Soma total de peças. Pulsos de prensada vazia têm qtd_pecas = 0 e
+    // não devem virar saldo no Datasul.
+    const { data: pulsos } = await supabase
       .from("pulsos_producao")
-      .select("*", { count: "exact", head: true })
+      .select("qtd_pecas")
       .eq("sessao_id", sessao_id);
+
+    const quantidadeTotal = (pulsos || []).reduce((acc, pulso) => acc + (pulso.qtd_pecas || 0), 0);
+
+    if (quantidadeTotal <= 0) {
+      return NextResponse.json({
+        data: { skipped: true, reason: "sem_saldo", quantidade_total: 0 },
+      }, { status: 200 });
+    }
 
     // Insere na fila de exportação
     const { data, error } = await supabase.from("export_datasul").insert({
       sessao_id,
       item_codigo: sessao.produto_codigo || null,
       operador_matricula: sessao.operador_matricula || null,
-      quantidade_total: sessao.qtd_produzida || (count || 0),
+      quantidade_total: sessao.qtd_produzida || quantidadeTotal,
       status_importacao: "pendente",
     }).select().single();
 
     if (error) throw error;
 
     return NextResponse.json({ data }, { status: 201 });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Erro interno";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

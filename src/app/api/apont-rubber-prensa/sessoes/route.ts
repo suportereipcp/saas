@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { SUPABASE_COOKIE_OPTIONS } from "@/lib/supabase-auth";
 
 async function getSupabase() {
   const cookieStore = await cookies();
@@ -9,6 +10,7 @@ async function getSupabase() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      cookieOptions: SUPABASE_COOKIE_OPTIONS,
       cookies: {
         getAll() {
           return cookieStore.getAll();
@@ -190,8 +192,9 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ data }, { status: 201 });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Erro interno";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -211,9 +214,10 @@ export async function PATCH(req: NextRequest) {
       .select("qtd_pecas")
       .eq("sessao_id", sessao_id);
 
+    const totalPrensadas = pulsos?.length || 0;
     const quantidadeTotal = pulsos?.reduce((acc, p) => acc + (p.qtd_pecas || 0), 0) || 0;
 
-    if (quantidadeTotal > 0) {
+    if (totalPrensadas > 0) {
       // Busca o timestamp do último ciclo (pulso) recebido
       const { data: ultimoPulso } = await supabase
         .from("pulsos_producao")
@@ -266,8 +270,8 @@ export async function PATCH(req: NextRequest) {
 
       return NextResponse.json({ data }, { status: 200 });
     } else {
-      console.log(`[API] Sessão sem peças produzidas (${sessao_id}). Excluindo rastro...`);
-      // Lógica de Cancelamento Limpo: Exclui filhas e a própria sessão Vazia
+      console.log(`[API] Sessão sem prensadas registradas (${sessao_id}). Excluindo rastro...`);
+      // Lógica de Cancelamento Limpo: Exclui filhas e a própria sessão sem pulso
       const supabaseAdmin = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -324,7 +328,8 @@ export async function PATCH(req: NextRequest) {
       
       return NextResponse.json({ data: { deleted: true, reason: 'zero_production' } }, { status: 200 });
     }
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Erro interno";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

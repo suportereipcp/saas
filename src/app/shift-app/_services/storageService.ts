@@ -1,10 +1,13 @@
 import { ProductTicket, TicketStatus, User, Attachment, AttachmentType, SubTask, HistoryLog } from '../_types/types';
 import { createBrowserClient } from '@supabase/ssr';
+import { SUPABASE_COOKIE_OPTIONS } from '@/lib/supabase-auth';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-const supabase = createBrowserClient(supabaseUrl, supabaseKey);
+const supabase = createBrowserClient(supabaseUrl, supabaseKey, {
+    cookieOptions: SUPABASE_COOKIE_OPTIONS,
+});
 
 // --- AUTH SERVICE ---
 

@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Truck, CheckSquare, Clock, Calendar, Package, FileText, PackagePlus, Box, Layers, AlignLeft, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, XAxis, ResponsiveContainer, Tooltip, CartesianGrid, LabelList } from 'recharts';
 import { createBrowserClient } from '@supabase/ssr';
+import { SUPABASE_COOKIE_OPTIONS } from '@/lib/supabase-auth';
 
 // --- Interfaces ---
 // --- Interfaces ---
@@ -67,7 +68,10 @@ export default function Home() {
     const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        { db: { schema: 'dashboards_pcp' } }
+        {
+            cookieOptions: SUPABASE_COOKIE_OPTIONS,
+            db: { schema: 'dashboards_pcp' },
+        }
     );
 
     // --- State ---
