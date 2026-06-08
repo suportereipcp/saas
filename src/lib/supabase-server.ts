@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { Database } from "./database.types";
+import { SUPABASE_COOKIE_ENCODING, SUPABASE_COOKIE_OPTIONS } from "./supabase-auth";
 
 export async function createClient() {
     const cookieStore = await cookies();
@@ -9,6 +10,8 @@ export async function createClient() {
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         {
+            cookieOptions: SUPABASE_COOKIE_OPTIONS,
+            cookieEncoding: SUPABASE_COOKIE_ENCODING,
             cookies: {
                 getAll() {
                     return cookieStore.getAll();

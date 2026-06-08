@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { SUPABASE_AUTH_COOKIE_NAME } from "@/lib/supabase-auth";
 import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,30 +16,73 @@ import {
 } from "@/components/ui/card";
 import { InstallPrompt } from "@/components/install-prompt";
 
+function clearSupabaseAuthCookies() {
+    document.cookie
+        .split(";")
+        .map((cookie) => cookie.trim().split("=")[0])
+        .filter(
+            (name) =>
+                name === SUPABASE_AUTH_COOKIE_NAME ||
+                name.startsWith(`${SUPABASE_AUTH_COOKIE_NAME}.`)
+        )
+        .forEach((name) => {
+            document.cookie = `${name}=; Max-Age=0; path=/; SameSite=Lax`;
+        });
+}
+
 export default function LoginPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    async function handleLogin(formData: FormData) {
+    async function handleLogin(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
         setLoading(true);
         setError(null);
 
-        const email = formData.get('email') as string;
-        const password = formData.get('password') as string;
+        const formData = new FormData(event.currentTarget);
+        const email = String(formData.get("email") ?? "").trim();
+        const password = String(formData.get("password") ?? "");
 
-        const { error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-        });
+        clearSupabaseAuthCookies();
 
-        if (error) {
-            setError(error.message);
+        try {
+            const loginTimeout = new Promise<never>((_, reject) => {
+                window.setTimeout(
+                    () => reject(new Error("login_timeout")),
+                    15000
+                );
+            });
+
+            const { error } = await Promise.race([
+                supabase.auth.signInWithPassword({
+                    email,
+                    password,
+                }),
+                loginTimeout,
+            ]);
+
+            if (error) {
+                setError(
+                    error.message === "Invalid login credentials"
+                        ? "E-mail ou senha invalidos."
+                        : error.message
+                );
+                setLoading(false);
+                return;
+            }
+        } catch (error) {
+            setError(
+                error instanceof Error && error.message === "login_timeout"
+                    ? "O login demorou demais para responder. Recarregue a pagina e tente novamente."
+                    : "Nao foi possivel concluir o login."
+            );
             setLoading(false);
-        } else {
-            router.push('/portal');
-            router.refresh();
+            return;
         }
+
+        router.replace("/portal");
+        router.refresh();
     }
 
     return (
@@ -56,7 +100,7 @@ export default function LoginPage() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <form action={handleLogin} className="space-y-4">
+                    <form onSubmit={handleLogin} className="space-y-4">
                         <div className="space-y-2">
                             <Label htmlFor="email">E-mail</Label>
                             <Input
@@ -89,7 +133,7 @@ export default function LoginPage() {
                             type="submit"
                             disabled={loading}
                         >
-                            {loading ? 'Entrando...' : 'Entrar'}
+                            {loading ? "Entrando..." : "Entrar"}
                         </Button>
                     </form>
                 </CardContent>

@@ -13,6 +13,29 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
+type SyncSessao = {
+  id: string;
+  produto_codigo: string;
+  plato: number;
+  operador_matricula: string;
+  cavidades?: number | null;
+  modo_sem_saldo?: boolean;
+};
+
+type WatchdogSessao = {
+  id: string;
+  produto_codigo: string;
+  plato: number;
+  maquina_id: string;
+  inicio_sessao: string;
+};
+
+type SessaoRecuperacao = Pick<SyncSessao, "id" | "produto_codigo" | "plato" | "cavidades">;
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 /**
  * Busca o último ID do MariaDB já sincronizado
  */
@@ -49,7 +72,7 @@ async function setLastSyncedId(id: number): Promise<void> {
 /**
  * Busca TODAS as sessões ativas para a máquina (uma por plato)
  */
-async function getSessoesAtivas(numMaq: string): Promise<{ id: string; produto_codigo: string; plato: number; operador_matricula: string }[]> {
+async function getSessoesAtivas(numMaq: string): Promise<SyncSessao[]> {
   const { data: maquina } = await supabase
     .from("maquinas")
     .select("id")
@@ -64,7 +87,23 @@ async function getSessoesAtivas(numMaq: string): Promise<{ id: string; produto_c
     .eq("maquina_id", maquina.id)
     .eq("status", "em_andamento");
 
-  return sessoes || [];
+  const { data: alertasSemSaldo } = await supabase
+    .from("alertas_maquina")
+    .select("metadata")
+    .eq("maquina_id", maquina.id)
+    .eq("tipo", "modo_sem_saldo")
+    .eq("resolvido", false);
+
+  const sessoesSemSaldo = new Set(
+    (alertasSemSaldo || [])
+      .map((alerta) => alerta.metadata?.sessao_id)
+      .filter(Boolean)
+  );
+
+  return (sessoes || []).map((sessao) => ({
+    ...sessao,
+    modo_sem_saldo: sessoesSemSaldo.has(sessao.id),
+  }));
 }
 
 /**
@@ -271,10 +310,11 @@ async function syncCycle(): Promise<void> {
 
         // Insere o pulso
         const pulsoId = `${row.view_id}_p${sessao.plato}`;
+        const qtdPecas = sessao.modo_sem_saldo ? 0 : (sessao.cavidades || 1);
         const { error } = await supabase.from("pulsos_producao").insert({
           sessao_id: sessao.id,
           timestamp_ciclo: timestampCiclo.toISOString(),
-          qtd_pecas: (sessao as any).cavidades || 1,
+          qtd_pecas: qtdPecas,
           intervalo_segundos: intervaloSegundos,
           ciclo_real: (row.temp_vulcaniz !== null && row.temp_vulcaniz !== undefined) ? Number(row.temp_vulcaniz) : null,
           mariadb_id: pulsoId,
@@ -292,13 +332,17 @@ async function syncCycle(): Promise<void> {
           await supabase.from("sessoes_producao").update({ qtd_produzida: qtdProduzida }).eq("id", sessao.id);
 
           // Export Datasul por pulso (item e operador já definidos na sessão)
-          await supabase.from("export_datasul").insert({
-            sessao_id: sessao.id,
-            item_codigo: sessao.produto_codigo,
-            operador_matricula: sessao.operador_matricula,
-            quantidade_total: (sessao as any).cavidades || 1,
-            status_importacao: "pendente",
-          });
+          if (qtdPecas > 0) {
+            await supabase.from("export_datasul").insert({
+              sessao_id: sessao.id,
+              item_codigo: sessao.produto_codigo,
+              operador_matricula: sessao.operador_matricula,
+              quantidade_total: qtdPecas,
+              status_importacao: "pendente",
+            });
+          } else {
+            console.log(`[SYNC] Pulso ${row.view_id} plato ${sessao.plato} registrado sem saldo (aquecimento/troca).`);
+          }
         }
       }
 
@@ -309,8 +353,8 @@ async function syncCycle(): Promise<void> {
       await setLastSyncedId(maxId);
       console.log(`[SYNC] ✅ Sincronizado até o ID ${maxId}`);
     }
-  } catch (err: any) {
-    console.error("[SYNC] ❌ Erro no ciclo de sincronização:", err.message);
+  } catch (err: unknown) {
+    console.error("[SYNC] ❌ Erro no ciclo de sincronização:", getErrorMessage(err));
   } finally {
     if (mariaConnection) {
       try {
@@ -341,8 +385,8 @@ async function watchdogCycle(): Promise<void> {
     (maquinas || []).forEach(m => maqMap.set(m.id, m.num_maq));
 
     // Agrupar sessoes por maquina
-    const sessoesPorMaquina = new Map<string, any[]>();
-    for (const s of sessoesGlobais) {
+    const sessoesPorMaquina = new Map<string, WatchdogSessao[]>();
+    for (const s of (sessoesGlobais as WatchdogSessao[])) {
       const arr = sessoesPorMaquina.get(s.maquina_id) || [];
       arr.push(s);
       sessoesPorMaquina.set(s.maquina_id, arr);
@@ -412,9 +456,10 @@ async function watchdogCycle(): Promise<void> {
             .select("qtd_pecas")
             .eq("sessao_id", sessao.id);
 
+          const totalPrensadas = pulsos?.length || 0;
           const quantidadeTotal = pulsos?.reduce((acc, p) => acc + (p.qtd_pecas || 0), 0) || 0;
 
-          if (quantidadeTotal > 0) {
+          if (totalPrensadas > 0) {
             // Finaliza a Sessão no timestamp do último pulso (não na hora atual)
             await supabase
               .from("sessoes_producao")
@@ -427,8 +472,8 @@ async function watchdogCycle(): Promise<void> {
 
             console.log(`[WATCHDOG] 🛑 Máquina ${numMaq} abandonada (>${Math.round(limiteAbandono)}s). Sessão ${sessao.id} finalizada (fim=${fimSessaoTs}).`);
           } else {
-            // Lógica de Cancelamento Limpo: Sessão nunca produziu nada
-            console.log(`[WATCHDOG] 🗑️ Sessão Inútil Removida (0 Peças): ${sessao.id}`);
+            // Lógica de Cancelamento Limpo: Sessão nunca teve prensada
+            console.log(`[WATCHDOG] 🗑️ Sessão Inútil Removida (0 Prensadas): ${sessao.id}`);
             await supabase.from("paradas_maquina").delete().eq("sessao_id", sessao.id);
             await supabase.from("pulsos_producao").delete().eq("sessao_id", sessao.id);
             await supabase.from("sessoes_producao").delete().eq("id", sessao.id);
@@ -472,8 +517,8 @@ async function watchdogCycle(): Promise<void> {
         }
       }
     }
-  } catch (err: any) {
-    console.error("[WATCHDOG] ❌ Erro no watchdog:", err.message);
+  } catch (err: unknown) {
+    console.error("[WATCHDOG] ❌ Erro no watchdog:", getErrorMessage(err));
   }
 }
 
@@ -503,7 +548,21 @@ async function recuperarPulsosFantasmas(): Promise<void> {
         .eq("maquina_id", alerta.maquina_id)
         .eq("status", "em_andamento");
 
-      if (!sessoes || sessoes.length === 0) continue;
+      const sessoesAtivas = (sessoes || []) as SessaoRecuperacao[];
+      if (sessoesAtivas.length === 0) continue;
+
+      const { data: alertasSemSaldo } = await supabase
+        .from("alertas_maquina")
+        .select("metadata")
+        .eq("maquina_id", alerta.maquina_id)
+        .eq("tipo", "modo_sem_saldo")
+        .eq("resolvido", false);
+
+      const sessoesSemSaldo = new Set(
+        (alertasSemSaldo || [])
+          .map((alertaSemSaldo) => alertaSemSaldo.metadata?.sessao_id)
+          .filter(Boolean)
+      );
 
       // Extrai os view_ids dos pulsos perdidos do metadata do alerta
       const pulsosPerdidos: { mariadb_id: number; timestamp: string }[] =
@@ -537,7 +596,7 @@ async function recuperarPulsosFantasmas(): Promise<void> {
         const timestampCiclo = new Date(row.timestamp);
         timestampCiclo.setHours(timestampCiclo.getHours() + 3);
 
-        for (const sessao of sessoes) {
+        for (const sessao of sessoesAtivas) {
           const { timestamp_ciclo: ultimoPulsoTs } = await getUltimoPulsoInfo(sessao.id);
           let intervaloSegundos: number | null = null;
 
@@ -546,11 +605,12 @@ async function recuperarPulsosFantasmas(): Promise<void> {
           }
 
           const pulsoId = `${row.view_id}_p${sessao.plato}`;
+          const qtdPecas = sessoesSemSaldo.has(sessao.id) ? 0 : (sessao.cavidades || 1);
 
           const { error } = await supabase.from("pulsos_producao").insert({
             sessao_id: sessao.id,
             timestamp_ciclo: timestampCiclo.toISOString(),
-            qtd_pecas: (sessao as any).cavidades || 1,
+            qtd_pecas: qtdPecas,
             intervalo_segundos: intervaloSegundos,
             ciclo_real: (row.temp_vulcaniz !== null && row.temp_vulcaniz !== undefined) ? Number(row.temp_vulcaniz) : null,
             mariadb_id: pulsoId,
@@ -575,8 +635,8 @@ async function recuperarPulsosFantasmas(): Promise<void> {
       await supabase.from("alertas_maquina").update({ resolvido: true }).eq("id", alerta.id);
       console.log(`[RECOVER] ✅ ${recuperados} pulso(s) retroativo(s) importados. Alerta resolvido.`);
     }
-  } catch (err: any) {
-    console.error("[RECOVER] ❌ Erro na recuperação de fantasmas:", err.message);
+  } catch (err: unknown) {
+    console.error("[RECOVER] ❌ Erro na recuperação de fantasmas:", getErrorMessage(err));
   } finally {
     if (mariaConnection) {
       try { await mariaConnection.end(); } catch { /* ignora */ }

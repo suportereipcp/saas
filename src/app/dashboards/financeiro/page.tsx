@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { calculateWorkingDays } from "@/utils/paineis/calendar";
 import { startOfMonth, endOfMonth, isSameMonth, isYesterday, parseISO, format, subDays } from "date-fns";
+import { SUPABASE_COOKIE_OPTIONS } from '@/lib/supabase-auth';
 
 import { Target, TrendingUp, TrendingDown, Briefcase, Calendar, Percent, ArrowDown, ArrowUp, BarChart3, PieChart as PieChartIcon, DollarSign, CheckCircle2 } from "lucide-react";
 import AnimatedCounter from "@/components/paineis/AnimatedCounter";
@@ -14,7 +15,10 @@ export default function FinanceiroPage() {
     const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        { db: { schema: 'dashboards_pcp' } }
+        {
+            cookieOptions: SUPABASE_COOKIE_OPTIONS,
+            db: { schema: 'dashboards_pcp' },
+        }
     );
 
     const [holidays, setHolidays] = useState<string[]>([]);

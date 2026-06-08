@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
-import { Loader2, Play, AlertTriangle, Layers, Search, Factory, ArrowLeft, XCircle, Settings, CheckCircle2, ChevronUp, ChevronDown, Check } from "lucide-react";
+import { Loader2, Play, Layers, Search, Factory, ArrowLeft, XCircle, Settings, CheckCircle2, ChevronUp, ChevronDown, Check, PackageX, Repeat2, Unlock, Flame } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,11 @@ interface Operador {
   nome: string;
 }
 
+interface MotivoParada {
+  id: string;
+  descricao: string;
+}
+
 interface SessaoAtiva {
   id: string;
   maquina_id: string;
@@ -41,12 +46,26 @@ interface SessaoAtiva {
 
 interface Parada {
   id: string;
+  maquina_id?: string | null;
   inicio_parada: string;
   fim_parada: string | null;
   motivo_id: string | null;
   justificada: boolean;
-  sessao_id: string;
+  sessao_id: string | null;
 }
+
+interface AlertaMaquina {
+  id: string;
+  maquina_id: string;
+  tipo: string;
+  resolvido: boolean;
+  metadata?: {
+    sessao_id?: string;
+    [key: string]: unknown;
+  } | null;
+}
+
+type AlertaSemSaldo = Pick<AlertaMaquina, "metadata">;
 
 // Removido MOTIVOS_PARADA hardcoded, será carregado via API
 
@@ -55,11 +74,13 @@ export default function OperadorPage() {
   const [selectedMaquina, setSelectedMaquina] = useState<string>("");
 
   const [maquinas, setMaquinas] = useState<Maquina[]>([]);
-  const [motivosParada, setMotivosParada] = useState<{ id: string; descricao: string }[]>([]);
+  const [motivosParada, setMotivosParada] = useState<MotivoParada[]>([]);
   const [sessoesAtivas, setSessoesAtivas] = useState<SessaoAtiva[]>([]);
   const [paradasPendentes, setParadasPendentes] = useState<Parada[]>([]);
   const [pulsosCount, setPulsosCount] = useState<Record<string, number>>({});
   const [ciclosCount, setCiclosCount] = useState<Record<string, number>>({});
+  const [prensadasVaziasCount, setPrensadasVaziasCount] = useState<Record<string, number>>({});
+  const [sessoesSemSaldo, setSessoesSemSaldo] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -75,8 +96,8 @@ export default function OperadorPage() {
   
   // Refugos e Modal
   const [modalAcoesOpen, setModalAcoesOpen] = useState(false);
-  const [refugosForms, setRefugosForms] = useState<Record<string, number>>({});
-  const [alertasPendentes, setAlertasPendentes] = useState<any[]>([]);
+  const [, setRefugosForms] = useState<Record<string, number>>({});
+  const [alertasPendentes, setAlertasPendentes] = useState<AlertaMaquina[]>([]);
   const [isRegistrandoParadaOrfa, setIsRegistrandoParadaOrfa] = useState(false);
 
   // Modal Cavidades
@@ -85,6 +106,15 @@ export default function OperadorPage() {
   const [cavidadesValue, setCavidadesValue] = useState<number>(1);
   const [isCavidadesRetroativo, setIsCavidadesRetroativo] = useState(true);
   const [maxCavidadesPermitido, setMaxCavidadesPermitido] = useState<number>(9999);
+
+  // Modais de apontamento especial
+  const [modalVaziasSessao, setModalVaziasSessao] = useState<SessaoAtiva | null>(null);
+  const [quantidadeVazias, setQuantidadeVazias] = useState<number>(1);
+  const [modalTrocaSessao, setModalTrocaSessao] = useState<SessaoAtiva | null>(null);
+  const [trocaBuscaProduto, setTrocaBuscaProduto] = useState("");
+  const [trocaProdutoSelecionado, setTrocaProdutoSelecionado] = useState<Produto | null>(null);
+  const [trocaProdutoOptions, setTrocaProdutoOptions] = useState<Produto[]>([]);
+  const [trocaModoEntrada, setTrocaModoEntrada] = useState<"saldo" | "sem_saldo">("saldo");
 
   // UX Modais de Busca
   const [platoSelecionandoProduto, setPlatoSelecionandoProduto] = useState<number | null>(null);
@@ -98,6 +128,8 @@ export default function OperadorPage() {
   // Refs para debounce + cancelamento de buscas (evita race condition)
   const produtoDebounceRef = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
   const produtoAbortRef = useRef<Record<number, AbortController>>({});
+  const trocaProdutoDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const trocaProdutoAbortRef = useRef<AbortController | null>(null);
   const operadorDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const operadorAbortRef = useRef<AbortController | null>(null);
 
@@ -113,9 +145,9 @@ export default function OperadorPage() {
     try {
       const resp = await fetch("/api/apont-rubber-prensa/motivos-parada");
       if (resp.ok) {
-        const { data } = await resp.json();
+        const { data }: { data?: Array<{ id: string | number; descricao: string }> } = await resp.json();
         if (data) {
-          setMotivosParada(data.map((m: any) => ({ id: m.id, descricao: m.descricao })));
+          setMotivosParada(data.map((m) => ({ id: String(m.id), descricao: m.descricao })));
         }
       }
     } catch (e) {
@@ -148,10 +180,122 @@ export default function OperadorPage() {
           const { data } = await res.json();
           setProdutoOptions((prev) => ({ ...prev, [plato]: data || [] }));
         }
-      } catch (e: any) {
-        if (e?.name !== "AbortError") console.error("fetch produto:", e);
+      } catch (e: unknown) {
+        if (!(e instanceof DOMException && e.name === "AbortError")) console.error("fetch produto:", e);
       }
     }, 300);
+  };
+
+  const searchProdutoTrocaAsync = (query: string) => {
+    setTrocaBuscaProduto(query);
+    setTrocaProdutoSelecionado(null);
+
+    if (trocaProdutoDebounceRef.current) clearTimeout(trocaProdutoDebounceRef.current);
+
+    if (!query || query.length < 2) {
+      setTrocaProdutoOptions([]);
+      return;
+    }
+
+    trocaProdutoDebounceRef.current = setTimeout(async () => {
+      if (trocaProdutoAbortRef.current) trocaProdutoAbortRef.current.abort();
+      const controller = new AbortController();
+      trocaProdutoAbortRef.current = controller;
+
+      try {
+        const res = await fetch(`/api/apont-rubber-prensa/produtos?q=${encodeURIComponent(query)}`, {
+          signal: controller.signal,
+        });
+        if (res.ok) {
+          const { data } = await res.json();
+          setTrocaProdutoOptions(data || []);
+        }
+      } catch (e: unknown) {
+        if (!(e instanceof DOMException && e.name === "AbortError")) console.error("fetch produto troca:", e);
+      }
+    }, 300);
+  };
+
+  const openTrocaItemModal = (sessao: SessaoAtiva) => {
+    setModalTrocaSessao(sessao);
+    setTrocaBuscaProduto("");
+    setTrocaProdutoSelecionado(null);
+    setTrocaProdutoOptions([]);
+    setTrocaModoEntrada("saldo");
+  };
+
+  const registrarPrensadasVazias = async () => {
+    if (!modalVaziasSessao) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch("/api/apont-rubber-prensa/sessoes/acoes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "registrar_vazias",
+          sessao_id: modalVaziasSessao.id,
+          quantidade: quantidadeVazias,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(`Erro ao registrar prensada vazia: ${err.error}`);
+        return;
+      }
+      setModalVaziasSessao(null);
+      setQuantidadeVazias(1);
+      await checkSessoesAtivas();
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const confirmarTrocaItem = async () => {
+    if (!modalTrocaSessao || !trocaProdutoSelecionado) return;
+    setActionLoading(true);
+    try {
+      const res = await fetch("/api/apont-rubber-prensa/sessoes/acoes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "trocar_item",
+          sessao_id: modalTrocaSessao.id,
+          novo_produto_codigo: trocaProdutoSelecionado.codigo_item,
+          modo_entrada: trocaModoEntrada,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(`Erro ao trocar item: ${err.error}`);
+        return;
+      }
+      setModalTrocaSessao(null);
+      await checkSessoesAtivas();
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const liberarSaldo = async (sessao: SessaoAtiva) => {
+    setActionLoading(true);
+    try {
+      const res = await fetch("/api/apont-rubber-prensa/sessoes/acoes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "liberar_saldo",
+          sessao_id: sessao.id,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(`Erro ao liberar saldo: ${err.error}`);
+        return;
+      }
+      await checkSessoesAtivas();
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const searchGlobalOperadorAsync = (query: string) => {
@@ -179,8 +323,8 @@ export default function OperadorPage() {
           const { data } = await res.json();
           setGlobalOperadorOptions(data || []);
         }
-      } catch (e: any) {
-        if (e?.name !== "AbortError") console.error("fetch operador:", e);
+      } catch (e: unknown) {
+        if (!(e instanceof DOMException && e.name === "AbortError")) console.error("fetch operador:", e);
       }
     }, 300);
   };
@@ -229,8 +373,8 @@ export default function OperadorPage() {
         try {
           const res = await fetch(`/api/apont-rubber-prensa/operadores?q=${encodeURIComponent(matricula)}`);
           if (res.ok) {
-            const { data } = await res.json();
-            const found = data?.find((op: any) => String(op.matricula) === String(matricula));
+            const { data }: { data?: Operador[] } = await res.json();
+            const found = data?.find((op) => String(op.matricula) === String(matricula));
             if (found) {
               setGlobalOperadorNome(found.nome);
               setBuscaGlobalOperador(found.nome);
@@ -252,8 +396,25 @@ export default function OperadorPage() {
       .eq("tipo", "producao_fantasma");
     setAlertasPendentes(alertas || []);
 
+    const { data: alertasModoSemSaldo } = await supabase
+      .schema("apont_rubber_prensa")
+      .from("alertas_maquina")
+      .select("metadata")
+      .eq("maquina_id", selectedMaquina)
+      .eq("resolvido", false)
+      .eq("tipo", "modo_sem_saldo");
+
+    const semSaldoMap: Record<string, boolean> = {};
+    ((alertasModoSemSaldo || []) as AlertaSemSaldo[]).forEach((alerta) => {
+      if (alerta.metadata?.sessao_id) {
+        semSaldoMap[alerta.metadata.sessao_id] = true;
+      }
+    });
+    setSessoesSemSaldo(semSaldoMap);
+
     const counts: Record<string, number> = {};
     const cycles: Record<string, number> = {};
+    const vazias: Record<string, number> = {};
     for (const s of sessoes) {
       const { data: pulsos } = await supabase
         .schema("apont_rubber_prensa")
@@ -264,11 +425,13 @@ export default function OperadorPage() {
       const sumPecas = (pulsos || []).reduce((acc, p) => acc + (p.qtd_pecas || 0), 0);
       counts[s.id] = sumPecas;
       cycles[s.id] = (pulsos || []).length;
+      vazias[s.id] = (pulsos || []).filter((p) => (p.qtd_pecas || 0) === 0).length;
     }
     setPulsosCount(counts);
     setCiclosCount(cycles);
+    setPrensadasVaziasCount(vazias);
 
-    let paradasGlobais: any[] = [];
+    let paradasGlobais: Parada[] = [];
     if (sessoes.length > 0) {
       const sessaoIds = sessoes.map((s) => s.id);
       const { data: paradas } = await supabase
@@ -292,7 +455,7 @@ export default function OperadorPage() {
     if (paradaOrfa) paradasGlobais = [...paradasGlobais, ...paradaOrfa];
     
     setParadasPendentes(paradasGlobais);
-  }, [selectedMaquina]);
+  }, [selectedMaquina, globalOperador]);
 
   useEffect(() => {
     // 1. Restaura a sessão da máquina fixada caso de F5
@@ -558,7 +721,7 @@ export default function OperadorPage() {
   // CÁLCULO DE STATUS GLOBAL DA MÁQUINA
   const paradasDaMaquina = paradasPendentes.filter(p => sessoesAtivas.some(s => s.id === p.sessao_id));
   const paradasDeSessoes = paradasDaMaquina;
-  const paradaOrfaAberta = paradasPendentes.find(p => (p as any).maquina_id === maquinaAtiva.id && p.sessao_id === null && p.fim_parada === null);
+  const paradaOrfaAberta = paradasPendentes.find(p => p.maquina_id === maquinaAtiva.id && p.sessao_id === null && p.fim_parada === null);
   
   const isAnyPlatoMaintenance = paradasDaMaquina.some(p => p.justificada && p.motivo_id === "manutencao");
   const isAnyPlatoParadoNaoJustificado = paradasDaMaquina.some(p => !p.justificada);
@@ -583,12 +746,12 @@ export default function OperadorPage() {
     statusHeaderBgClass = "bg-emerald-600 text-white";
   } else if (isAnyPlatoOutraParada) {
     const paradaRef = paradasDeSessoes.find(p => p.justificada && p.motivo_id !== "manutencao");
-    const descMotivo = motivosParada.find((m: any) => m.id.toString() === paradaRef?.motivo_id?.toString())?.descricao;
+    const descMotivo = motivosParada.find((m) => m.id.toString() === paradaRef?.motivo_id?.toString())?.descricao;
     statusGlobal = descMotivo ? `PARADA - ${descMotivo}` : "MÁQUINA PARADA (JUSTIFICADA)";
     statusColorClass = "border-gray-500 bg-gray-100 dark:bg-gray-800";
     statusHeaderBgClass = "bg-gray-600 text-white";
   } else if (paradaOrfaAberta && paradaOrfaAberta.justificada) {
-    const descMotivo = motivosParada.find((m: any) => m.id.toString() === paradaOrfaAberta.motivo_id?.toString())?.descricao;
+    const descMotivo = motivosParada.find((m) => m.id.toString() === paradaOrfaAberta.motivo_id?.toString())?.descricao;
     statusGlobal = descMotivo ? `MÁQUINA PARADA - ${descMotivo.toUpperCase()}` : "MÁQUINA PARADA";
     statusColorClass = "border-[#ff0707] dark:border-[#ff0707] bg-[#ff0707]/10 dark:bg-[#ff0707]/20";
     statusHeaderBgClass = "bg-[#ff0707] dark:bg-[#ff0707] text-white";
@@ -727,7 +890,8 @@ export default function OperadorPage() {
               Array.from({ length: maquinaAtiva.qtd_platos }, (_, i) => i + 1).map((plato) => {
                 const sessaoAtiva = sessoesAtivas.find((s) => s.maquina_id === maquinaAtiva.id && s.plato === plato);
                 const formData = formsData[plato] || { produto: "", buscaProduto: "" };
-                const pOptions = produtoOptions[plato] || [];
+                const isSessaoSemSaldo = Boolean(sessaoAtiva && sessoesSemSaldo[sessaoAtiva.id]);
+                const vaziasDaSessao = sessaoAtiva ? (prensadasVaziasCount[sessaoAtiva.id] || 0) : 0;
 
                 return (
                   <Card key={plato} className={`flex flex-col shadow-sm h-full backdrop-blur border-border sm:border-[2px] xl:border-[3px] ${sessaoAtiva ? 'bg-[#059669] text-white border-[#059669]/80' : 'bg-background/90'}`}>
@@ -764,18 +928,65 @@ export default function OperadorPage() {
 
                     <CardContent className="p-2 sm:p-3 xl:p-6 flex-1 flex flex-col justify-center">
                       {sessaoAtiva ? (
-                        /* PLATO OCUPADO - Layout horizontal compacto */
-                        <div className="flex items-center justify-between w-full gap-2 sm:gap-4">
-                          <div className="flex flex-col justify-center min-w-0 flex-1">
-                            <span className="text-2xl sm:text-3xl xl:text-5xl font-black text-white truncate" title={sessaoAtiva.produto_codigo}>
-                              {sessaoAtiva.produto_codigo}
-                            </span>
+                        <div className="flex flex-col gap-3 xl:gap-5">
+                          {isSessaoSemSaldo && (
+                            <div className="flex items-center justify-between gap-3 rounded-lg border-2 border-amber-300 bg-amber-100 px-3 py-2 text-amber-950 shadow-sm">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <Flame className="w-5 h-5 xl:w-7 xl:h-7 shrink-0" />
+                                <span className="text-xs sm:text-sm xl:text-xl font-black uppercase tracking-wider truncate">
+                                  Sem saldo - aquecendo
+                                </span>
+                              </div>
+                              <Button
+                                disabled={actionLoading}
+                                onClick={() => liberarSaldo(sessaoAtiva)}
+                                className="h-9 xl:h-12 px-3 xl:px-5 bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-[10px] sm:text-xs xl:text-base rounded-full"
+                              >
+                                <Unlock className="w-4 h-4 xl:w-5 xl:h-5 mr-1" />
+                                Liberar saldo
+                              </Button>
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-between w-full gap-2 sm:gap-4">
+                            <div className="flex flex-col justify-center min-w-0 flex-1">
+                              <span className="text-2xl sm:text-3xl xl:text-5xl font-black text-white truncate" title={sessaoAtiva.produto_codigo}>
+                                {sessaoAtiva.produto_codigo}
+                              </span>
+                              {vaziasDaSessao > 0 && (
+                                <span className="text-xs sm:text-sm xl:text-lg font-black uppercase tracking-wider text-white/80 mt-1">
+                                  {vaziasDaSessao} {vaziasDaSessao === 1 ? "vazia" : "vazias"}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-baseline gap-1 sm:gap-2 flex-shrink-0 ml-auto">
+                              <span className="text-4xl sm:text-5xl xl:text-7xl font-black text-white font-mono leading-none">{pulsosCount[sessaoAtiva.id] || 0}</span>
+                              <span className="text-xs sm:text-sm xl:text-xl font-bold text-white tracking-wider">pçs /</span>
+                              <span className="text-4xl sm:text-5xl xl:text-7xl font-black text-white font-mono leading-none">{ciclosCount[sessaoAtiva.id] || 0}</span>
+                              <span className="text-xs sm:text-sm xl:text-xl font-bold text-white tracking-wider">{(ciclosCount[sessaoAtiva.id] || 0) === 1 ? 'prensada' : 'prensadas'}</span>
+                            </div>
                           </div>
-                          <div className="flex items-baseline gap-1 sm:gap-2 flex-shrink-0 ml-auto">
-                            <span className="text-4xl sm:text-5xl xl:text-7xl font-black text-white font-mono leading-none">{pulsosCount[sessaoAtiva.id] || 0}</span>
-                            <span className="text-xs sm:text-sm xl:text-xl font-bold text-white tracking-wider">pçs /</span>
-                            <span className="text-4xl sm:text-5xl xl:text-7xl font-black text-white font-mono leading-none">{ciclosCount[sessaoAtiva.id] || 0}</span>
-                            <span className="text-xs sm:text-sm xl:text-xl font-bold text-white tracking-wider">{(ciclosCount[sessaoAtiva.id] || 0) === 1 ? 'prensada' : 'prensadas'}</span>
+
+                          <div className="grid grid-cols-2 gap-2 xl:gap-4">
+                            <Button
+                              disabled={actionLoading}
+                              onClick={() => {
+                                setModalVaziasSessao(sessaoAtiva);
+                                setQuantidadeVazias(1);
+                              }}
+                              className="h-11 sm:h-12 xl:h-16 bg-amber-300 hover:bg-amber-400 border border-amber-100/80 text-amber-950 font-black uppercase text-[11px] sm:text-xs xl:text-lg rounded-xl"
+                            >
+                              <PackageX className="w-4 h-4 xl:w-6 xl:h-6 mr-2" />
+                              Registrar vazia
+                            </Button>
+                            <Button
+                              disabled={actionLoading}
+                              onClick={() => openTrocaItemModal(sessaoAtiva)}
+                              className="h-11 sm:h-12 xl:h-16 bg-orange-500 hover:bg-orange-600 border border-orange-300/80 text-white font-black uppercase text-[11px] sm:text-xs xl:text-lg rounded-xl"
+                            >
+                              <Repeat2 className="w-4 h-4 xl:w-6 xl:h-6 mr-2" />
+                              Troca de item
+                            </Button>
                           </div>
                         </div>
                       ) : sessoesAtivas.length > 0 ? (
@@ -969,6 +1180,183 @@ export default function OperadorPage() {
             )}
 
           </div>
+        </div>
+      )}
+
+      {/* MODAL DE PRENSADAS VAZIAS */}
+      {modalVaziasSessao && (
+        <div className="fixed inset-0 z-[105] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 sm:p-6 animate-in fade-in zoom-in duration-200">
+          <Card className="w-full max-w-xl bg-background shadow-2xl overflow-hidden border-2 border-amber-300 rounded-2xl">
+            <CardHeader className="bg-amber-50 p-4 sm:p-6 xl:p-8 flex flex-row items-center justify-between border-b border-amber-200">
+              <CardTitle className="text-xl sm:text-2xl xl:text-3xl font-black uppercase tracking-wider text-amber-950 flex items-center gap-3">
+                <PackageX className="w-7 h-7 xl:w-9 xl:h-9" />
+                Prensada vazia
+              </CardTitle>
+              <Button variant="ghost" className="h-10 w-10 sm:h-14 sm:w-14 p-0 rounded-full hover:bg-amber-100" onClick={() => setModalVaziasSessao(null)}>
+                <XCircle className="w-8 h-8 sm:w-12 sm:h-12 text-amber-900" />
+              </Button>
+            </CardHeader>
+            <CardContent className="p-5 sm:p-8 xl:p-10 flex flex-col gap-6 xl:gap-8">
+              <div className="text-center">
+                <p className="text-sm xl:text-xl font-bold text-muted-foreground uppercase tracking-wider">Produto</p>
+                <p className="text-4xl xl:text-6xl font-black text-foreground">{modalVaziasSessao.produto_codigo}</p>
+              </div>
+
+              <div className="flex items-center justify-center gap-6">
+                <Button
+                  disabled={quantidadeVazias <= 1}
+                  onClick={() => setQuantidadeVazias(Math.max(1, quantidadeVazias - 1))}
+                  className="w-16 h-16 xl:w-20 xl:h-20 rounded-full bg-muted hover:bg-amber-100 text-foreground"
+                >
+                  <ChevronDown className="w-9 h-9 xl:w-12 xl:h-12" />
+                </Button>
+
+                <input
+                  type="number"
+                  min={1}
+                  max={200}
+                  value={quantidadeVazias}
+                  onChange={(event) => setQuantidadeVazias(Math.max(1, Math.min(200, Number(event.target.value) || 1)))}
+                  className="w-32 h-24 xl:w-44 xl:h-32 rounded-2xl border-[6px] border-amber-400 bg-amber-50 text-center text-5xl xl:text-7xl font-black text-amber-950 shadow-inner"
+                />
+
+                <Button
+                  disabled={quantidadeVazias >= 200}
+                  onClick={() => setQuantidadeVazias(Math.min(200, quantidadeVazias + 1))}
+                  className="w-16 h-16 xl:w-20 xl:h-20 rounded-full bg-muted hover:bg-amber-100 text-foreground"
+                >
+                  <ChevronUp className="w-9 h-9 xl:w-12 xl:h-12" />
+                </Button>
+              </div>
+
+              <div className="flex gap-3 xl:gap-6">
+                <Button
+                  variant="outline"
+                  onClick={() => setModalVaziasSessao(null)}
+                  className="flex-1 h-14 xl:h-16 text-base xl:text-xl font-bold"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  disabled={actionLoading}
+                  onClick={registrarPrensadasVazias}
+                  className="flex-1 h-14 xl:h-16 bg-amber-600 hover:bg-amber-700 text-white text-base xl:text-xl font-black uppercase"
+                >
+                  {actionLoading ? <Loader2 className="w-5 h-5 xl:w-7 xl:h-7 animate-spin mr-2" /> : <Check className="w-5 h-5 xl:w-7 xl:h-7 mr-2" />}
+                  Registrar
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* MODAL DE TROCA DE ITEM */}
+      {modalTrocaSessao && (
+        <div className="fixed inset-0 z-[105] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 sm:p-6 animate-in fade-in zoom-in duration-200">
+          <Card className="w-full max-w-4xl bg-background shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border-2 border-primary/20 rounded-2xl">
+            <CardHeader className="bg-muted p-4 sm:p-6 xl:p-8 flex flex-row items-center justify-between border-b border-border">
+              <CardTitle className="text-xl sm:text-3xl xl:text-4xl font-black uppercase tracking-wider text-foreground flex items-center gap-3">
+                <Repeat2 className="w-8 h-8 xl:w-10 xl:h-10" />
+                Troca de item
+              </CardTitle>
+              <Button variant="ghost" className="h-10 w-10 sm:h-14 sm:w-14 p-0 rounded-full hover:bg-destructive/10" onClick={() => setModalTrocaSessao(null)}>
+                <XCircle className="w-8 h-8 sm:w-12 sm:h-12 text-muted-foreground hover:text-destructive transition-colors" />
+              </Button>
+            </CardHeader>
+
+            <CardContent className="p-4 sm:p-6 xl:p-8 overflow-y-auto flex-1 space-y-5 xl:space-y-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 xl:gap-6">
+                <div className="rounded-xl border-2 border-border bg-muted/30 p-4 xl:p-6">
+                  <p className="text-xs xl:text-base font-black uppercase tracking-wider text-muted-foreground">Sai</p>
+                  <p className="text-3xl xl:text-5xl font-black text-foreground">{modalTrocaSessao.produto_codigo}</p>
+                </div>
+                <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4 xl:p-6">
+                  <p className="text-xs xl:text-base font-black uppercase tracking-wider text-muted-foreground">Entra</p>
+                  <p className="text-3xl xl:text-5xl font-black text-foreground">
+                    {trocaProdutoSelecionado?.codigo_item || "-"}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <div className="relative mb-4">
+                  <Search className="absolute left-5 xl:left-6 top-4 xl:top-5 w-6 h-6 xl:w-8 xl:h-8 text-muted-foreground" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={trocaBuscaProduto}
+                    onChange={(event) => searchProdutoTrocaAsync(event.target.value)}
+                    placeholder="Busque o novo item..."
+                    className="flex h-14 sm:h-16 xl:h-20 w-full rounded-xl border-2 border-input bg-background pl-14 xl:pl-20 pr-4 text-lg sm:text-2xl xl:text-3xl ring-offset-background focus-visible:outline-none focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/20 shadow-sm"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 max-h-64 xl:max-h-80 overflow-y-auto pr-1">
+                  {trocaProdutoOptions.map((prod) => (
+                    <button
+                      key={prod.codigo_item}
+                      onClick={() => {
+                        setTrocaProdutoSelecionado(prod);
+                        setTrocaBuscaProduto(prod.codigo_item);
+                        setTrocaProdutoOptions([]);
+                      }}
+                      className={`w-full p-4 xl:p-6 text-left hover:bg-primary/5 border-2 rounded-xl transition-all ${trocaProdutoSelecionado?.codigo_item === prod.codigo_item ? "border-primary bg-primary/10" : "border-border"}`}
+                    >
+                      <span className="font-black text-foreground text-xl sm:text-2xl xl:text-3xl tracking-tight">{prod.codigo_item}</span>
+                      <span className="block text-sm sm:text-base xl:text-xl text-muted-foreground font-medium truncate">{prod.descricao}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 xl:gap-5">
+                <button
+                  onClick={() => setTrocaModoEntrada("saldo")}
+                  className={`rounded-xl border-2 p-4 xl:p-6 text-left transition-all ${trocaModoEntrada === "saldo" ? "border-emerald-500 bg-emerald-50" : "border-border hover:bg-muted/40"}`}
+                >
+                  <span className="flex items-center gap-2 text-lg xl:text-2xl font-black text-foreground uppercase">
+                    <CheckCircle2 className="w-6 h-6 xl:w-8 xl:h-8 text-emerald-600" />
+                    Entrou quente
+                  </span>
+                  <span className="block mt-2 text-sm xl:text-lg font-medium text-muted-foreground">
+                    Gera saldo nas próximas prensadas.
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setTrocaModoEntrada("sem_saldo")}
+                  className={`rounded-xl border-2 p-4 xl:p-6 text-left transition-all ${trocaModoEntrada === "sem_saldo" ? "border-amber-500 bg-amber-50" : "border-border hover:bg-muted/40"}`}
+                >
+                  <span className="flex items-center gap-2 text-lg xl:text-2xl font-black text-foreground uppercase">
+                    <Flame className="w-6 h-6 xl:w-8 xl:h-8 text-amber-600" />
+                    Aquecendo
+                  </span>
+                  <span className="block mt-2 text-sm xl:text-lg font-medium text-muted-foreground">
+                    Registra prensadas sem saldo até liberar.
+                  </span>
+                </button>
+              </div>
+            </CardContent>
+
+            <div className="px-5 py-4 xl:px-8 xl:py-6 border-t border-border bg-muted/40 flex gap-3 xl:gap-6">
+              <Button
+                variant="outline"
+                onClick={() => setModalTrocaSessao(null)}
+                className="flex-1 h-14 xl:h-16 text-base xl:text-xl font-bold"
+              >
+                Cancelar
+              </Button>
+              <Button
+                disabled={actionLoading || !trocaProdutoSelecionado}
+                onClick={confirmarTrocaItem}
+                className="flex-1 h-14 xl:h-16 bg-[#0147CC] hover:bg-[#013aa6] text-white text-base xl:text-xl font-black uppercase"
+              >
+                {actionLoading ? <Loader2 className="w-5 h-5 xl:w-7 xl:h-7 animate-spin mr-2" /> : <Check className="w-5 h-5 xl:w-7 xl:h-7 mr-2" />}
+                Confirmar troca
+              </Button>
+            </div>
+          </Card>
         </div>
       )}
 

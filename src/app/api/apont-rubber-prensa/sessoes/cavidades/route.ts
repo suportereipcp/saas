@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { SUPABASE_COOKIE_OPTIONS } from "@/lib/supabase-auth";
 
 async function getSupabase() {
   const cookieStore = await cookies();
@@ -9,6 +10,7 @@ async function getSupabase() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      cookieOptions: SUPABASE_COOKIE_OPTIONS,
       cookies: {
         getAll() {
           return cookieStore.getAll();
@@ -53,11 +55,13 @@ export async function PATCH(req: NextRequest) {
         { db: { schema: "apont_rubber_prensa" } }
       );
 
-      // Atualiza pulsos daquela sessão
+      // Atualiza somente pulsos produtivos. Prensadas vazias (qtd_pecas = 0)
+      // continuam sem saldo mesmo quando a cavidade muda.
       const { data: pulsos, error: errPulsos } = await supabaseAdmin
         .from("pulsos_producao")
         .update({ qtd_pecas: novas_cavidades })
         .eq("sessao_id", sessao_id)
+        .gt("qtd_pecas", 0)
         .select("id");
 
       if (errPulsos) {
@@ -66,7 +70,12 @@ export async function PATCH(req: NextRequest) {
       }
 
       // Recalcular Total da Sessão
-      const totalNovo = (pulsos?.length || 0) * novas_cavidades;
+      const { data: todosPulsos } = await supabaseAdmin
+        .from("pulsos_producao")
+        .select("qtd_pecas")
+        .eq("sessao_id", sessao_id);
+
+      const totalNovo = (todosPulsos || []).reduce((acc, pulso) => acc + (pulso.qtd_pecas || 0), 0);
       
       const { error: calcError } = await supabaseAdmin
         .from("sessoes_producao")
@@ -82,8 +91,9 @@ export async function PATCH(req: NextRequest) {
     }
 
     return NextResponse.json({ data: sessaoAtualizada }, { status: 200 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[API] PATCH /sessoes/cavidades", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Erro interno";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

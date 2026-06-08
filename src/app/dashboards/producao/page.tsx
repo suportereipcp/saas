@@ -7,12 +7,16 @@ import { calculateWorkingDays } from "@/utils/paineis/calendar";
 import { startOfYear, endOfYear, startOfMonth, endOfMonth, format, isSameMonth } from "date-fns";
 
 import { createBrowserClient } from '@supabase/ssr';
+import { SUPABASE_COOKIE_OPTIONS } from '@/lib/supabase-auth';
 
 export default function ProducaoPage() {
     const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        { db: { schema: 'dashboards_pcp' } }
+        {
+            cookieOptions: SUPABASE_COOKIE_OPTIONS,
+            db: { schema: 'dashboards_pcp' },
+        }
     );
 
     // State for Dynamic Data
@@ -327,23 +331,26 @@ export default function ProducaoPage() {
     // Use configured annual meta for daily capacity calc if needed, but for monthly target use DB value directly as requested.
     const metaMensal = stats.metaMensal;
     const atendidoMensal = stats.producaoMensal;
+    const faltaMetaMensal = Math.max(0, metaMensal - atendidoMensal);
     const pctMensal = metaMensal > 0 ? (atendidoMensal / metaMensal) * 100 : 0;
-    const dataMensal = [{ name: "Atendido", value: atendidoMensal }, { name: "Restante", value: Math.max(0, metaMensal - atendidoMensal) }];
+    const dataMensal = [{ name: "Atendido", value: atendidoMensal }, { name: "Restante", value: faltaMetaMensal }];
 
     const metaAnual = stats.metaAnual;
     // Atendido anual = Soma Produção Anual (Calculada do Banco) + Valor Fechado Anterior (Metas DB)
     const atendidoAnual = stats.producaoAnual + stats.valorFechadoAnterior;
+    const faltaMetaAnual = Math.max(0, metaAnual - atendidoAnual);
     const pctAnual = metaAnual > 0 ? (atendidoAnual / metaAnual) * 100 : 0;
-    const dataAnual = [{ name: "Atendido", value: atendidoAnual }, { name: "Restante", value: Math.max(0, metaAnual - atendidoAnual) }];
+    const dataAnual = [{ name: "Atendido", value: atendidoAnual }, { name: "Restante", value: faltaMetaAnual }];
 
     const COLORS = ["#83e0b6", "#e2e8f0"];
 
     // Pacing Calculations
     const daysPassed = stats.realizedDaysMonth;
     const remainingDays = Math.max(0, stats.workingDaysMonth - daysPassed);
-    const mediaNecessaria = remainingDays > 0 ? (metaMensal - atendidoMensal) / remainingDays : 0;
+    const remainingDaysYear = Math.max(0, stats.workingDaysYear - stats.realizedDaysYear);
+    const mediaNecessaria = remainingDays > 0 ? faltaMetaMensal / remainingDays : 0;
 
-    const mediaAnualNecessaria = (metaAnual - atendidoAnual) / (stats.workingDaysYear > 0 ? stats.workingDaysYear : 1); // Simplified
+    const mediaAnualNecessaria = remainingDaysYear > 0 ? faltaMetaAnual / remainingDaysYear : 0;
 
     // Dynamic Averages (Using CLOSED Data: Up to Yesterday)
     const mediaMensalAtual = stats.realizedDaysMonth > 0 ? stats.producaoMensalClosed / stats.realizedDaysMonth : 0;
@@ -415,7 +422,7 @@ export default function ProducaoPage() {
                             <div className="absolute top-0 right-0 p-2 xl:p-3 opacity-20"><Target className="w-8 h-8 xl:w-12 xl:h-12 text-white" /></div>
                             <div className="relative z-10 flex flex-col">
                                 <span className="font-semibold text-xs xl:text-sm opacity-90 mb-0 xl:mb-1 uppercase tracking-wider text-white">Falta Meta Mensal</span>
-                                <span className="text-2xl xl:text-4xl 2xl:text-5xl font-bold tracking-tight drop-shadow-md text-white">{fmtNum(Math.max(0, metaMensal - atendidoMensal))}</span>
+                                <span className="text-2xl xl:text-4xl 2xl:text-5xl font-bold tracking-tight drop-shadow-md text-white">{fmtNum(faltaMetaMensal)}</span>
                             </div>
                         </div>
                         <div className="bg-[#3b82f6] rounded-xl p-3 xl:p-2 text-white shadow-lg relative overflow-hidden group flex-1 flex flex-col justify-center min-h-[60px] xl:min-h-[50px]">
@@ -473,7 +480,7 @@ export default function ProducaoPage() {
                             <div className="absolute top-0 right-0 p-2 xl:p-3 opacity-20"><Target className="w-8 h-8 xl:w-12 xl:h-12 text-white" /></div>
                             <div className="relative z-10 flex flex-col">
                                 <span className="font-semibold text-xs xl:text-sm opacity-90 mb-0 xl:mb-1 uppercase tracking-wider text-white">Falta Meta Anual</span>
-                                <span className="text-2xl xl:text-4xl 2xl:text-5xl font-bold tracking-tight drop-shadow-md text-white">{fmtNum(Math.max(0, metaAnual - atendidoAnual))}</span>
+                                <span className="text-2xl xl:text-4xl 2xl:text-5xl font-bold tracking-tight drop-shadow-md text-white">{fmtNum(faltaMetaAnual)}</span>
                             </div>
                         </div>
                         <div className="bg-[#3b82f6] rounded-xl p-3 xl:p-2 text-white shadow-lg relative overflow-hidden group flex-1 flex flex-col justify-center min-h-[60px] xl:min-h-[50px]">
@@ -499,7 +506,7 @@ export default function ProducaoPage() {
                         <div className="bg-muted/50 border-b border-border p-1 xl:p-2 flex justify-between px-2 xl:px-4 text-muted-foreground">
                             <div className="text-center"><span className="text-[10px] xl:text-xs font-bold uppercase text-muted-foreground block">Dias Úteis</span><span className="text-xl xl:text-3xl font-bold text-[#374151]">{stats.workingDaysYear}</span></div>
                             <div className="text-center"><span className="text-[10px] xl:text-xs font-bold uppercase text-muted-foreground block">Realizados</span><span className="text-xl xl:text-3xl font-bold text-foreground">{stats.realizedDaysYear}</span></div>
-                            <div className="text-center"><span className="text-[10px] xl:text-xs font-bold uppercase text-muted-foreground block">Restantes</span><span className="text-xl xl:text-3xl font-bold text-foreground">{Math.max(0, stats.workingDaysYear - stats.realizedDaysYear)}</span></div>
+                            <div className="text-center"><span className="text-[10px] xl:text-xs font-bold uppercase text-muted-foreground block">Restantes</span><span className="text-xl xl:text-3xl font-bold text-foreground">{remainingDaysYear}</span></div>
                         </div>
                         <div className="flex-1 flex flex-col items-center justify-center p-2 xl:p-4 pb-4 xl:pb-6">
                             {/* Simple SVG Circular Gauge */}
