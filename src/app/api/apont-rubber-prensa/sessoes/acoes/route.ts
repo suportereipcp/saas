@@ -1,14 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
+let supabaseAdminClient: ReturnType<typeof createClient> | null = null;
+
+function getSupabaseAdmin() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error("SUPABASE_SERVICE_ROLE_KEY ausente no ambiente de runtime.");
+  }
+
+  supabaseAdminClient ??= createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
     db: { schema: "apont_rubber_prensa" },
-  }
-);
+  });
+
+  return supabaseAdminClient;
+}
 
 type SessaoProducao = {
   id: string;
@@ -20,7 +29,7 @@ type SessaoProducao = {
 };
 
 async function getSessao(sessaoId: string) {
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await getSupabaseAdmin()
     .from("sessoes_producao")
     .select("id, maquina_id, produto_codigo, plato, operador_matricula, cavidades")
     .eq("id", sessaoId)
@@ -35,7 +44,7 @@ async function getSessao(sessaoId: string) {
 }
 
 async function getPulsosResumo(sessaoId: string) {
-  const { data: pulsos, error } = await supabaseAdmin
+  const { data: pulsos, error } = await getSupabaseAdmin()
     .from("pulsos_producao")
     .select("qtd_pecas, timestamp_ciclo")
     .eq("sessao_id", sessaoId)
@@ -53,7 +62,7 @@ async function getPulsosResumo(sessaoId: string) {
 
 async function recalcularSessao(sessaoId: string) {
   const resumo = await getPulsosResumo(sessaoId);
-  const { error } = await supabaseAdmin
+  const { error } = await getSupabaseAdmin()
     .from("sessoes_producao")
     .update({ qtd_produzida: resumo.total })
     .eq("id", sessaoId);
@@ -66,12 +75,13 @@ async function finalizarOuRemoverSessao(sessao: SessaoProducao) {
   const resumo = await getPulsosResumo(sessao.id);
 
   if (resumo.count === 0) {
+    const supabaseAdmin = getSupabaseAdmin();
     await supabaseAdmin.from("paradas_maquina").delete().eq("sessao_id", sessao.id);
     await supabaseAdmin.from("sessoes_producao").delete().eq("id", sessao.id);
     return { deleted: true, total: 0 };
   }
 
-  const { error } = await supabaseAdmin
+  const { error } = await getSupabaseAdmin()
     .from("sessoes_producao")
     .update({
       status: "finalizado",
@@ -85,7 +95,7 @@ async function finalizarOuRemoverSessao(sessao: SessaoProducao) {
 }
 
 async function encerrarModoSemSaldo(sessaoId: string) {
-  const { data: alertas, error } = await supabaseAdmin
+  const { data: alertas, error } = await getSupabaseAdmin()
     .from("alertas_maquina")
     .select("id, metadata")
     .eq("tipo", "modo_sem_saldo")
@@ -99,7 +109,7 @@ async function encerrarModoSemSaldo(sessaoId: string) {
 
   if (ids.length === 0) return;
 
-  const { error: updateError } = await supabaseAdmin
+  const { error: updateError } = await getSupabaseAdmin()
     .from("alertas_maquina")
     .update({ resolvido: true, updated_at: new Date().toISOString() })
     .in("id", ids);
@@ -108,7 +118,7 @@ async function encerrarModoSemSaldo(sessaoId: string) {
 }
 
 async function getCavidadesPadrao(produtoCodigo: string) {
-  const { data } = await supabaseAdmin
+  const { data } = await getSupabaseAdmin()
     .from("vw_produtos_datasul")
     .select("cavidades")
     .eq("codigo_item", produtoCodigo)
@@ -143,7 +153,7 @@ export async function POST(req: NextRequest) {
         mariadb_id: `manual_empty_${now}_${index}_p${sessao.plato}`,
       }));
 
-      const { error } = await supabaseAdmin.from("pulsos_producao").insert(registros);
+      const { error } = await getSupabaseAdmin().from("pulsos_producao").insert(registros);
       if (error) throw error;
 
       const resumo = await recalcularSessao(sessao.id);
@@ -177,7 +187,7 @@ export async function POST(req: NextRequest) {
 
       const cavidades = await getCavidadesPadrao(novoProdutoCodigo);
 
-      const { data: novaSessao, error: insertError } = await supabaseAdmin
+      const { data: novaSessao, error: insertError } = await getSupabaseAdmin()
         .from("sessoes_producao")
         .insert({
           maquina_id: sessaoAtual.maquina_id,
@@ -194,7 +204,7 @@ export async function POST(req: NextRequest) {
       if (insertError) throw insertError;
 
       if (modoEntrada === "sem_saldo") {
-        const { error: alertaError } = await supabaseAdmin.from("alertas_maquina").insert({
+        const { error: alertaError } = await getSupabaseAdmin().from("alertas_maquina").insert({
           maquina_id: sessaoAtual.maquina_id,
           tipo: "modo_sem_saldo",
           resolvido: false,
