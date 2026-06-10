@@ -1,5 +1,6 @@
 import mysql from "mysql2/promise";
 import { createClient } from "@supabase/supabase-js";
+import WebSocket from "ws";
 
 // --- Configuração via variáveis de ambiente ---
 const MARIADB_URL = process.env.MARIADB_APONTAMENTOS_URL || "";
@@ -11,6 +12,7 @@ const SYNC_INTERVAL_MS = Number(process.env.SYNC_INTERVAL_MS) || 10_000;
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
   db: { schema: "apont_rubber_prensa" },
   auth: { autoRefreshToken: false, persistSession: false },
+  realtime: { transport: WebSocket },
 });
 
 type SyncSessao = {

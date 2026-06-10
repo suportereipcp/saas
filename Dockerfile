@@ -76,7 +76,7 @@ RUN chmod +x ./run_prod.sh
 RUN npm install -g tsx typescript
 
 # Instalar dependências exclusivas dos scripts (não embutidas pelo Next standalone)
-RUN npm install mysql2 @supabase/supabase-js dotenv
+RUN npm install mysql2 @supabase/supabase-js dotenv ws
 
 # Define permissões e usuário
 USER nextjs
